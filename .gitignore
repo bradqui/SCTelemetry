@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Build output
+build/
+dist/
+*.spec.bak
+web/dist/
+node_modules/
+
+# Local data / secrets
+.env
+.env.*
+!.env.example
+*.db
+*.sqlite3
+*.protoset
+logs/
+
+# Raw (unscrubbed) captures — only scrubbed fixtures in /fixtures are committed
+captures/
+
+# Editor / tooling
+.vscode/
+.idea/
+.sf/
+.sfdx/
+.DS_Store
+Thumbs.db

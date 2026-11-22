@@ -6,7 +6,7 @@ Star Citizen org fleet telemetry: Windows agent → FastAPI hub → PWA + Butler
 
 - Do **not** copy code from `TheBanjolorian/7hills-link`. It has no license, so implement from the documented behavior only.
 - Agent local servers bind `127.0.0.1` only. There is no command path from the network to the game, ever.
-- Unshared fields (vitals and aUEC are off by default) never leave the agent.
+- Everything is shared by default, but any category a member switches off never leaves the agent.
 - Fixtures must be scrubbed of aUEC before they are committed. Raw captures go in the gitignored `captures/` folder.
 
 ## ButlerBot integration facts

@@ -155,8 +155,8 @@ Key principles:
 | Component | Stack |
 |---|---|
 | Agent | Python 3.12, `grpcio`, `protobuf`, `websockets` or `httpx`, `keyring` (Windows Credential Manager), `pystray` for tray icon, small local HTTP server (`aiohttp` or FastAPI) serving the same web UI bundle. Packaged with **PyInstaller** into a single `.exe` via GitHub Actions. |
-| Hub | Python 3.12, FastAPI + uvicorn, SQLAlchemy 2 (SQLite to start; Postgres-ready), `redis.asyncio`, Discord OAuth2. |
-| Web UI | Lightweight SPA/PWA (Svelte + Vite suggested), built to static files. Same bundle served by hub (fleet mode) and agent (local mode). |
+| Hub | Python 3.12, FastAPI + uvicorn, SQLAlchemy 2 on **SQLite** (file on a Docker volume), `redis.asyncio`, Discord OAuth2. |
+| Web UI | **Svelte 5 + Vite + TypeScript**, hand-written CSS with design tokens (no UI kit), built to static files. Svelte's compiled, fine-grained reactivity keeps 17 Hz local updates cheap and the bundle small for phones. Same bundle served by hub (fleet mode) and agent (local mode). |
 | Cog | Red-DiscordBot cog, `redis.asyncio` + `aiohttp`. Declare deps in `info.json` `requirements`. |
 | Infra | `docker-compose.yml` for hub + redis; hub joins ButlerBot's existing Docker network. Reverse proxy (Caddy/Traefik — whatever Brad already runs) or Cloudflare Tunnel. |
 
@@ -184,7 +184,7 @@ WebSocket at `wss://<host>/ws/agent`, JSON messages, `Authorization: Bearer <age
 
 ```jsonc
 // on connect
-{"type":"hello","v":1,"agent_version":"0.1.0","channel":"LIVE","game_build":"<exe version or hash>","share":["ship","status","weapons"]}
+{"type":"hello","v":1,"agent_version":"0.1.0","channel":"LIVE","game_build":"<exe version or hash>","share":["ship","status","weapons","vitals","uec"]}
 
 // 2–4 Hz while in game (configurable); full normalized snapshot (it's small)
 {"type":"snapshot","v":1,"t":0,
@@ -243,7 +243,7 @@ Version handling: hub accepts `v` within a supported range; rejects older agents
 - Normalizer: raw dict → `shared` model. Must tolerate missing/renamed fields without crashing (log unknown shapes once per session).
 - Local UI on `127.0.0.1:<port>` only (never 0.0.0.0) at full ~17 Hz via local WebSocket. Compact layout option for VR overlays (OVR Toolkit / XSOverlay).
 - Uplink: reconnecting WSS client; drop snapshots if backpressured (latest-wins), never queue unbounded; events are buffered (bounded) and sent on reconnect.
-- **Sharing defaults:** ship + status + weapons ON; vitals OFF; aUEC OFF.
+- **Sharing defaults:** everything ON (ship, status, weapons, vitals, aUEC). Each category can be switched off by the member in the agent; switched-off fields are never transmitted.
 - Update check: hub exposes `/api/agent/latest`; agent shows a banner when newer.
 - Logging to `%LOCALAPPDATA%\FleetTelemetry\logs`, rotating. A "Capture 60s of raw frames" button for bug reports (aUEC scrubbed).
 
@@ -326,17 +326,17 @@ Cog subscribes to Redis channel `telemetry.events`; uses hub internal API for qu
 - [ ] No inbound command path to the game from network.
 - [ ] Agent tokens random ≥32 bytes, hashed at rest, revocable.
 - [ ] TLS everywhere off-box; internal API not exposed publicly.
-- [ ] Privacy toggles enforced client-side; vitals/aUEC default off.
+- [ ] Privacy toggles enforced client-side (everything shared by default; per-category opt-out).
 - [ ] Message size limits + rate limits on ingest.
 - [ ] user.cfg backed up before edits; revert supported.
 - [ ] Unsigned exe: distribute only via our GitHub releases; publish SHA-256.
 
-## 11. Open decisions (ask Brad)
-1. Project/repo name and public hostname for the hub.
-2. Existing reverse proxy on the server (Caddy/Traefik/nginx) vs Cloudflare Tunnel.
-3. SQLite vs Postgres from day one.
-4. Discord role that grants web access; alerts channel.
-5. ButlerBot container: Red version, how cogs are mounted/installed, Docker network name, whether Redis already exists.
-6. Default sharing set — confirm ship/status/weapons on, vitals/aUEC off.
-7. Frontend framework preference (Svelte suggested).
-8. Code signing for the agent exe (probably not initially).
+## 11. Decisions (2026-11-22)
+1. **Repo:** `bradqui/SCTelemetry`, private for now (may go public later). Hub hostname: TBD.
+2. **Hosting:** Brad's public web server (Webmin/Virtualmin), hub in Docker on a local port. HTTPS approach: open (see notes in the 2026-11-22 discussion; PWA install and secure cookies require HTTPS).
+3. **Database:** SQLite.
+4. **Discord access role / alerts channel:** open.
+5. **ButlerBot container:** Red 3.5.24, Python 3.11, `phasecorex/red-discordbot`; custom cogs deploy by `git pull` of the ButlerBot repo. Docker setup is not in Git. Docker network name, and whether bot and hub share a host: open.
+6. **Default sharing:** everything on, with per-category opt-out in the agent.
+7. **Frontend:** Svelte 5 + Vite + TypeScript (see §3.1).
+8. **Code signing:** deferred until Phase 5.

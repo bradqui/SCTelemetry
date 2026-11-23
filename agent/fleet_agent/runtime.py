@@ -1,0 +1,198 @@
+"""The agent's live pipeline: game reader thread -> normalizer -> listeners.
+
+``GameReader`` runs the blocking gRPC stream in a thread and hands raw frames
+to the asyncio loop. ``Pipeline`` (on the loop) normalizes them, derives
+events, and tells its listeners: the local UI now, the hub uplink in Phase 2.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+import threading
+import time
+from collections import deque
+from collections.abc import Callable
+from dataclasses import dataclass, field
+
+import grpc
+from fleet_shared import Event, Snapshot
+
+from . import client
+from .events import EventDeriver
+from .installs import Install
+from .normalize import Normalizer, raw_game_events
+
+log = logging.getLogger(__name__)
+
+RECENT_EVENTS = 50
+
+
+def now_ms() -> int:
+    return int(time.time() * 1000)
+
+
+# ---------------------------------------------------------------- connection state
+
+
+@dataclass
+class GameState:
+    connected: bool = False
+    """The game's telemetry server is reachable."""
+    streaming: bool = False
+    """Frames are arriving (you're loaded in)."""
+    port: int | None = None
+    message: str = "Starting"
+    since: int = field(default_factory=now_ms)
+
+    def as_dict(self) -> dict:
+        return {
+            "type": "state",
+            "connected": self.connected,
+            "streaming": self.streaming,
+            "port": self.port,
+            "message": self.message,
+            "since": self.since,
+        }
+
+
+# ---------------------------------------------------------------- pipeline (event loop)
+
+
+class Pipeline:
+    """Normalize frames and fan out snapshots, events and state changes. Loop-thread only."""
+
+    def __init__(self) -> None:
+        self.state = GameState()
+        self.latest: Snapshot | None = None
+        self.recent: deque[Event] = deque(maxlen=RECENT_EVENTS)
+        self._normalizer = Normalizer()
+        self._deriver = EventDeriver()
+        self._listeners: list[Callable[[str, object], None]] = []
+
+    def subscribe(self, listener: Callable[[str, object], None]) -> Callable[[], None]:
+        """``listener(kind, payload)`` with kind "snapshot" | "event" | "state"."""
+        self._listeners.append(listener)
+        return lambda: self._listeners.remove(listener)
+
+    def _notify(self, kind: str, payload: object) -> None:
+        for listener in list(self._listeners):
+            try:
+                listener(kind, payload)
+            except Exception:
+                log.exception("Listener failed")
+
+    def _emit(self, event: Event) -> None:
+        self.recent.append(event)
+        self._notify("event", event)
+
+    def set_state(self, **changes) -> None:
+        old = self.state
+        new = GameState(**{**old.__dict__, **changes})
+        if (new.connected, new.streaming, new.port, new.message) != (
+            old.connected,
+            old.streaming,
+            old.port,
+            old.message,
+        ):
+            new.since = now_ms()
+            self.state = new
+            self._notify("state", new)
+
+    def on_frame(self, raw: dict, t: int) -> None:
+        if not self.state.streaming:
+            self.set_state(streaming=True, message="Receiving telemetry")
+            self._emit(Event(t=t, kind="game_start"))
+        snap = self._normalizer.feed(raw, t)
+        for event in self._deriver.feed(snap, raw_game_events(raw)):
+            self._emit(event)
+        self.latest = snap
+        self._notify("snapshot", snap)
+
+    def on_disconnect(self, message: str) -> None:
+        was_streaming = self.state.streaming
+        self.set_state(connected=False, streaming=False, message=message)
+        if was_streaming:
+            self._emit(Event(t=now_ms(), kind="game_exit"))
+            self.latest = None
+            # A new game session starts fresh (seat, ship, debounce state).
+            self._normalizer = Normalizer()
+            self._deriver = EventDeriver()
+
+
+# ---------------------------------------------------------------- reader thread
+
+
+class GameReader:
+    """Connects to the game (retrying with backoff) and streams frames into the pipeline."""
+
+    def __init__(
+        self,
+        pipeline: Pipeline,
+        loop: asyncio.AbstractEventLoop,
+        *,
+        install: Install | None,
+        port: int | None = None,
+    ) -> None:
+        self.pipeline = pipeline
+        self.loop = loop
+        self.install = install
+        self.fixed_port = port
+        self._stop = threading.Event()
+        self._channel: grpc.Channel | None = None
+        self._thread = threading.Thread(target=self._run, name="game-reader", daemon=True)
+
+    def start(self) -> None:
+        self._thread.start()
+
+    def stop(self) -> None:
+        self._stop.set()
+        if self._channel is not None:
+            self._channel.close()  # unblocks a waiting stream
+        self._thread.join(timeout=5)
+
+    def _post(self, fn, *args) -> None:
+        if not self.loop.is_closed():
+            self.loop.call_soon_threadsafe(fn, *args)
+
+    def _port(self) -> int:
+        if self.fixed_port:
+            return self.fixed_port
+        return client.discover_port(self.install.game_log if self.install else None)
+
+    def _run(self) -> None:
+        backoff = 1.0
+        while not self._stop.is_set():
+            port = self._port()
+            channel = client.open_channel(port=port)
+            self._channel = channel
+            try:
+                if not client.wait_ready(channel, timeout=2.0):
+                    self._post(self.pipeline.on_disconnect, "Waiting for the game")
+                    self._stop.wait(backoff)
+                    backoff = min(backoff * 1.5, 10.0)
+                    continue
+                schema = client.load_schema(channel, self.install.exe if self.install else None)
+                backoff = 1.0
+                self._post(
+                    lambda p=port: self.pipeline.set_state(
+                        connected=True, port=p, message="Connected; load into the game"
+                    )
+                )
+                for message in client.stream_frames(channel, schema):
+                    if self._stop.is_set():
+                        break
+                    self._post(self.pipeline.on_frame, client.frame_to_dict(message), now_ms())
+                self._post(self.pipeline.on_disconnect, "Game stream ended")
+            except grpc.RpcError as exc:
+                if not self._stop.is_set():
+                    self._post(
+                        self.pipeline.on_disconnect, f"Game connection lost ({exc.code().name})"
+                    )
+            except Exception as exc:  # keep the agent alive; report it
+                log.exception("Game reader error")
+                self._post(self.pipeline.on_disconnect, f"Error: {exc}")
+                self._stop.wait(backoff)
+            finally:
+                channel.close()
+                self._channel = None

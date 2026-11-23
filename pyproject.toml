@@ -6,6 +6,7 @@ readme = "README.md"
 # The agent and hub target 3.12; anything the ButlerBot cog imports must also run on 3.11.
 requires-python = ">=3.11"
 dependencies = [
+    "aiohttp>=3.10",
     "grpcio>=1.66",
     "grpcio-reflection>=1.66",
     "protobuf>=5.28",

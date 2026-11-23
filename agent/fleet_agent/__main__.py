@@ -1,5 +1,6 @@
-"""Command line for the agent's setup pieces (the tray app comes later).
+"""Command line for the agent (the tray app comes later).
 
+python -m fleet_agent run     [--open] [--game-port 2943] [--ui-port 8740]
 python -m fleet_agent installs
 python -m fleet_agent status  [--channel LIVE]
 python -m fleet_agent on      [--channel LIVE]
@@ -11,6 +12,7 @@ python -m fleet_agent probe   [--channel LIVE]
 from __future__ import annotations
 
 import argparse
+import contextlib
 import logging
 import sys
 from pathlib import Path
@@ -42,6 +44,46 @@ def _pick(args) -> Install:
 
 def _names(found: list[Install]) -> str:
     return ", ".join(f"{i.channel}" for i in found)
+
+
+def _find(args) -> Install | None:
+    """Like _pick, but None instead of exiting (e.g. replaying on a PC without the game)."""
+    try:
+        return _pick(args)
+    except SystemExit:
+        return None
+
+
+def cmd_run(args) -> None:
+    import asyncio
+    import webbrowser
+
+    from .localserver import LocalServer
+    from .runtime import GameReader, Pipeline
+
+    async def run() -> None:
+        install = _find(args)
+        pipeline = Pipeline()
+        server = LocalServer(pipeline, port=args.ui_port)
+        await server.start()
+        reader = GameReader(
+            pipeline, asyncio.get_running_loop(), install=install, port=args.game_port
+        )
+        reader.start()
+        url = f"http://127.0.0.1:{server.port}/"
+        game = f"port {args.game_port}" if args.game_port else "port from Game.log"
+        print(f"Fleet Telemetry agent: local view at {url}")
+        print(f"Game: {install.channel if install else 'no install found'}, {game}. Ctrl+C stops.")
+        if args.open:
+            webbrowser.open(url)
+        try:
+            await asyncio.Event().wait()
+        finally:
+            reader.stop()
+            await server.stop()
+
+    with contextlib.suppress(KeyboardInterrupt):
+        asyncio.run(run())
 
 
 def cmd_installs(args) -> None:
@@ -152,6 +194,10 @@ def build_parser() -> argparse.ArgumentParser:
         p.set_defaults(func=func)
         return p
 
+    p = add("run", cmd_run, "Run the agent: read the game, serve the local view")
+    p.add_argument("--open", action="store_true", help="Open the local view in your browser")
+    p.add_argument("--game-port", type=int, help="Default: from Game.log (replay: 2943)")
+    p.add_argument("--ui-port", type=int, default=8740, help="Local view port (default 8740)")
     add("installs", cmd_installs, "List Star Citizen installs and whether telemetry is on")
     add("status", cmd_status, "Show telemetry settings for a channel")
     add("on", cmd_on, "Switch telemetry on (edits user.cfg)").add_argument(

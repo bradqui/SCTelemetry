@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
 
 APP_DIR_NAME = "FleetTelemetry"
@@ -38,3 +39,14 @@ def cfg_state_file() -> Path:
 
 def settings_file() -> Path:
     return data_dir() / "settings.json"
+
+
+def web_dist_dir() -> Path:
+    """The built web UI: ``FLEET_WEB_DIST``, the PyInstaller bundle, or the repo's web/dist."""
+    override = os.environ.get("FLEET_WEB_DIST")
+    if override:
+        return Path(override)
+    bundle = getattr(sys, "_MEIPASS", None)
+    if bundle:
+        return Path(bundle) / "web"
+    return Path(__file__).resolve().parents[2] / "web" / "dist"

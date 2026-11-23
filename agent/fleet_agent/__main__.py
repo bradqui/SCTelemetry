@@ -74,27 +74,27 @@ def cmd_on(args) -> None:
     inst = _pick(args)
     result = switch.switch_on(inst, actions=args.actions)
     if result.cfg.changed:
-        print(f"Updated {inst.user_cfg}")
+        print(f"Done: switched telemetry on in {inst.user_cfg}")
         if result.cfg.backup:
-            print(f"  backup saved as {result.cfg.backup.name}")
+            print(f"      (your original was saved as {result.cfg.backup.name})")
     else:
-        print(f"{inst.user_cfg} already has telemetry on.")
+        print(f"Already done: {inst.user_cfg} has telemetry on.")
     if result.env_changed:
-        print(f"Set the Windows user variable {winenv.ENV_NAME}={winenv.ENV_VALUE}.")
+        print(f"Done: set the Windows variable {winenv.ENV_NAME}={winenv.ENV_VALUE} for you.")
     if result.cfg.changed or result.env_changed:
-        print(switch.RESTART_NOTE)
+        print(f"\nOne thing left for you: {switch.RESTART_NOTE}")
 
 
 def cmd_off(args) -> None:
     inst = _pick(args)
     result = switch.switch_off(inst)
     print(
-        f"Reverted our settings in {inst.user_cfg}."
+        f"Done: switched telemetry off in {inst.user_cfg}."
         if result.cfg.changed
-        else f"{inst.user_cfg} had nothing of ours to revert."
+        else f"Nothing to do: {inst.user_cfg} had none of our settings."
     )
     if result.env_changed:
-        print(f"Reverted the Windows user variable {winenv.ENV_NAME}.")
+        print(f"Done: removed the Windows variable {winenv.ENV_NAME} for you.")
 
 
 def cmd_protoset(args) -> None:

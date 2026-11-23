@@ -28,7 +28,7 @@ Reference: https://github.com/TheBanjolorian/7hills-link/blob/main/docs/TELEMETR
 **Licensing note:** the 7hills-link repo has **no license**. Do NOT copy its code. Implement independently from the documented behavior below.
 
 ### 2.1 Transport
-- **gRPC**, plaintext, `127.0.0.1:50051` (localhost only, no auth).
+- **gRPC**, plaintext, `127.0.0.1:2942` (localhost only, no auth). *Verified 2026-11-23: the port is 2942, not 50051, and is announced in `Game.log`. The agent reads it from there.*
 - Service: `sc.game.telemetry.v1.GameTelemetryService`
 
 | Method | Type | Notes |
@@ -38,6 +38,9 @@ Reference: https://github.com/TheBanjolorian/7hills-link/blob/main/docs/TELEMETR
 | `TriggerGameAction` | unary | args `action_name`, `hold_ms`; returns a `status` |
 
 ### 2.2 Enabling it (agent must automate this)
+
+> **Verified on LIVE (2026-11-23):** only `grpc.client.server.enabled = 1` is needed. The game has no `grpc.client.server.port` or `server.game.telemetry.enabled` setting. The environment variable is ignored once `user.cfg` sets the server, so the agent doesn't set it. Only the **game** needs restarting, not the launcher. The community notes below are kept for reference.
+
 Append to the channel's `user.cfg` (e.g. `...\StarCitizen\LIVE\user.cfg`; support LIVE, PTU, EPTU, TECH-PREVIEW, HOTFIX):
 
 ```
@@ -62,6 +65,9 @@ Requirements for the agent's config writer:
 - Locate installs by checking common paths (`C:\Program Files\Roberts Space Industries\StarCitizen\<CHANNEL>`) plus a "Browse…" fallback. Remember the chosen path.
 
 ### 2.3 Getting the protobuf definitions
+
+> **Verified (2026-11-23):** the game's server has no reflection (`UNIMPLEMENTED`). Extraction from `StarCitizen.exe` works and takes under a second (`fleet_agent/protoset.py`).
+
 The `.proto` files aren't published. Two approaches, try in order:
 
 1. **Server reflection** — first test `grpcurl -plaintext 127.0.0.1:50051 list`. If reflection works, use it at runtime (`grpcio-reflection` client) and skip step 2.
@@ -110,6 +116,9 @@ turret, force_feedback:  undocumented — log and inspect
 Exact sub-field names inside `{...}` are not fully documented. **Phase 0 must capture real frames** and the normalizer must be written against them.
 
 ### 2.5 Known quirks and gaps
+
+> See **Observed in a real session** in [FIELDS.md](FIELDS.md) for verified behaviour. It confirms FLT_MAX altitude, zero quantum fuel and gear transitions. It also adds: seat events are unreliable (derive them from state), the co-pilot seat reports `PILOT`, and NAV/SCM can be inferred from the quantum drive light plus shield power.
+
 - Altitude in space = FLT_MAX (~3.4e38) → treat as `null`.
 - Quantum fuel always reads 0 so far → show as "n/a" unless nonzero ever observed.
 - G-load can read 0 and heading 360 while stationary.

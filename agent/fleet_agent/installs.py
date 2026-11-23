@@ -36,6 +36,10 @@ class Install:
     def user_cfg(self) -> Path:
         return self.path / "user.cfg"
 
+    @property
+    def game_log(self) -> Path:
+        return self.path / "Game.log"
+
 
 def is_channel_dir(path: Path) -> bool:
     return (path / "Bin64" / "StarCitizen.exe").is_file() or (path / "Data.p4k").is_file()

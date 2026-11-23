@@ -23,15 +23,27 @@ from pathlib import Path
 
 TELEMETRY_SETTINGS: dict[str, str] = {
     "grpc.client.server.enabled": "1",
-    "grpc.client.server.port": "50051",
-    "server.game.telemetry.enabled": "1",
 }
-"""Turns on the local gRPC server and the telemetry stream."""
+"""Turns on the local gRPC server, which serves telemetry on 127.0.0.1:2942.
+
+Verified on LIVE (2026-11-23): this is the only key needed. The game logs it as
+``[User CFG ] grpc.client.server.enabled=true`` and then registers
+GameTelemetryService. There is no port setting; the agent reads the port from
+Game.log instead (see ``client.discover_port``).
+"""
 
 ACTION_SETTINGS: dict[str, str] = {
     "server.game.telemetry.trigger.actions.enabled": "1",
 }
-"""Game actions (button box, spec §7). Later phase; off unless asked for."""
+"""Game actions (button box, spec §7). Later phase; off unless asked for.
+Unverified: LIVE has no action RPCs and no such cvar string yet."""
+
+OBSOLETE_KEYS: dict[str, str] = {
+    "grpc.client.server.port": "50051",
+    "server.game.telemetry.enabled": "1",
+}
+"""Keys earlier versions wrote (from community notes) that the game doesn't have.
+Removed on the next switch-on or switch-off."""
 
 MANAGED_KEYS = (*TELEMETRY_SETTINGS, *ACTION_SETTINGS)
 
@@ -222,13 +234,11 @@ def enable(
         state.remember(cfg_path, key, cfg.get(key))
         cfg.set(key, value)
 
-    if not actions:
-        # Actions were switched on by us earlier: put that key back.
-        originals = state.originals(cfg_path) or {}
-        for key in ACTION_SETTINGS:
-            if key in originals:
-                _restore(cfg, key, originals[key])
-                state.forget_key(cfg_path, key)
+    # Anything else we changed earlier (actions now unwanted, obsolete keys): put it back.
+    originals = state.originals(cfg_path) or {}
+    for key in [k for k in originals if k not in desired]:
+        _restore(cfg, key, originals[key])
+        state.forget_key(cfg_path, key)
 
     change = _write_if_changed(cfg_path, cfg, before, now)
     state.save()
@@ -248,7 +258,7 @@ def disable(cfg_path: Path, state: CfgState, *, now: datetime | None = None) -> 
 
     if originals is None:
         # No record (state lost, or set by hand): remove only lines holding exactly our values.
-        for key, value in {**TELEMETRY_SETTINGS, **ACTION_SETTINGS}.items():
+        for key, value in {**TELEMETRY_SETTINGS, **ACTION_SETTINGS, **OBSOLETE_KEYS}.items():
             cfg.remove(key, only_value=value)
     else:
         for key, original in originals.items():

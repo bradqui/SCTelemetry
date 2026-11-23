@@ -1,4 +1,10 @@
-"""Switch telemetry on/off for a channel: user.cfg keys plus the Windows env var."""
+"""Switch telemetry on/off for a channel (the ``user.cfg`` setting).
+
+Earlier versions also set the ``GRPC_CLIENT_SERVER_ENABLED`` Windows user
+variable, as community notes suggested. The game's log shows it's ignored once
+``user.cfg`` sets the same thing, so we no longer set it, and we undo it if an
+earlier version did.
+"""
 
 from __future__ import annotations
 
@@ -8,10 +14,7 @@ from pathlib import Path
 from . import gamecfg, paths, winenv
 from .installs import Install
 
-RESTART_NOTE = (
-    "Fully quit the RSI Launcher (including from the system tray), then start the game "
-    "again. The game only reads these settings at startup."
-)
+RESTART_NOTE = "Restart the game if it's running. It only reads user.cfg at startup."
 
 
 @dataclass
@@ -25,31 +28,25 @@ def switch_on(
 ) -> SwitchResult:
     state = gamecfg.CfgState(state_path or paths.cfg_state_file())
     change = gamecfg.enable(install.user_cfg, state, actions=actions)
-
-    env_changed = False
-    if winenv.get_user_env() != winenv.ENV_VALUE:
-        env_state = state.data.setdefault("env", {})
-        env_state.setdefault("original", winenv.get_user_env())
-        winenv.set_user_env()
-        state.save()
-        env_changed = True
-    return SwitchResult(change, env_changed)
+    return SwitchResult(change, _revert_env(state))
 
 
 def switch_off(install: Install, *, state_path: Path | None = None) -> SwitchResult:
     state = gamecfg.CfgState(state_path or paths.cfg_state_file())
     change = gamecfg.disable(install.user_cfg, state)
+    return SwitchResult(change, _revert_env(state))
 
-    # The env var is shared by all channels: only revert it once none are switched on.
-    env_changed = False
+
+def _revert_env(state: gamecfg.CfgState) -> bool:
+    """Undo the env var if an earlier version of the agent set it."""
     env_state = state.data.get("env")
-    if env_state is not None and not state.managed_paths():
-        original = env_state.get("original")
-        if original is None:
-            winenv.delete_user_env()
-        else:
-            winenv.set_user_env(value=original)
-        state.data.pop("env", None)
-        state.save()
-        env_changed = True
-    return SwitchResult(change, env_changed)
+    if env_state is None:
+        return False
+    original = env_state.get("original")
+    if original is None:
+        winenv.delete_user_env()
+    else:
+        winenv.set_user_env(value=original)
+    state.data.pop("env", None)
+    state.save()
+    return True

@@ -1,4 +1,4 @@
-"""gRPC client for the game's local telemetry server (127.0.0.1:50051, plaintext).
+"""gRPC client for the game's local telemetry server (127.0.0.1:2942 by default, plaintext).
 
 Read-only for now: only ``TelemetryStream`` is called. ``TriggerGameAction`` is a
 later, local-only phase (spec §7).
@@ -7,6 +7,7 @@ later, local-only phase (spec §7).
 from __future__ import annotations
 
 import logging
+import re
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -19,8 +20,26 @@ from .schema import TelemetrySchema
 log = logging.getLogger(__name__)
 
 DEFAULT_HOST = "127.0.0.1"
-DEFAULT_PORT = 50051
+DEFAULT_PORT = 2942
+"""The game's default (LIVE, 2026-11). There's no cfg setting for it, so prefer the log."""
 STREAM_METHOD = "TelemetryStream"
+
+# Game.log, at startup:  [sc.game.telemetry.v1.GameTelemetryService]: 127.0.0.1:2942 [Insecure]
+_LOG_PORT = re.compile(r"GameTelemetryService\]:\s*(?:127\.0\.0\.1|localhost|\[::1\]):(\d+)")
+
+
+def port_from_log(game_log: Path) -> int | None:
+    """The telemetry port this game session announced in its Game.log, if any."""
+    try:
+        text = game_log.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+    matches = _LOG_PORT.findall(text)
+    return int(matches[-1]) if matches else None
+
+
+def discover_port(game_log: Path | None) -> int:
+    return (port_from_log(game_log) if game_log else None) or DEFAULT_PORT
 
 
 def open_channel(host: str = DEFAULT_HOST, port: int = DEFAULT_PORT) -> grpc.Channel:

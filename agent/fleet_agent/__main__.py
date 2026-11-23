@@ -63,8 +63,10 @@ def cmd_status(args) -> None:
     print(f"  game actions: {'ON' if st.actions_enabled else 'off'}")
     for key, value in st.values.items():
         print(f"    {key} = {value if value is not None else '(not set)'}")
-    env = winenv.get_user_env()
-    print(f"  {winenv.ENV_NAME} = {env if env is not None else '(not set)'}")
+    from . import client
+
+    port = client.port_from_log(inst.game_log)
+    print(f"  port in last Game.log: {port or '(none: telemetry was off, or no game run yet)'}")
     backups = gamecfg.existing_backups(inst.user_cfg)
     if backups:
         print(f"  backup: {backups[0]}")
@@ -80,8 +82,8 @@ def cmd_on(args) -> None:
     else:
         print(f"Already done: {inst.user_cfg} has telemetry on.")
     if result.env_changed:
-        print(f"Done: set the Windows variable {winenv.ENV_NAME}={winenv.ENV_VALUE} for you.")
-    if result.cfg.changed or result.env_changed:
+        print(f"Done: removed the Windows variable {winenv.ENV_NAME} (the game doesn't need it).")
+    if result.cfg.changed:
         print(f"\nOne thing left for you: {switch.RESTART_NOTE}")
 
 
@@ -94,7 +96,7 @@ def cmd_off(args) -> None:
         else f"Nothing to do: {inst.user_cfg} had none of our settings."
     )
     if result.env_changed:
-        print(f"Done: removed the Windows variable {winenv.ENV_NAME} for you.")
+        print(f"Done: removed the Windows variable {winenv.ENV_NAME}.")
 
 
 def cmd_protoset(args) -> None:
@@ -118,18 +120,22 @@ def cmd_protoset(args) -> None:
 def cmd_probe(args) -> None:
     from . import client
 
-    channel = client.open_channel(port=args.port)
-    print(f"Connecting to 127.0.0.1:{args.port} ...")
+    inst = _pick(args)
+    port = args.port or client.discover_port(inst.game_log)
+    channel = client.open_channel(port=port)
+    print(f"Connecting to 127.0.0.1:{port} ...")
     if not client.wait_ready(channel, timeout=args.timeout):
-        sys.exit("Nothing is listening. Is the game running with telemetry switched on?")
+        sys.exit(
+            "Nothing is listening. Is the game running and loaded in, with telemetry "
+            "switched on (python -m fleet_agent status)?"
+        )
     try:
         from .schema import TelemetrySchema
 
         schema = TelemetrySchema.from_reflection(channel)
         print("Server reflection: AVAILABLE")
-    except Exception as exc:  # noqa: BLE001 - report any failure mode
-        print(f"Server reflection: not available ({type(exc).__name__}: {exc})")
-        inst = _pick(args)
+    except Exception:  # noqa: BLE001 - any failure means "use the exe"
+        print("Server reflection: not offered (using definitions from StarCitizen.exe)")
         schema = client.load_schema(channel, inst.exe, prefer_reflection=False)
     print(schema.describe())
 
@@ -148,7 +154,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     add("installs", cmd_installs, "List Star Citizen installs and whether telemetry is on")
     add("status", cmd_status, "Show telemetry settings for a channel")
-    add("on", cmd_on, "Switch telemetry on (edits user.cfg, sets the env var)").add_argument(
+    add("on", cmd_on, "Switch telemetry on (edits user.cfg)").add_argument(
         "--actions", action="store_true", help="Also allow game actions (later phase)"
     )
     add("off", cmd_off, "Switch telemetry off (reverts our settings)")
@@ -156,7 +162,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--out", help="Also write a .protoset file here")
     p.add_argument("--force", action="store_true", help="Ignore the cache")
     p = add("probe", cmd_probe, "Check the running game's telemetry server")
-    p.add_argument("--port", type=int, default=50051)
+    p.add_argument("--port", type=int, help="Default: read from Game.log, else 2942")
     p.add_argument("--timeout", type=float, default=3.0)
     return parser
 

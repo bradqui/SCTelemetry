@@ -2,13 +2,13 @@
 
 Live Star Citizen ship and crew status for our org: shown on each member's second monitor or VR overlay, on phones as a PWA, and in Discord through ButlerBot.
 
-**Status:** Phase 0 (spike). The `user.cfg` switch, install finder, schema extraction and capture tool are built; real frame captures are next. Real field list: [docs/FIELDS.md](docs/FIELDS.md).
+**Status:** Phase 0 (spike) done. The first real session was captured on LIVE on 2026-11-23. What the game sends is in [docs/FIELDS.md](docs/FIELDS.md), and test slices are in [fixtures/](fixtures/). Next is Phase 1: the normalizer, replay server and local view.
 
 The full build spec is in [docs/SC_FLEET_TELEMETRY_SPEC.md](docs/SC_FLEET_TELEMETRY_SPEC.md).
 
 ## How it fits together
 
-- **Agent** (Windows, per member): reads the game's local telemetry gRPC stream on `127.0.0.1:50051`, normalizes it, serves a local cockpit view, and pushes the shared fields outbound to the hub.
+- **Agent** (Windows, per member): reads the game's local telemetry gRPC stream (`127.0.0.1:2942`), normalizes it, serves a local cockpit view, and pushes the shared fields outbound to the hub.
 - **Hub** (FastAPI + SQLite, one Docker container behind Virtualmin's Apache): ingests agent data, serves the fleet PWA, and streams events to the cog over an internal WebSocket.
 - **Web** (PWA): fleet board and member detail; the same bundle is the agent's local view.
 - **Cog** (`telemetry`, Red-DiscordBot): `!fleet`, `!ready`, ops, and alerts in ButlerBot.
@@ -25,37 +25,42 @@ uv run pytest -q
 uv run ruff check . && uv run ruff format --check .
 ```
 
-## Phase 0: capturing real frames
+## Capturing telemetry
 
 On the gaming PC:
 
 ```
 uv run python -m fleet_agent installs              # finds LIVE/PTU/... and shows on/off
-uv run python -m fleet_agent on --channel LIVE     # backs up user.cfg, adds 3 keys, sets the env var
+uv run python -m fleet_agent on --channel LIVE     # backs up user.cfg, adds one setting
 ```
 
-Then **fully quit the RSI Launcher** (including the tray icon), start the game and load in.
+Restart the game if it's running; it reads `user.cfg` at startup. Then:
 
 ```
-uv run python -m fleet_agent probe       # optional: is the server up? does it offer reflection?
+uv run python -m fleet_agent probe       # optional: is the server up?
 uv run python tools/capture.py           # records the whole session until Ctrl+C
 ```
 
-Then just play. The capture waits for the game, keeps going through loading screens and game restarts, and saves to the gitignored `captures/` folder with aUEC scrubbed (roughly 50–150 MB per hour). Optionally, type a short note in the terminal and press Enter (e.g. `gear down`) to mark a moment.
+Then just play. The capture finds the port in `Game.log`, waits for the game, and keeps going through loading screens and game restarts. It saves to the gitignored `captures/` folder with aUEC scrubbed (about 150 MB per hour). Optionally, type a short note in the terminal and press Enter (e.g. `gear down`) to mark a moment.
 
-Useful things to do during a session: walk around; sit in the pilot seat, power on, take off, fly SCM and NAV, quantum jump, land, leave the seat; switch shields/weapons power off and on; take some damage; try a non-pilot seat or turret; swap ships; EVA.
-
-To undo the setup: `uv run python -m fleet_agent off --channel LIVE`. It restores the keys exactly as they were. The untouched original is also kept as `user.cfg.bak-<timestamp>`.
-
-## Planned layout
+Afterwards:
 
 ```
-agent/     Windows agent
-hub/       FastAPI service
-web/       PWA source
-cog/       Red cog: telemetry/
-shared/    Pydantic wire-schema models
-tools/     capture.py, replay.py
-fixtures/  scrubbed captured frames (JSONL)
-docs/      spec and ops notes
+uv run python tools/summarize_capture.py captures/<file>.jsonl --timeline
+uv run python tools/make_fixture.py captures/<file>.jsonl 8:20 10:30 <fixture-name>
+```
+
+To undo the setup: `uv run python -m fleet_agent off --channel LIVE`. It restores `user.cfg` exactly. The untouched original is also kept as `user.cfg.bak-<timestamp>`.
+
+## Layout
+
+```
+agent/     Windows agent (fleet_agent package)
+hub/       FastAPI service (planned)
+web/       PWA source (planned)
+cog/       Red cog: telemetry/ (planned)
+shared/    Pydantic wire-schema models (planned)
+tools/     capture, summarize, make_fixture (replay planned)
+fixtures/  scrubbed slices of real captures (gzipped JSONL)
+docs/      spec, field reference
 ```

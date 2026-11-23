@@ -61,13 +61,13 @@ class Recorder:
             self.fh.close()
 
 
-def find_exe(channel_name: str | None) -> Path | None:
+def find_install(channel_name: str | None) -> installs.Install | None:
     found = installs.find_installs()
     if channel_name:
         found = [i for i in found if i.channel == channel_name.upper()]
     if not found:
         return None
-    return next((i for i in found if i.channel == "LIVE"), found[0]).exe
+    return next((i for i in found if i.channel == "LIVE"), found[0])
 
 
 def read_notes(rec: Recorder) -> None:
@@ -117,7 +117,7 @@ def main() -> None:
     parser.add_argument("label", nargs="?", default="session", help="Name for the file")
     parser.add_argument("--seconds", type=float, help="Stop after this long (default: Ctrl+C)")
     parser.add_argument("--channel", help="Install whose StarCitizen.exe has the definitions")
-    parser.add_argument("--port", type=int, default=client.DEFAULT_PORT)
+    parser.add_argument("--port", type=int, help="Default: read from Game.log, else 2942")
     parser.add_argument("--out-dir", default=str(ROOT / "captures"))
     parser.add_argument("--raw", action="store_true", help="Keep aUEC values (don't commit these)")
     args = parser.parse_args()
@@ -125,15 +125,22 @@ def main() -> None:
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    channel = client.open_channel(port=args.port)
-    print(f"Waiting for the game on 127.0.0.1:{args.port} (Ctrl+C to give up) ...")
+    install = find_install(args.channel)
+    port = args.port
+    print("Waiting for the game (Ctrl+C to give up) ...")
     try:
-        while not client.wait_ready(channel, timeout=2.0):
-            pass
+        while True:
+            # The port is announced in Game.log at startup, so re-read it while waiting.
+            port = args.port or client.discover_port(install.game_log if install else None)
+            channel = client.open_channel(port=port)
+            if client.wait_ready(channel, timeout=2.0):
+                break
+            channel.close()
     except KeyboardInterrupt:
         return
+    print(f"Connected on 127.0.0.1:{port}")
 
-    schema = client.load_schema(channel, find_exe(args.channel))
+    schema = client.load_schema(channel, install.exe if install else None)
     print(schema.describe())
     protoset.write_protoset(schema.file_set, out_dir / "telemetry.protoset")
 

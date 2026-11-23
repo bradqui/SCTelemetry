@@ -74,6 +74,21 @@ def test_stream_frames(schema, tmp_path, monkeypatch, with_reflection):
         server.stop(None)
 
 
+def test_port_from_game_log(tmp_path):
+    log = tmp_path / "Game.log"
+    log.write_text(
+        "<2026-11-23T18:14:04.275Z> [Notice] <GRPC Server> Services configured: 1\n"
+        "<2026-11-23T18:14:04.275Z>    [sc.game.telemetry.v1.GameTelemetryService]: "
+        "127.0.0.1:2942 [Insecure]\n",
+        encoding="utf-8",
+    )
+    assert client.port_from_log(log) == 2942
+    assert client.discover_port(log) == 2942
+    assert client.port_from_log(tmp_path / "missing.log") is None
+    (tmp_path / "empty.log").write_text("no server here")
+    assert client.discover_port(tmp_path / "empty.log") == client.DEFAULT_PORT
+
+
 def test_remote_hosts_refused():
     with pytest.raises(ValueError):
         client.open_channel("192.168.1.10")

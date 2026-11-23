@@ -73,25 +73,38 @@ def test_disable_restores_file_exactly(cfg, state):
 
 
 def test_existing_values_updated_in_place_and_restored(cfg, state):
-    original = (
-        "grpc.client.server.port=12345\ng_language = english\nGRPC.Client.Server.Enabled = 0\n"
-    )
+    original = "g_language = english\nGRPC.Client.Server.Enabled=0\n"
     cfg.write_text(original, encoding="utf-8")
     gamecfg.enable(cfg, state, now=NOW)
 
     text = lines(cfg)
-    assert text[0] == "grpc.client.server.port=50051", "formatting of the user's line kept"
-    assert text[2] == "GRPC.Client.Server.Enabled = 1", "keys match case-insensitively"
+    assert text[1] == "GRPC.Client.Server.Enabled=1", "case-insensitive match, formatting kept"
     assert sum("grpc.client.server.enabled" in line.lower() for line in text) == 1
 
     gamecfg.disable(cfg, state, now=NOW)
     assert cfg.read_text(encoding="utf-8") == original
 
 
-def test_duplicate_lines_all_updated(cfg, state):
-    cfg.write_text("server.game.telemetry.enabled = 0\nserver.game.telemetry.enabled = 0\n")
+def test_obsolete_keys_from_earlier_versions_are_tidied(cfg, state):
+    """Earlier versions also wrote a port and telemetry key the game doesn't have."""
+    original = "g_language = english\n"
+    cfg.write_text(original)
+    for key, value in gamecfg.OBSOLETE_KEYS.items():  # what the old version did
+        state.remember(cfg, key, None)
+        cfg.write_text(cfg.read_text() + f"{key} = {value}\n")
+    state.remember(cfg, "grpc.client.server.enabled", None)
+    cfg.write_text(cfg.read_text() + "grpc.client.server.enabled = 1\n")
+
     gamecfg.enable(cfg, state, now=NOW)
-    assert lines(cfg)[:2] == ["server.game.telemetry.enabled = 1"] * 2
+    assert lines(cfg) == ["g_language = english", "grpc.client.server.enabled = 1"]
+    gamecfg.disable(cfg, state, now=NOW)
+    assert cfg.read_text() == original
+
+
+def test_duplicate_lines_all_updated(cfg, state):
+    cfg.write_text("grpc.client.server.enabled = 0\ngrpc.client.server.enabled = 0\n")
+    gamecfg.enable(cfg, state, now=NOW)
+    assert lines(cfg) == ["grpc.client.server.enabled = 1"] * 2
     assert gamecfg.status(cfg).telemetry_enabled
 
 
@@ -133,7 +146,7 @@ def test_disable_without_state_removes_only_our_exact_values(cfg, tmp_path):
     cfg.write_text(
         "g_language = english\n"
         "grpc.client.server.enabled = 1\n"
-        "grpc.client.server.port = 6000\n"  # not our value: left alone
+        "grpc.client.server.port = 6000\n"  # not a value we ever wrote: left alone
         "server.game.telemetry.enabled = 1\n"
     )
     gamecfg.disable(cfg, CfgState(tmp_path / "fresh.json"), now=NOW)
@@ -141,11 +154,11 @@ def test_disable_without_state_removes_only_our_exact_values(cfg, tmp_path):
 
 
 def test_state_survives_reload(cfg, tmp_path):
-    cfg.write_text("grpc.client.server.port = 7777\n")
+    cfg.write_text("grpc.client.server.enabled = 0\n")
     state_file = tmp_path / "s.json"
     gamecfg.enable(cfg, CfgState(state_file), now=NOW)
     gamecfg.disable(cfg, CfgState(state_file), now=NOW)  # new process, same state file
-    assert cfg.read_text() == "grpc.client.server.port = 7777\n"
+    assert cfg.read_text() == "grpc.client.server.enabled = 0\n"
 
 
 def test_comments_that_mention_keys_are_not_settings(cfg, state):

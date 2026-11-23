@@ -47,6 +47,8 @@ jobs:
           node-version: 24
           cache: npm
           cache-dependency-path: web/package-lock.json
-      - run: npm ci
+      # Not `npm ci`: a lockfile made on Windows lacks some Linux-only optional deps
+      # (Vite's native bundler bindings), which `npm ci` treats as out of sync.
+      - run: npm install --no-audit --no-fund
       - run: npm run check
       - run: npm run build

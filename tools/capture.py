@@ -5,7 +5,8 @@
     uv run python tools/capture.py landing --channel LIVE --out-dir captures
 
 Each line is {"t": <ms epoch>, "label": ..., "frame": {...}}, with field names as
-in the game's .proto. aUEC fields are scrubbed unless --raw is given (raw
+in the game's .proto, or {"t", "label", "note": "..."} for a note typed into the
+terminal while recording. aUEC fields are scrubbed unless --raw is given (raw
 captures should stay in the gitignored captures/ folder).
 
 The first run also writes captures/telemetry.protoset for grpcurl.
@@ -16,6 +17,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import threading
 import time
 from datetime import datetime
 from pathlib import Path
@@ -80,32 +82,53 @@ def main() -> None:
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     out_file = out_dir / f"{args.label}-{stamp}{'-raw' if args.raw else ''}.jsonl"
     print(f"Recording to {out_file}. Frames only arrive once you're loaded into the game.")
+    print("Type a note and press Enter to mark the moment (e.g. 'gear down'). Ctrl+C stops.")
+
+    lock = threading.Lock()
+    fh = out_file.open("w", encoding="utf-8")
+
+    def write(record: dict) -> None:
+        with lock:
+            fh.write(json.dumps({"t": int(time.time() * 1000), "label": args.label, **record}))
+            fh.write("\n")
+            fh.flush()
+
+    def read_notes() -> None:
+        for line in sys.stdin:
+            if line.strip():
+                write({"note": line.strip()})
+                print(f"  noted: {line.strip()}")
+
+    threading.Thread(target=read_notes, daemon=True).start()
 
     started = time.monotonic()
     count = 0
     last_report = started
     try:
-        with out_file.open("w", encoding="utf-8") as fh:
-            for message in client.stream_frames(channel, schema):
-                frame = client.frame_to_dict(message)
-                if not args.raw:
-                    frame = scrub.scrub_uec(frame)
-                fh.write(
-                    json.dumps({"t": int(time.time() * 1000), "label": args.label, "frame": frame})
-                    + "\n"
-                )
-                count += 1
-                now = time.monotonic()
-                if now - last_report >= 2:
-                    keys = ",".join(k for k, v in frame.items() if v) or "-"
-                    print(f"  {count} frames, {count / (now - started):.1f}/s, non-empty: {keys}")
-                    last_report = now
-                if args.seconds and now - started >= args.seconds:
-                    break
+        for message in client.stream_frames(channel, schema):
+            frame = client.frame_to_dict(message)
+            if not args.raw:
+                frame = scrub.scrub_uec(frame)
+            write({"frame": frame})
+            count += 1
+
+            events = [e.get("type") for e in frame.get("events", {}).get("events", [])]
+            if events:
+                print(f"  event: {', '.join(str(e) for e in events)}")
+            now = time.monotonic()
+            if now - last_report >= 2:
+                present = ",".join(f.name for f, _ in message.ListFields()) or "-"
+                print(f"  {count} frames, {count / (now - started):.1f}/s, sections: {present}")
+                last_report = now
+            if args.seconds and now - started >= args.seconds:
+                break
     except KeyboardInterrupt:
         pass
     except grpc.RpcError as exc:
         print(f"Stream ended: {exc.code()} {exc.details()}")
+    finally:
+        with lock:
+            fh.close()
     print(f"Saved {count} frames to {out_file}")
 
 

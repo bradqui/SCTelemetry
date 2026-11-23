@@ -350,3 +350,4 @@ Cog holds a reconnecting WebSocket to the hub's `/internal/events` and uses the 
 6. **Default sharing:** everything on; each member can switch off any category (e.g. aUEC, vitals) in the agent, and switched-off data is never sent.
 7. **Frontend:** Svelte 5 + Vite + TypeScript (see §3.1).
 8. **Code signing:** deferred until Phase 5.
+9. **Hull/shield bars (2026-11-23):** LIVE doesn't send hull health or shield levels (see FIELDS.md). The fleet board keeps hull and shield bars in the design anyway, alongside shield power and warning lights. Final call near the end of the build.

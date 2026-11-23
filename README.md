@@ -42,7 +42,9 @@ uv run python tools/capture.py on-foot --seconds 30
 uv run python tools/capture.py seated-pilot        # Ctrl+C to stop
 ```
 
-Captures go to the gitignored `captures/` folder, with aUEC scrubbed. Suggested scenarios: on-foot, seated-pilot, seated-turret, seated-other, scm, nav, qt-spool, landing, taking-damage, shields-down, leaving-seat, ship-swap.
+Captures go to the gitignored `captures/` folder, with aUEC scrubbed. While recording, type a short note in the terminal and press Enter (e.g. `gear down`) to mark the moment in the file.
+
+Suggested recordings: `on-foot`; `full-flight` (sit, power on, take off, SCM/NAV, quantum, land, leave seat); `shields-down` (power shields off/on); `combat` (taking damage); `seated-turret`; `seated-other`; `ship-swap`; `eva`.
 
 To undo the setup: `uv run python -m fleet_agent off --channel LIVE`. It restores the keys exactly as they were. The untouched original is also kept as `user.cfg.bak-<timestamp>`.
 

@@ -1,0 +1,43 @@
+"""Wire schema shared by the agent, hub and ButlerBot cog. Must run on Python 3.11."""
+
+from .models import (
+    SCHEMA_VERSION,
+    SHARE_CATEGORIES,
+    Countermeasure,
+    Environment,
+    Event,
+    EventKind,
+    Flight,
+    Gun,
+    Heartbeat,
+    Hello,
+    Level,
+    Shields,
+    Ship,
+    Snapshot,
+    Status,
+    Vitals,
+    Weapons,
+    apply_sharing,
+)
+
+__all__ = [
+    "SCHEMA_VERSION",
+    "SHARE_CATEGORIES",
+    "Countermeasure",
+    "Environment",
+    "Event",
+    "EventKind",
+    "Flight",
+    "Gun",
+    "Heartbeat",
+    "Hello",
+    "Level",
+    "Ship",
+    "Shields",
+    "Snapshot",
+    "Status",
+    "Vitals",
+    "Weapons",
+    "apply_sharing",
+]

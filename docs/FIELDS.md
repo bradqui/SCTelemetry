@@ -125,7 +125,7 @@ Capture: walking a station and hab, an Origin M80 flight (power cycle, takeoff, 
 - `speed` peaked at 1111 m/s. Quantum travel did **not** show up in `speed`.
 - `g_meter.current` reached 23 g.
 - `quantum_fuel` was always 0, as the spec expected.
-- `hydrogen_fuel` is a 0–1 fraction. It reads 0 for a frame or two on sitting, so ignore 0 right after a seat change. It refilled to 1.0 in the hangar.
+- `hydrogen_fuel` is a 0–1 fraction. It reads **0 whenever the engines are off**, and briefly after sitting down, so the normalizer reports "unknown" then rather than "empty". It refilled to 1.0 in the hangar.
 - `boost.reserves` ranged 0.29–1.
 - `gear` moves `DEPLOYED → RETRACTING → RETRACTED → DEPLOYING`, about 4 s per move.
 - `vtol` always reads `DEPLOYED`, even on ships without VTOL, so it's meaningless there.

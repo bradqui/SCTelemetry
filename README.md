@@ -37,14 +37,13 @@ uv run python -m fleet_agent on --channel LIVE     # backs up user.cfg, adds 3 k
 Then **fully quit the RSI Launcher** (including the tray icon), start the game and load in.
 
 ```
-uv run python -m fleet_agent probe                 # is the server up? does it offer reflection?
-uv run python tools/capture.py on-foot --seconds 30
-uv run python tools/capture.py seated-pilot        # Ctrl+C to stop
+uv run python -m fleet_agent probe       # optional: is the server up? does it offer reflection?
+uv run python tools/capture.py           # records the whole session until Ctrl+C
 ```
 
-Captures go to the gitignored `captures/` folder, with aUEC scrubbed. While recording, type a short note in the terminal and press Enter (e.g. `gear down`) to mark the moment in the file.
+Then just play. The capture waits for the game, keeps going through loading screens and game restarts, and saves to the gitignored `captures/` folder with aUEC scrubbed (roughly 50–150 MB per hour). Optionally, type a short note in the terminal and press Enter (e.g. `gear down`) to mark a moment.
 
-Suggested recordings: `on-foot`; `full-flight` (sit, power on, take off, SCM/NAV, quantum, land, leave seat); `shields-down` (power shields off/on); `combat` (taking damage); `seated-turret`; `seated-other`; `ship-swap`; `eva`.
+Useful things to do during a session: walk around; sit in the pilot seat, power on, take off, fly SCM and NAV, quantum jump, land, leave the seat; switch shields/weapons power off and on; take some damage; try a non-pilot seat or turret; swap ships; EVA.
 
 To undo the setup: `uv run python -m fleet_agent off --channel LIVE`. It restores the keys exactly as they were. The untouched original is also kept as `user.cfg.bak-<timestamp>`.
 

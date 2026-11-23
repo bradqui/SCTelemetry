@@ -24,6 +24,7 @@ node_modules/
 *.db
 *.sqlite3
 *.protoset
+!fixtures/telemetry.protoset
 logs/
 
 # Raw (unscrubbed) captures — only scrubbed fixtures in /fixtures are committed

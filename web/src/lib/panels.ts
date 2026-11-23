@@ -11,6 +11,7 @@ export const PANEL_IDS = [
   "weapons",
   "vitals",
   "environment",
+  "mission",
   "events",
 ] as const;
 export type PanelId = (typeof PANEL_IDS)[number];
@@ -42,7 +43,8 @@ export const PANELS: Record<PanelId, PanelInfo> = {
   weapons: { title: "Weapons", blurb: "Guns, gimbals, countermeasures", ship: true },
   vitals: { title: "Vitals", blurb: "Health, oxygen, hunger, thirst, heart rate", ship: false },
   environment: { title: "Environment", blurb: "Temperature, gravity, pressure, air", ship: false },
-  events: { title: "Events", blurb: "What just happened", ship: false },
+  mission: { title: "Contract", blurb: "Current contract, objective, rewards", ship: false },
+  events: { title: "Activity", blurb: "What just happened, session counts, filters", ship: false },
 };
 
 export interface Slot {
@@ -82,9 +84,9 @@ export const PRESETS: Preset[] = [
       ["power", 3],
       ["weapons", 3],
       ["vitals", 3],
-      ["trends", 6],
-      ["events", 3],
-      ["environment", 3],
+      ["mission", 3],
+      ["events", 6],
+      ["trends", 3],
     ]),
   },
   {
@@ -99,7 +101,8 @@ export const PRESETS: Preset[] = [
       ["power", 3],
       ["fuel", 3],
       ["events", 6],
-      ["vitals", 6],
+      ["mission", 3],
+      ["vitals", 3],
     ]),
   },
   {
@@ -112,7 +115,7 @@ export const PRESETS: Preset[] = [
       ["trends", 6],
       ["environment", 3],
       ["vitals", 3],
-      ["fuel", 3],
+      ["mission", 3],
       ["events", 3],
     ]),
   },
@@ -141,6 +144,7 @@ export const COMPACT_PRESETS: Preset[] = [
       ["ship", 6],
       ["fuel", 6],
       ["weapons", 12],
+      ["mission", 12],
       ["vitals", 12],
     ]),
   },

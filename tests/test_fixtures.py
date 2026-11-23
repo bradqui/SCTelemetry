@@ -51,3 +51,17 @@ def test_constellation_seats_and_roles():
     }
     assert ("RSI_Constellation_Mk5_CoPilot", "ACTOR_CREW_ROLE_PILOT") in seen
     assert ("RSI_Constellation_Mk5_Gunner_Right", "ACTOR_CREW_ROLE_CREW") in seen
+
+
+@pytest.mark.parametrize("path", FIXTURES, ids=lambda p: p.name)
+def test_fixture_log_lines_are_scrubbed(path):
+    """Game.log lines in fixtures: your handle is TestPilot, other players Wingmate, no address."""
+    import re
+
+    lines = [r["log"] for r in records(path) if "log" in r]
+    for line in lines:
+        if "Handle[" in line:
+            assert "Handle[TestPilot]" in line
+        for name in re.findall(r"killer '([^']*)'", line):
+            assert name in ("TestPilot", "Wingmate") or not name[:1].islower() or "_" in name
+        assert "address[" not in line or "address[0.0.0.0]" in line

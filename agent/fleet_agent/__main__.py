@@ -90,11 +90,13 @@ def cmd_run(args) -> None:
             install = _find(args)
             reader = GameReader(pipeline, loop, install=install, port=args.game_port)
             if install is not None:
+                pipeline.attach_log()
                 tail = GameLogTail(
                     install.game_log,
                     lambda line, quiet: loop.call_soon_threadsafe(
                         lambda: pipeline.on_log(line, None, quiet)
                     ),
+                    lambda: loop.call_soon_threadsafe(pipeline.on_new_log),
                 )
             game = f"port {args.game_port}" if args.game_port else "port from Game.log"
             source = f"Game: {install.channel if install else 'no install found'}, {game}."

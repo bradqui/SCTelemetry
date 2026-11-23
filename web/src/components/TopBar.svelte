@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { shardLabel } from "../lib/format";
   import type { AgentState, Snapshot } from "../lib/types";
   const ROLE: Record<string, string> = {
     pilot: "Pilot",
@@ -40,6 +41,8 @@
   );
   const ship = $derived(snapshot?.ship ?? null);
   const status = $derived(snapshot?.status ?? null);
+  const loc = $derived(snapshot?.location ?? null);
+  const shard = $derived(shardLabel(loc?.shard));
 
   const LIGHT_NAMES: Record<string, string> = {
     pwr: "Power",
@@ -84,6 +87,22 @@
     {/if}
   </div>
 
+  {#if loc}
+    <div class="where" aria-label="Location">
+      {#if loc.armistice}<span class="z good" title="Armistice zone: weapons are disabled">Armistice</span>{/if}
+      {#if loc.restricted}<span class="z bad" title="Restricted area">Restricted</span>{/if}
+      {#if loc.private}<span class="z warn" title="Private property">Private</span>{/if}
+      {#if loc.comms === false}
+        <span class="z warn" title="The local comm array is down: crimes aren't reported">Comms down</span>
+      {:else if loc.monitored === false}
+        <span class="z warn" title="Outside monitored space">Unmonitored</span>
+      {/if}
+      {#if loc.system}<span class="j">{loc.system}</span>{/if}
+      {#if loc.jurisdiction}<span class="j" title="Jurisdiction">{loc.jurisdiction}</span>{/if}
+      {#if shard}<span class="s" title="Server {loc.shard}">{shard}</span>{/if}
+    </div>
+  {/if}
+
   {#if alarm}
     <div class="alarm {alarm.level}" role="alert">
       <span class="tag">{alarm.level === "warning" ? "Warning" : "Caution"}</span>
@@ -93,7 +112,7 @@
 
   <div class="right">
     {#if ship?.flight.quantum}
-      <span class="mode qt" title={snapshot?.route?.destination ? `Quantum to ${snapshot.route.destination}` : "Quantum travel"}>QT</span>
+      <span class="mode qt" title={snapshot?.location?.route?.destination ? `Quantum to ${snapshot.location.route.destination}` : "Quantum travel"}>QT</span>
     {:else if ship?.master_mode}
       <span class="mode {ship.master_mode.toLowerCase()}">{ship.master_mode}</span>
     {:else if ship && ship.powered === false}
@@ -339,6 +358,65 @@
   }
   @media (max-width: 640px) {
     .what {
+      display: none;
+    }
+  }
+  .where {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+    flex: 0 1 auto;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+  .z {
+    font-size: 0.64rem;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 2px 6px;
+    border-radius: 2px;
+    border: 1px solid currentColor;
+    flex: none;
+  }
+  .z.good {
+    color: var(--good);
+    background: color-mix(in srgb, var(--good) 12%, transparent);
+  }
+  .z.warn {
+    color: var(--warn);
+    background: color-mix(in srgb, var(--warn) 12%, transparent);
+  }
+  .z.bad {
+    color: var(--bad);
+    background: color-mix(in srgb, var(--bad) 14%, transparent);
+  }
+  .j,
+  .s {
+    font-size: 0.74rem;
+    color: var(--text-2);
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .j::before,
+  .s::before {
+    content: "·";
+    margin: 0 5px 0 2px;
+    color: var(--text-3);
+  }
+  .s {
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    color: var(--text-3);
+  }
+  @media (max-width: 1100px) {
+    .s {
+      display: none;
+    }
+  }
+  @media (max-width: 760px) {
+    .j {
       display: none;
     }
   }

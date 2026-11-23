@@ -158,11 +158,7 @@ There is no quantum travel field, and `speed` does not show the jump. What happe
 
 So the normalizer infers `flight.quantum`: speed bit-identical with G exactly 0 for 1 s while the heading moves; it then lasts until G reads anything but 0. In the 44-minute session it found all three routes (one 68 s jump; two routes that were split into two legs around an obstruction) and neither of two dead stops in space. Short legs (~7 s) are only recognised near their end. One more 7 s freeze at 1026 m/s, right after an "obstructed" notice, was also flagged; we can't tell from the data what it was.
 
-**Game.log** records more (read-only, the agent already reads it for the port):
-- `<Player Selected Quantum Target - Local> ... Player has selected point <destination> as their destination` when a route is plotted.
-- `<Quantum Drive Arrived - Arrived at Final Destination>` at the end of the route (matched the telemetry to the second).
-- A notification line when the destination is obstructed.
-- No line marks the start of a jump.
+**Game.log**: see the Game.log section below for the route, arrival and obstruction lines. No line marks the start of a quantum jump.
 
 **Actor**
 - **Unchanged all session:** health 100 (you weren't hurt), hunger/thirst 100, body temperature 36.5, radiation 0, intoxication 0.
@@ -174,7 +170,55 @@ So the normalizer infers `flight.quantum`: speed bit-identical with G exactly 0 
   - `external_temperature` read -273.15 in space;
   - `breathable_atmosphere` turned false outside.
 
-## Differences from the spec (§2.4, §2.5, §4)
+## Game.log
+
+The game's own debug log (`<channel>/Game.log`, a new file each launch; older ones in `logbackups/`). It isn't an API, but it carries what the telemetry stream doesn't. `agent/fleet_agent/gamelog.py` follows it read-only and keeps only lines it recognises. Most useful lines are on-screen notifications, written as `<UpdateNotificationItem> Notification "<text>" [n], Action: Next` (then again with `StartFade` and `Remove`; we read only `Next`). Some notification texts contain a newline, so the line continues on the next log line, which starts with a timestamp and no tag; the reader joins them.
+
+**What we use**
+
+| What | Line | Notes |
+|---|---|---|
+| Your handle | `<Legacy login response> ... Handle[<handle>]` | To tell your kills from others'. Not displayed or sent. |
+| Server | `<Join PU> address[..] port[..] shard[pub_use1b_13165946_150]`, `<Update Shard Id> New Shard Id: ...` | Same shard = same universe instance. The address is never kept. |
+| Armistice | `Entering Armistice Zone - Combat Prohibited`, `Leaving Armistice Zone - Caution Advised` | Repeated by the game; deduplicated. |
+| Jurisdiction | `Entered <name> Jurisdiction` | Hurston Dynamics, UEE, ArcCorp, Crusader Industries, microTech, People's Alliance, Rough & Ready, Ungoverned... |
+| Monitored space | `Entered / Exited Monitored Space`, `Monitored Space Down / Restored` (comm array) | |
+| Restricted area | `Restricted Area` + text (relocated, or "Vehicles Will Be Impounded"), `Leaving Restricted Area` | |
+| Private property | `Entering / Leaving Private Property` | |
+| Quantum route | `<Player Selected Quantum Target - Local> ... selected point <id> as their destination` | `OOC_Stanton_1b_Aberdeen` → "Aberdeen". |
+| Quantum arrival | `<Quantum Drive Arrived - Arrived at Final Destination>` | End of the whole route (after every leg). |
+| Quantum blocked | `Quantum Travel: Your destination is obstructed ...` | |
+| Party calibration | `Quantum Travel Calibration Started / Complete By <player>` | |
+| Contracts | `Contract Accepted / Shared / Complete / Failed: <title> <EM4>[150 Rep] [BP]*</EM4>` | Tags kept separately. `<EndMission> ... CompletionType[Abandon]` for abandoning (it has an id, not a title). |
+| Objectives | `New Objective / Objective Complete / Objective Withdrawn: <text>` | |
+| Rewards | `Awarded 1000 aUEC` | Counted under "uec" sharing. |
+| Ships destroyed | `<Vehicle Destroyed> Vehicle '<id>' ... class '<class>' ... destroyed: reason [Combat] level [0] -> [2] ... killer '<name>'` | Level 2 = destroyed (1 = disabled). Lists ships near you too, so: yours (lost), by you (kill), by others (nearby). NPC classes end `_PU_AI_CRIM` (hostile), `_AI_CIV` (civilian)... |
+| Injuries | `Minor / Moderate / Severe Injury Detected - <body part> - Tier <n> Treatment Required` | Cleared by a medical bed or respawn. |
+| Incapacitated | `Incapacitated: ...` | |
+| Medical bed | `Medical Bed: The bed has restored your health ...` | |
+| Hangar | `Hangar Request Completed`, `Joined hangar queue.` | |
+| Blueprints | `Received Blueprint: <name>` | |
+| Player deaths (old) | `<Actor Death> CActor::Kill: '<victim>' ... killed by '<killer>' using '<weapon>' ... damage type '<type>'` | Parsed in case it returns. |
+| Jump drive (old) | `<Jump Drive State Changed> Now <State> \| ... \| <system> \|` | Through a jump point to another star system (not quantum travel). States: Idle, Tuning, EntryChecks, RequestingJump, WaitingForOpen, Entering, Transiting, Exiting. Parsed in case it returns. |
+
+Left out on purpose: comms and party channel joins/leaves (`New Member Joined`, `You have joined channel ...`).
+
+**How it has changed** (717 backed-up logs, 69 builds, January 2023 to November 2026):
+
+| Line | Seen | Format |
+|---|---|---|
+| Login with handle | 2023-09 → now (63 builds) | unchanged |
+| `<Join PU>` with shard | 2025-06 → now (29 builds) | unchanged |
+| `<EndMission>` | 2025-05 → now | unchanged |
+| Quantum route / arrival | 2025-12 → now (19 builds) | unchanged |
+| Notifications (`<UpdateNotificationItem>`): zones, contracts, injuries, hangar... | 2026-01 → now | unchanged; the wording of individual texts is what varies |
+| `<Actor Death>` | 2024-08 → 2025-10 | **gone** since |
+| `<Jump Drive State Changed>` | 2025-02 → 2025-11 | **gone** since |
+| `<Vehicle Destroyed>` | 2026-11-20 → now | **new** |
+
+So a line's format tends to stay put for as long as the line exists, but whole line types come and go between patches. Re-run the scan after a big patch: `uv run python tools/logscan.py` (reads every `logbackups/*.log`, groups lines by shape with values replaced, so it prints no names).
+
+ (§2.4, §2.5, §4)
 
 **Not in the LIVE schema at all:**
 - Vehicle hull `health`.

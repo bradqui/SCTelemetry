@@ -25,7 +25,7 @@
   const gTone = $derived(f.g == null ? "" : f.g > 9 ? "bad" : f.g > 5 ? "warn" : "");
 
   // Quantum route from Game.log, if the agent has one.
-  const route = $derived(ctx.snap.route ?? null);
+  const route = $derived(ctx.snap.location?.route ?? null);
   const routeState = $derived(
     !route
       ? ""

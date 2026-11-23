@@ -82,13 +82,55 @@ export interface Vitals {
   pressure: number | null;
   intoxication: number | null;
   environment: { temperature: number | null; breathable: boolean | null; radiation: number | null };
+  injuries?: Injury[];
 }
 
-/** A plotted quantum route, from the game's Game.log. Local view only. */
+/** A plotted quantum route (within a star system), from Game.log. */
 export interface Route {
   destination: string | null;
   state: "plotted" | "en_route" | "arrived" | "blocked";
   since: number;
+}
+
+export interface Location {
+  armistice: boolean | null;
+  jurisdiction: string | null;
+  monitored: boolean | null;
+  /** False while the local comm array is down. */
+  comms: boolean | null;
+  restricted: boolean | null;
+  private: boolean | null;
+  shard: string | null;
+  system: string | null;
+  route: Route | null;
+}
+
+export interface Mission {
+  title: string | null;
+  tags: string[];
+  state: "active" | "complete" | "failed" | "abandoned";
+  since: number;
+  objective: string | null;
+  objective_done: boolean;
+  shared: boolean;
+}
+
+export interface Session {
+  kills: number;
+  ships_lost: number;
+  deaths: number;
+  incaps: number;
+  contracts: number;
+  failed: number;
+  earned: number;
+  quantum_trips: number;
+  system_jumps: number;
+}
+
+export interface Injury {
+  part: string;
+  severity: "minor" | "moderate" | "severe" | string;
+  tier: number;
 }
 
 export interface Snapshot {
@@ -100,7 +142,10 @@ export interface Snapshot {
   weapons: Weapons | null;
   vitals: Vitals | null;
   uec: number | null;
-  route?: Route | null;
+  /** From Game.log (absent when the agent can't read it). */
+  location?: Location | null;
+  missions?: Mission[] | null;
+  session?: Session | null;
 }
 
 export interface TelemetryEvent {

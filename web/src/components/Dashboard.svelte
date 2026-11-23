@@ -10,6 +10,7 @@
   import FlightPanel from "./panels/FlightPanel.svelte";
   import FuelPanel from "./panels/FuelPanel.svelte";
   import HeadingPanel from "./panels/HeadingPanel.svelte";
+  import MissionPanel from "./panels/MissionPanel.svelte";
   import PowerPanel from "./panels/PowerPanel.svelte";
   import ShipPanel from "./panels/ShipPanel.svelte";
   import TrendsPanel from "./panels/TrendsPanel.svelte";
@@ -31,6 +32,7 @@
     weapons: WeaponsPanel,
     vitals: VitalsPanel,
     environment: EnvironmentPanel,
+    mission: MissionPanel,
     events: EventsPanel,
   };
 

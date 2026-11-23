@@ -13,7 +13,7 @@ The full build spec is in [docs/SC_FLEET_TELEMETRY_SPEC.md](docs/SC_FLEET_TELEME
 - **Web** (PWA): fleet board and member detail; the same bundle is the agent's local view.
 - **Cog** (`telemetry`, Red-DiscordBot): `!fleet`, `!ready`, ops, and alerts in ButlerBot.
 
-No world position, no remote control of anyone's game, and nothing that touches memory or Easy Anti-Cheat.
+No world coordinates, no remote control of anyone's game, and nothing that touches memory or Easy Anti-Cheat. The agent reads two things the game already writes for this kind of use: its local telemetry stream and its `Game.log` text file (location, contracts, kills, quantum routes). Each member can switch off any category they don't want shared: location, contracts, combat, vitals, aUEC and so on.
 
 ## Development
 

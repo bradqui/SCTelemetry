@@ -137,8 +137,9 @@ class Recording:
     chapters: list[Chapter]
     markers: list[Marker]
     response_cls: type
-    logs: dict[int, list[str]] = field(default_factory=dict)
-    """Game.log lines recorded with the capture, by the index of the frame they precede."""
+    logs: dict[int, list[tuple[str, bool]]] = field(default_factory=dict)
+    """Game.log lines recorded with the capture, by the index of the frame they precede,
+    with ``quiet`` set for lines from before the recording started (state, not news)."""
 
     @property
     def duration(self) -> float:
@@ -170,7 +171,7 @@ class Recording:
     def load(cls, paths: list[Path], protoset: Path = DEFAULT_PROTOSET) -> Recording:
         from .capturefile import read_records
         from .events import EventDeriver
-        from .gamelog import RouteTracker, parse_line
+        from .gamelog import LogState, parse_line
         from .normalize import Normalizer, raw_game_events
 
         schema = TelemetrySchema.from_protoset(protoset)
@@ -179,7 +180,8 @@ class Recording:
         for path in paths:
             # Each file is a separate slice of play. The agent starts each one
             # fresh (see ReplaySource), so the event index does too.
-            normalizer, deriver, route = Normalizer(), EventDeriver(), RouteTracker()
+            normalizer, deriver, logstate = Normalizer(), EventDeriver(), LogState()
+            ship_id = None
             first = len(rec.positions)
             # Log lines (t, line) in this file, attached to the next frame at or after them.
             lines = sorted(
@@ -194,15 +196,18 @@ class Recording:
                 index = len(rec.positions)
                 ms = int(pos * 1000)
                 while li < len(lines) and lines[li][0] <= frame_times[k]:
-                    line = lines[li][1]
-                    rec.logs.setdefault(index, []).append(line)
+                    line_t, line = lines[li]
+                    quiet = line_t < frame_times[0]
+                    rec.logs.setdefault(index, []).append((line, quiet))
                     if ev := parse_line(line):
-                        for e in route.on_log(ev, ms):
-                            rec.markers.append(Marker(pos, e.kind, e.data))
+                        events = logstate.on_log(ev, ms, ship_id)
+                        if not quiet:
+                            rec.markers.extend(Marker(pos, e.kind, e.data) for e in events)
                     li += 1
                 rec.positions.append(pos)
                 rec.payloads.append(payload)
                 snap = normalizer.feed(raw, int(pos * 1000))
+                ship_id = snap.ship.id if snap.ship else None
                 for e in deriver.feed(snap, raw_game_events(raw)):
                     rec.markers.append(Marker(pos, e.kind, e.data))
             if len(rec.positions) > first:

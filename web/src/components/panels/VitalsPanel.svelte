@@ -40,9 +40,54 @@
       </div>
     {/if}
   </div>
+  {#if v.injuries?.length}
+    <div class="injuries" aria-label="Injuries">
+      {#each v.injuries as inj (inj.part)}
+        <span class="inj {inj.severity}" title="{inj.severity} injury: tier {inj.tier} treatment required">
+          {inj.part}<b>{inj.severity}</b><em>T{inj.tier}</em>
+        </span>
+      {/each}
+    </div>
+  {/if}
 {/if}
 
 <style>
+  .injuries {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px;
+    margin-top: 6px;
+  }
+  .inj {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 6px;
+    border-radius: 2px;
+    font-size: 0.72rem;
+    font-weight: 650;
+    border: 1px solid var(--c);
+    background: color-mix(in srgb, var(--c) 12%, transparent);
+    --c: var(--warn);
+  }
+  .inj.moderate {
+    --c: #ff8a3d;
+  }
+  .inj.severe {
+    --c: var(--bad);
+  }
+  .inj b {
+    font-size: 0.6rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--c);
+  }
+  .inj em {
+    font-style: normal;
+    font-family: var(--mono);
+    font-size: 0.66rem;
+    color: var(--text-3);
+  }
   .rings {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));

@@ -16,7 +16,11 @@ from pydantic import BaseModel, ConfigDict, Field
 
 SCHEMA_VERSION = 1
 
-SHARE_CATEGORIES = ("status", "ship", "weapons", "vitals", "uec")
+SHARE_CATEGORIES = ("status", "ship", "weapons", "vitals", "uec", "location", "mission", "combat")
+"""What a member can share with the fleet. All on by default; each can be switched off.
+
+location: zone, jurisdiction, server, star system, quantum destination (no coordinates).
+mission: current contracts and objectives. combat: kills, ships lost, session counts."""
 """What a member can switch off. Everything is shared by default (spec §11.6)."""
 
 Level = Literal["off", "nominal", "minor", "minor_flashing", "major", "major_flashing"]
@@ -127,6 +131,15 @@ class Environment(_Model):
     radiation: float | None = None
 
 
+class Injury(_Model):
+    part: str
+    """E.g. "Head", "Left arm", "Torso"."""
+    severity: str
+    """minor | moderate | severe."""
+    tier: int
+    """Medical treatment tier required (1 is the most capable bed)."""
+
+
 class Vitals(_Model):
     health: float | None = None
     """0–1."""
@@ -140,18 +153,71 @@ class Vitals(_Model):
     pressure: float | None = None
     intoxication: int | None = None
     environment: Environment = Field(default_factory=Environment)
+    injuries: list[Injury] = Field(default_factory=list)
+    """From Game.log; cleared by a medical bed or respawning."""
 
 
 # ---------------------------------------------------------------- messages
 
 
 class Route(_Model):
-    """A plotted quantum route, from the game's Game.log (local view only for now)."""
+    """A plotted quantum route (within a star system), from Game.log."""
 
     destination: str | None = None
     state: Literal["plotted", "en_route", "arrived", "blocked"]
     since: int
     """ms since epoch the state began."""
+
+
+class Location(_Model):
+    """Where you are in game terms, from Game.log notices. No coordinates."""
+
+    armistice: bool | None = None
+    jurisdiction: str | None = None
+    monitored: bool | None = None
+    """In monitored space (crimes are reported)."""
+    comms: bool | None = None
+    """False while the local comm array is down ("Monitored Space Down")."""
+    restricted: bool | None = None
+    private: bool | None = None
+    """On private property."""
+    shard: str | None = None
+    """The server, e.g. pub_use1b_13165946_150: the same shard means the same universe."""
+    system: str | None = None
+    """Star system, when the game names it (jump drive lines)."""
+    route: Route | None = None
+
+
+class Mission(_Model):
+    """A contract (or loose objective) from Game.log notices."""
+
+    title: str | None = None
+    tags: list[str] = Field(default_factory=list)
+    """E.g. ["150 Rep", "BP"] from the contract name."""
+    state: Literal["active", "complete", "failed", "abandoned"]
+    since: int
+    objective: str | None = None
+    objective_done: bool = False
+    shared: bool = False
+
+
+class Session(_Model):
+    """Counts for this game session, from Game.log."""
+
+    kills: int = 0
+    """Ships (or, in older builds, players) destroyed by you."""
+    ships_lost: int = 0
+    deaths: int = 0
+    incaps: int = 0
+    contracts: int = 0
+    """Contracts completed."""
+    failed: int = 0
+    earned: int = 0
+    """aUEC awarded (shared only with "uec")."""
+    quantum_trips: int = 0
+    """Quantum routes completed (within a system)."""
+    system_jumps: int = 0
+    """Jump point transits to another star system."""
 
 
 class Snapshot(_Model):
@@ -164,8 +230,10 @@ class Snapshot(_Model):
     weapons: Weapons | None = None
     vitals: Vitals | None = None
     uec: int | None = None
-    route: Route | None = None
-    """Never shared off this PC (see apply_sharing)."""
+    location: Location | None = None
+    missions: list[Mission] | None = None
+    """Active contracts first, then ones that just ended."""
+    session: Session | None = None
 
 
 EventKind = Literal[
@@ -180,6 +248,41 @@ EventKind = Literal[
     "quantum_route",
     "quantum_arrived",
     "quantum_blocked",
+    "qt_calibration",
+    "jump_start",
+    "jump_end",
+    "shard_join",
+    "armistice_enter",
+    "armistice_leave",
+    "jurisdiction",
+    "monitored_enter",
+    "monitored_leave",
+    "comms_down",
+    "comms_restored",
+    "restricted_enter",
+    "restricted_leave",
+    "private_enter",
+    "private_leave",
+    "contract_accepted",
+    "contract_shared",
+    "contract_complete",
+    "contract_failed",
+    "contract_abandoned",
+    "objective_new",
+    "objective_complete",
+    "objective_withdrawn",
+    "objective_failed",
+    "reward",
+    "kill",
+    "vehicle_destroyed",
+    "ship_lost",
+    "death",
+    "injury",
+    "healed",
+    "incapacitated",
+    "hangar_ready",
+    "hangar_queue",
+    "blueprint",
     "takeoff",
     "landed",
     "warning_on",
@@ -230,7 +333,64 @@ def apply_sharing(snapshot: Snapshot, share: set[str] | list[str]) -> Snapshot:
             "weapons": snapshot.weapons if "weapons" in share else None,
             "vitals": snapshot.vitals if "vitals" in share else None,
             "uec": snapshot.uec if "uec" in share else None,
-            # Where you're heading is location: local only until the org decides otherwise.
-            "route": None,
+            "location": snapshot.location if "location" in share else None,
+            "missions": snapshot.missions if "mission" in share else None,
+            "session": _session_shared(snapshot.session, share),
         }
     )
+
+
+def _session_shared(session: Session | None, share: set[str]) -> Session | None:
+    if session is None or "combat" not in share:
+        return None
+    return session if "uec" in share else session.model_copy(update={"earned": 0})
+
+
+EVENT_CATEGORY: dict[str, str] = {
+    **dict.fromkeys(
+        [
+            "quantum_route",
+            "quantum_arrived",
+            "quantum_blocked",
+            "qt_calibration",
+            "jump_start",
+            "jump_end",
+            "shard_join",
+            "armistice_enter",
+            "armistice_leave",
+            "jurisdiction",
+            "monitored_enter",
+            "monitored_leave",
+            "comms_down",
+            "comms_restored",
+            "restricted_enter",
+            "restricted_leave",
+            "private_enter",
+            "private_leave",
+        ],
+        "location",
+    ),
+    **dict.fromkeys(
+        [
+            "contract_accepted",
+            "contract_shared",
+            "contract_complete",
+            "contract_failed",
+            "contract_abandoned",
+            "objective_new",
+            "objective_complete",
+            "objective_withdrawn",
+            "objective_failed",
+        ],
+        "mission",
+    ),
+    **dict.fromkeys(["kill", "vehicle_destroyed", "ship_lost", "death"], "combat"),
+    **dict.fromkeys(["injury", "healed", "incapacitated"], "vitals"),
+    "reward": "uec",
+}
+"""Events about a share category; the rest follow "status"."""
+
+
+def event_shared(event: Event, share: set[str] | list[str]) -> bool:
+    """Whether a member's sharing settings allow this event to leave their PC."""
+    return EVENT_CATEGORY.get(event.kind, "status") in set(share)

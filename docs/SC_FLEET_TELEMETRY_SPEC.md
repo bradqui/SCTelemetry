@@ -14,7 +14,7 @@ Let members of our Star Citizen org see each other's live in-game status (ship, 
 Data comes from Star Citizen's local game telemetry gRPC server (unofficial, see §2). Each member runs a small Windows **agent** that reads their game and pushes to a central **hub** hosted on Brad's server, alongside ButlerBot.
 
 ### Non-goals
-- No world position / map (the game does not expose it — see §2.5).
+- No world coordinates / map (the game does not expose them — see §2.5). Location in game terms (zone, jurisdiction, server, star system, quantum destination) comes from Game.log and is shared by default (decision 10).
 - No remote control of anyone's game. Game actions, if ever implemented, are **local-only** (§7).
 - No memory reading, injection, or anything touching Easy Anti-Cheat.
 
@@ -359,4 +359,5 @@ Cog holds a reconnecting WebSocket to the hub's `/internal/events` and uses the 
 6. **Default sharing:** everything on; each member can switch off any category (e.g. aUEC, vitals) in the agent, and switched-off data is never sent.
 7. **Frontend:** Svelte 5 + Vite + TypeScript (see §3.1).
 8. **Code signing:** deferred until Phase 5.
+10. **Game.log and location (2026-11-23):** the agent also reads the game's Game.log (read-only) for location, quantum routes, contracts, kills, injuries and the server (docs/FIELDS.md, "Game.log"); comms/party chatter is left out. This is org-internal game data, so it goes to the fleet. Location is shared by default like everything else; members can opt out per category: `location` (zone, jurisdiction, server, system, quantum destination), `mission` (contracts), `combat` (kills, losses, session counts), alongside `status`, `ship`, `weapons`, `vitals` and `uec` (which also covers contract rewards).
 9. **Hull/shield bars (2026-11-23):** LIVE doesn't send hull health or shield levels (see FIELDS.md). The fleet board keeps hull and shield bars in the design anyway, alongside shield power and warning lights. Final call near the end of the build.

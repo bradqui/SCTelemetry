@@ -20,7 +20,7 @@ from fleet_shared import Event, Snapshot
 
 from . import client
 from .events import EventDeriver
-from .gamelog import RouteTracker, parse_line
+from .gamelog import LogState, parse_line
 from .installs import Install
 from .normalize import Normalizer, raw_game_events
 
@@ -74,7 +74,8 @@ class Pipeline:
         """[t, speed, alt, g] samples, oldest first."""
         self._normalizer = Normalizer()
         self._deriver = EventDeriver()
-        self._route = RouteTracker()
+        self._log = LogState()
+        self._log_active = False
         self._listeners: list[Callable[[str, object], None]] = []
 
     def subscribe(self, listener: Callable[[str, object], None]) -> Callable[[], None]:
@@ -110,12 +111,10 @@ class Pipeline:
         if not self.state.streaming:
             self.set_state(streaming=True, message="Receiving telemetry")
             self._emit(Event(t=t, kind="game_start"))
-        snap = self._normalizer.feed(raw, t)
-        quantum = snap.ship.flight.quantum if snap.ship else None
-        route = self._route.route(t, quantum)
-        if route is not None:
-            snap = snap.model_copy(update={"route": route})
+        snap = self._with_log(self._normalizer.feed(raw, t), t)
         for event in self._deriver.feed(snap, raw_game_events(raw)):
+            if event.kind in ("spawn", "respawn"):
+                self._log.respawned()
             self._emit(event)
         self.latest = snap
         self._sample(snap)
@@ -129,21 +128,47 @@ class Pipeline:
             [snap.t, f.speed if f else None, f.alt if f else None, f.g if f else None]
         )
 
+    def _with_log(self, snap: Snapshot, t: int) -> Snapshot:
+        """Add what Game.log tells us (location, contracts, session counts, injuries)."""
+        if not self._log_active:
+            return snap
+        quantum = snap.ship.flight.quantum if snap.ship else None
+        update: dict = {
+            "location": self._log.location(t, quantum),
+            "missions": self._log.mission_list(t),
+            "session": self._log.session.model_copy(),
+        }
+        if snap.vitals is not None and self._log.injuries:
+            update["vitals"] = snap.vitals.model_copy(
+                update={"injuries": list(self._log.injuries.values())}
+            )
+        return snap.model_copy(update=update)
+
+    def attach_log(self) -> None:
+        """A Game.log is being followed: snapshots carry its state from now on."""
+        self._log_active = True
+
     def on_log(self, line: str, t: int | None = None, quiet: bool = False) -> None:
         """A Game.log line. ``quiet``: history being caught up on, so state only, no events."""
         ev = parse_line(line)
         if ev is None:
             return
-        events = self._route.on_log(ev, now_ms() if t is None else t)
+        self._log_active = True
+        my_ship = self.latest.ship.id if self.latest and self.latest.ship else None
+        events = self._log.on_log(ev, now_ms() if t is None else t, my_ship)
         if not quiet:
             for event in events:
                 self._emit(event)
+
+    def on_new_log(self) -> None:
+        """The game was relaunched (a new Game.log): session state starts over."""
+        self._log.reset_session()
 
     def reset(self, *, clear_history: bool) -> None:
         """Start fresh mid-stream (a replay jump): no seat/ship carry-over between scenes."""
         self._normalizer = Normalizer()
         self._deriver = EventDeriver()
-        self._route = RouteTracker()
+        self._log = LogState()
         if clear_history:
             self.recent.clear()
             self.trend.clear()
@@ -160,7 +185,8 @@ class Pipeline:
             # A new game session starts fresh (seat, ship, debounce state).
             self._normalizer = Normalizer()
             self._deriver = EventDeriver()
-            self._route = RouteTracker()
+            # Game.log state (contracts, location) lives on: a new launch resets it via
+            # on_new_log, and a dropped stream mid-game shouldn't forget your contract.
 
 
 # ---------------------------------------------------------------- reader thread
@@ -307,9 +333,9 @@ class ReplaySource:
                 # plotted before the jump point is still known), without events.
                 first = rec.chapters[tick.chapter].first if rec.chapters else 0
                 for i in range(first, tick.index):
-                    for line in rec.logs.get(i, ()):
+                    for line, _quiet in rec.logs.get(i, ()):
                         self._post(self.pipeline.on_log, line, t, True)
                 epoch_fed = tick.epoch
-            for line in rec.logs.get(tick.index, ()):
-                self._post(self.pipeline.on_log, line, t, False)
+            for line, quiet in rec.logs.get(tick.index, ()):
+                self._post(self.pipeline.on_log, line, t, quiet)
             self._post(self.pipeline.on_frame, rec.decode(tick.index), t)

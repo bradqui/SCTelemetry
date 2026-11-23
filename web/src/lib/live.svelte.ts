@@ -1,14 +1,25 @@
-import type { AgentState, Snapshot, TelemetryEvent } from "./types";
+import type { AgentState, ReplayIndex, ReplayStatus, Snapshot, TelemetryEvent } from "./types";
 
-const MAX_EVENTS = 40;
+const MAX_EVENTS = 60;
 
 /** WebSocket to the agent's /ws, reconnecting with backoff. Reactive via Svelte runes. */
 export class LiveConnection {
   socket = $state<"connecting" | "open" | "closed">("connecting");
   agent = $state<AgentState | null>(null);
-  snapshot = $state<Snapshot | null>(null);
-  events = $state<TelemetryEvent[]>([]);
+  snapshot = $state.raw<Snapshot | null>(null);
+  events = $state.raw<TelemetryEvent[]>([]);
   agentVersion = $state<string | null>(null);
+  /** Bumped when the agent starts fresh (a replay jump): views drop their history. */
+  resets = $state(0);
+
+  /** Trend history the agent sent on connect: [t, speed, alt, g][]. */
+  trendSeed = $state.raw<[number, number | null, number | null, number | null][]>([]);
+
+  replay = $state(false);
+  replayIndex = $state.raw<ReplayIndex | null>(null);
+  replayStatus = $state.raw<ReplayStatus | null>(null);
+  /** performance.now() when replayStatus arrived, to move the playhead smoothly between updates. */
+  replayAt = 0;
 
   #ws: WebSocket | null = null;
   #retry = 500;
@@ -37,6 +48,22 @@ export class LiveConnection {
     this.#ws?.close();
   }
 
+  /** Replay controls. Ignored by the agent unless it is replaying. */
+  control(action: "play" | "pause" | "seek" | "speed" | "step", extra: Record<string, number> = {}): void {
+    if (this.#ws?.readyState === WebSocket.OPEN) {
+      this.#ws.send(JSON.stringify({ type: "replay", action, ...extra }));
+    }
+  }
+
+  /** Where the replay is now, in seconds, moving between status updates while playing. */
+  replayPos(now = performance.now()): number {
+    const s = this.replayStatus;
+    if (!s) return 0;
+    if (s.paused) return s.pos;
+    const pos = s.pos + ((now - this.replayAt) / 1000) * s.speed;
+    return Math.min(pos, this.replayIndex?.duration ?? pos);
+  }
+
   #connect(): void {
     this.socket = "connecting";
     const ws = new WebSocket(this.url);
@@ -59,6 +86,7 @@ export class LiveConnection {
     switch (msg.type) {
       case "hello":
         this.agentVersion = (msg.agent_version as string) ?? null;
+        this.replay = msg.replay === true;
         break;
       case "state":
         this.agent = msg as unknown as AgentState;
@@ -72,6 +100,21 @@ export class LiveConnection {
         break;
       case "event":
         this.events = [msg as unknown as TelemetryEvent, ...this.events].slice(0, MAX_EVENTS);
+        break;
+      case "trends":
+        this.trendSeed = msg.samples as [number, number | null, number | null, number | null][];
+        break;
+      case "reset":
+        // Keep showing the last snapshot until the next one (a frame away) so nothing flickers.
+        this.events = [];
+        this.resets++;
+        break;
+      case "replay_index":
+        this.replayIndex = msg as unknown as ReplayIndex;
+        break;
+      case "replay":
+        this.replayStatus = msg as unknown as ReplayStatus;
+        this.replayAt = performance.now();
         break;
     }
   }

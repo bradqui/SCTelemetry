@@ -48,6 +48,14 @@
       color 0.15s,
       border-color 0.15s;
   }
+  @container panel (max-width: 330px) {
+    .name {
+      display: none;
+    }
+    .light {
+      padding: 8px 2px;
+    }
+  }
   .compact .light {
     padding: 7px 2px;
   }

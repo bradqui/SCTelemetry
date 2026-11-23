@@ -1,13 +1,31 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, untrack } from "svelte";
+  import type { PanelCtx } from "./lib/context";
   import { LiveConnection } from "./lib/live.svelte";
-  import Cockpit from "./components/Cockpit.svelte";
-  import EventFeed from "./components/EventFeed.svelte";
-  import Personal from "./components/Personal.svelte";
+  import { ACCENTS, PrefsStore } from "./lib/prefs.svelte";
+  import { Trends } from "./lib/trends.svelte";
+  import Customize from "./components/Customize.svelte";
+  import Dashboard from "./components/Dashboard.svelte";
+  import MasterCaution from "./components/MasterCaution.svelte";
+  import ReplayBar from "./components/ReplayBar.svelte";
   import TopBar from "./components/TopBar.svelte";
 
   const live = new LiveConnection();
-  onMount(() => live.start());
+  const trends = new Trends();
+  const store = new PrefsStore();
+  const prefs = $derived(store.value);
+
+  let now = $state(Date.now());
+  onMount(() => {
+    const stop = live.start();
+    const timer = setInterval(() => (now = Date.now()), 1000);
+    return () => {
+      stop();
+      clearInterval(timer);
+    };
+  });
+
+  // -- view mode and customizing
 
   function initialCompact(): boolean {
     const q = new URLSearchParams(location.search);
@@ -18,8 +36,8 @@
       return false;
     }
   }
-
   let compact = $state(initialCompact());
+  let customizing = $state(new URLSearchParams(location.search).has("customize"));
   function toggleCompact() {
     compact = !compact;
     try {
@@ -29,23 +47,58 @@
     }
   }
 
+  // -- effects
+
+  // Trends read and write their own state: untrack so only the inputs re-run these.
+  $effect(() => {
+    const seed = live.trendSeed;
+    untrack(() => trends.seed(seed));
+  });
+  $effect(() => {
+    const snap = live.snapshot;
+    untrack(() => trends.push(snap));
+  });
+  $effect(() => {
+    if (live.resets) untrack(() => trends.clear());
+  });
+  $effect(() => {
+    JSON.stringify(store.value); // track every preference
+    store.save();
+  });
+  $effect(() => {
+    const root = document.documentElement;
+    const color = ACCENTS[prefs.accent].color;
+    root.style.setProperty("--accent", color);
+    root.style.setProperty("--accent-dim", `${color}33`);
+    root.classList.toggle("fx", prefs.effects);
+  });
+
   const snap = $derived(live.snapshot);
   const ship = $derived(snap?.ship ?? null);
   const waiting = $derived(live.socket !== "open" || !live.agent?.streaming || !snap);
+  const ctx = $derived<PanelCtx | null>(
+    snap ? { snap, ship, events: live.events, trends, prefs, compact, now } : null,
+  );
 </script>
 
-<main class:compact>
+<main class:compact class:replay={live.replay}>
   <TopBar
     socket={live.socket}
     agent={live.agent}
     snapshot={snap}
     {compact}
+    replay={live.replay}
     onToggleCompact={toggleCompact}
+    onCustomize={() => (customizing = !customizing)}
   />
 
-  {#if waiting}
-    <section class="waiting panel">
-      <div class="radar" aria-hidden="true"><span></span></div>
+  {#if prefs.caution && ship && !waiting}
+    <MasterCaution lights={ship.lights} />
+  {/if}
+
+  {#if waiting || !ctx}
+    <section class="waiting">
+      <div class="radar" aria-hidden="true"><span></span><i></i></div>
       {#if live.socket !== "open"}
         <h1>Can't reach the agent</h1>
         <p>Start it with <code>python -m fleet_agent run</code>. This page reconnects by itself.</p>
@@ -57,21 +110,8 @@
         <p>{live.agent?.message ?? "Starting"}. Telemetry must be switched on and the game running.</p>
       {/if}
     </section>
-  {:else if snap}
-    {#if ship}
-      <Cockpit {ship} weapons={snap.weapons} {compact} />
-    {:else if snap.status?.locomotion === "seated"}
-      <section class="boarding panel">
-        <span class="label">Boarding</span>
-        <p>Seated. Ship systems appear in a moment.</p>
-      </section>
-    {/if}
-    {#if snap.vitals && (!ship || !compact)}
-      <Personal vitals={snap.vitals} status={snap.status} {compact} />
-    {/if}
-    {#if !compact}
-      <EventFeed events={live.events} />
-    {/if}
+  {:else}
+    <Dashboard {ctx} layout={compact ? prefs.compact : prefs.full} editing={customizing} />
   {/if}
 
   {#if !compact}
@@ -80,6 +120,14 @@
     </footer>
   {/if}
 </main>
+
+{#if live.replay}
+  <ReplayBar {live} />
+{/if}
+
+{#if customizing}
+  <Customize {store} {compact} onClose={() => (customizing = false)} />
+{/if}
 
 <style>
   main {
@@ -91,19 +139,25 @@
     gap: var(--gap);
   }
   main.compact {
-    max-width: 520px;
+    max-width: 540px;
     padding: 6px 10px 12px;
     gap: 10px;
+  }
+  main.replay {
+    padding-bottom: 130px;
   }
   .waiting {
     display: grid;
     justify-items: center;
     text-align: center;
-    padding: 64px 24px;
+    padding: 72px 24px;
     gap: 6px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: linear-gradient(180deg, var(--panel-2), var(--panel));
   }
   .waiting h1 {
-    margin: 18px 0 0;
+    margin: 22px 0 0;
     font-size: 1.5rem;
   }
   .waiting p {
@@ -120,13 +174,15 @@
     font-size: 0.9em;
   }
   .radar {
-    width: 84px;
-    height: 84px;
+    width: 110px;
+    height: 110px;
     border-radius: 50%;
     border: 1px solid var(--line-2);
     background:
       radial-gradient(circle, transparent 54%, var(--line) 55%, transparent 56%),
-      radial-gradient(circle, transparent 26%, var(--line) 27%, transparent 28%);
+      radial-gradient(circle, transparent 26%, var(--line) 27%, transparent 28%),
+      linear-gradient(90deg, transparent 49.5%, var(--line) 50%, transparent 50.5%),
+      linear-gradient(0deg, transparent 49.5%, var(--line) 50%, transparent 50.5%);
     position: relative;
     overflow: hidden;
   }
@@ -136,14 +192,21 @@
     background: conic-gradient(from 0deg, var(--accent-dim), transparent 25%);
     animation: spin 2.4s linear infinite;
   }
+  .radar i {
+    position: absolute;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    left: 66%;
+    top: 30%;
+    background: var(--accent);
+    box-shadow: 0 0 10px var(--accent);
+    animation: pulse 2.4s ease-in-out infinite;
+  }
   @keyframes spin {
     to {
       transform: rotate(360deg);
     }
-  }
-  .boarding p {
-    margin: 0;
-    color: var(--text-2);
   }
   footer {
     text-align: center;

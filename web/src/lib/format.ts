@@ -74,3 +74,47 @@ export function eventTone(kind: string, data: Record<string, unknown>): "info" |
   if (["warning_off", "landed", "game_start", "respawn"].includes(kind)) return "good";
   return "info";
 }
+
+/** Speed in the chosen unit. */
+export function speedIn(v: number | null | undefined, unit: "ms" | "kmh"): { value: string; unit: string } {
+  if (v == null) return { value: DASH, unit: unit === "kmh" ? "km/h" : "m/s" };
+  return unit === "kmh" ? { value: speed(v * 3.6), unit: "km/h" } : { value: speed(v), unit: "m/s" };
+}
+
+/** A round scale maximum at or above v. */
+export function niceMax(v: number, floor = 100): number {
+  const steps = [1, 1.5, 2, 2.5, 3, 4, 5, 6, 8];
+  const target = Math.max(v, floor);
+  const mag = 10 ** Math.floor(Math.log10(target));
+  for (const s of steps) if (s * mag >= target) return s * mag;
+  return 10 * mag;
+}
+
+/** "m:ss" or "h:mm:ss" for a replay position in seconds. */
+export function duration(s: number): string {
+  const t = Math.max(0, Math.floor(s));
+  const h = Math.floor(t / 3600);
+  const m = Math.floor((t % 3600) / 60);
+  const sec = String(t % 60).padStart(2, "0");
+  return h ? `${h}:${String(m).padStart(2, "0")}:${sec}` : `${m}:${sec}`;
+}
+
+/** Short relative time: "now", "12s", "4m", "1h". */
+export function since(t: number, now: number): string {
+  const s = Math.max(0, Math.round((now - t) / 1000));
+  if (s < 3) return "now";
+  if (s < 60) return `${s}s`;
+  if (s < 3600) return `${Math.floor(s / 60)}m`;
+  return `${Math.floor(s / 3600)}h`;
+}
+
+/** Which panel an event is about (it flashes when the event happens). */
+export function eventPanel(kind: string): string | null {
+  if (kind.startsWith("warning") || kind === "takeoff" || kind === "landed") return "warnings";
+  if (kind === "hull_threshold") return "ship";
+  if (kind === "fuel_threshold") return "fuel";
+  if (kind === "mode_change") return "flight";
+  if (["spawn", "downed", "dead", "respawn"].includes(kind)) return "vitals";
+  if (kind.startsWith("seat") || kind === "ship_change") return "ship";
+  return null;
+}

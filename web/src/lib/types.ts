@@ -109,3 +109,32 @@ export interface AgentState {
   message: string;
   since: number;
 }
+
+// Replay mode (`fleet_agent run --replay`) only.
+
+export interface ReplayMarker {
+  pos: number;
+  kind: string;
+  data: Record<string, unknown>;
+}
+
+export interface ReplayChapter {
+  title: string;
+  start: number;
+  end: number;
+}
+
+export interface ReplayIndex {
+  duration: number;
+  frames: number;
+  chapters: ReplayChapter[];
+  markers: ReplayMarker[];
+}
+
+export interface ReplayStatus {
+  pos: number;
+  paused: boolean;
+  speed: number;
+  loop: boolean;
+  chapter: number;
+}

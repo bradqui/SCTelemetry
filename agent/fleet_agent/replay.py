@@ -1,19 +1,25 @@
-"""A fake ``GameTelemetryService`` that plays captured frames back (spec §8 Phase 1).
+"""Play captured telemetry back without the game (spec §8 Phase 1).
 
-Lets the agent, hub and UI be developed and tested without the game, on any OS.
-Each client that calls ``TelemetryStream`` gets the recording from the start,
-at the recorded pace (``speed`` scales it), optionally looping.
+Two ways to use a recording:
 
-The server also offers gRPC reflection, so the agent needs neither
-``StarCitizen.exe`` nor a protoset to talk to it.
+- ``ReplayServer``: a fake ``GameTelemetryService`` over gRPC. Each client that
+  calls ``TelemetryStream`` gets the recording from the start, at the recorded
+  pace (``speed`` scales it), optionally looping. It offers gRPC reflection, so
+  the agent needs neither ``StarCitizen.exe`` nor a protoset to talk to it.
+- ``Playhead``: one shared, controllable position in a ``Recording`` (play,
+  pause, speed, seek, step). ``fleet_agent run --replay`` feeds it straight into
+  the pipeline, and the local view gets a timeline with every event on it.
 """
 
 from __future__ import annotations
 
+import bisect
 import logging
+import threading
 import time
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
 from concurrent import futures
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import grpc
@@ -26,7 +32,8 @@ from .scrub import SCRUBBED
 
 log = logging.getLogger(__name__)
 
-DEFAULT_PROTOSET = Path(__file__).resolve().parents[2] / "fixtures" / "telemetry.protoset"
+FIXTURES_DIR = Path(__file__).resolve().parents[2] / "fixtures"
+DEFAULT_PROTOSET = FIXTURES_DIR / "telemetry.protoset"
 
 SESSION_ORDER = (
     "on-foot",
@@ -74,18 +81,274 @@ def _parseable(value):
 
 def load_messages(schema: TelemetrySchema, paths: Iterable[Path]) -> list[tuple[float, bytes]]:
     """(delay before this frame in seconds, serialized response) for every frame."""
+    return [(delay, payload) for delay, payload, _raw in _frames(schema, paths)]
+
+
+def _frames(schema: TelemetrySchema, paths: Iterable[Path]) -> Iterator[tuple[float, bytes, dict]]:
+    """(delay, serialized response, raw dict) per frame, across all files."""
     response_cls = schema.response_class("TelemetryStream")
-    out: list[tuple[float, bytes]] = []
+    first = True
     for path in paths:
         last_t = None
         for t, raw in read_frames(path):
-            delay = 0.0 if last_t is None else min((t - last_t) / 1000, MAX_GAP_S)
-            if last_t is None and out:
-                delay = MAX_GAP_S / 2
+            if last_t is None:
+                delay = 0.0 if first else MAX_GAP_S / 2
+            else:
+                delay = min((t - last_t) / 1000, MAX_GAP_S)
+            first = False
             last_t = t
             msg = json_format.ParseDict(_parseable(raw), response_cls(), ignore_unknown_fields=True)
-            out.append((delay, msg.SerializeToString()))
-    return out
+            yield delay, msg.SerializeToString(), raw
+
+
+# ---------------------------------------------------------------- recording + playhead
+
+
+def chapter_title(path: Path) -> str:
+    name = path.name.removesuffix(".gz").removesuffix(".jsonl")
+    return name.replace("-", " ").replace("_", " ").capitalize()
+
+
+@dataclass
+class Chapter:
+    title: str
+    start: float
+    """Seconds into the recording."""
+    end: float
+    first: int
+    """Index of its first frame."""
+
+
+@dataclass
+class Marker:
+    """An event the agent derives at this point in the recording."""
+
+    pos: float
+    kind: str
+    data: dict = field(default_factory=dict)
+
+
+@dataclass
+class Recording:
+    """Every frame on one timeline (seconds), with a chapter per file and an event index."""
+
+    positions: list[float]
+    payloads: list[bytes]
+    chapters: list[Chapter]
+    markers: list[Marker]
+    response_cls: type
+
+    @property
+    def duration(self) -> float:
+        return self.positions[-1] if self.positions else 0.0
+
+    def chapter_at(self, index: int) -> int:
+        return max(0, bisect.bisect_right([c.first for c in self.chapters], index) - 1)
+
+    def decode(self, index: int) -> dict:
+        from .client import frame_to_dict
+
+        return frame_to_dict(self.response_cls.FromString(self.payloads[index]))
+
+    def index(self) -> dict:
+        """What the UI needs to draw the timeline."""
+        return {
+            "duration": round(self.duration, 3),
+            "frames": len(self.positions),
+            "chapters": [
+                {"title": c.title, "start": round(c.start, 3), "end": round(c.end, 3)}
+                for c in self.chapters
+            ],
+            "markers": [
+                {"pos": round(m.pos, 3), "kind": m.kind, "data": m.data} for m in self.markers
+            ],
+        }
+
+    @classmethod
+    def load(cls, paths: list[Path], protoset: Path = DEFAULT_PROTOSET) -> Recording:
+        from .events import EventDeriver
+        from .normalize import Normalizer, raw_game_events
+
+        schema = TelemetrySchema.from_protoset(protoset)
+        rec = cls([], [], [], [], schema.response_class("TelemetryStream"))
+        pos = 0.0
+        for path in paths:
+            # Each file is a separate slice of play. The agent starts each one
+            # fresh (see ReplaySource), so the event index does too.
+            normalizer, deriver = Normalizer(), EventDeriver()
+            first = len(rec.positions)
+            for delay, payload, raw in _frames(schema, [path]):
+                pos += delay if rec.positions else 0.0
+                if len(rec.positions) == first and first:
+                    pos += MAX_GAP_S / 2
+                rec.positions.append(pos)
+                rec.payloads.append(payload)
+                snap = normalizer.feed(raw, int(pos * 1000))
+                for e in deriver.feed(snap, raw_game_events(raw)):
+                    rec.markers.append(Marker(pos, e.kind, e.data))
+            if len(rec.positions) > first:
+                rec.chapters.append(Chapter(chapter_title(path), rec.positions[first], pos, first))
+        return rec
+
+
+@dataclass
+class Tick:
+    """One frame handed out by the playhead."""
+
+    seq: int
+    epoch: int
+    """Changes on every jump (seek, step back, loop): the agent starts fresh then."""
+    index: int
+    chapter: int
+
+
+class Playhead:
+    """A shared, controllable position in a recording. Thread-safe.
+
+    One consumer calls ``wait_next`` in a loop. The position advances in real
+    time (scaled by ``speed``) unless paused. Controls may come from any thread.
+    """
+
+    def __init__(self, recording: Recording, *, speed: float = 1.0, loop: bool = True) -> None:
+        if not recording.positions:
+            raise ValueError("The recording has no frames")
+        self.rec = recording
+        self.loop = loop
+        self._cond = threading.Condition()
+        self._index = 0
+        self._seq = 0
+        self._epoch = 0
+        self._speed = speed
+        self._paused = False
+        self._closed = False
+        self._anchor_wall = time.monotonic()
+        self._anchor_pos = recording.positions[0]
+        self._listeners: list = []
+
+    # -- state
+
+    def _reanchor(self) -> None:
+        self._anchor_wall = time.monotonic()
+        self._anchor_pos = self.rec.positions[self._index]
+
+    def _moved(self, *, jumped: bool) -> None:
+        self._seq += 1
+        if jumped:
+            self._epoch += 1
+        self._cond.notify_all()
+
+    def subscribe(self, listener) -> None:
+        """``listener(status)`` after a control change or a loop (on the caller's thread)."""
+        self._listeners.append(listener)
+
+    def _announce(self) -> None:
+        status = self.status()
+        for listener in list(self._listeners):
+            try:
+                listener(status)
+            except Exception:
+                log.exception("Playhead listener failed")
+
+    def status(self) -> dict:
+        with self._cond:
+            return {
+                "pos": round(self.rec.positions[self._index], 3),
+                "paused": self._paused,
+                "speed": self._speed,
+                "loop": self.loop,
+                "chapter": self.rec.chapter_at(self._index),
+            }
+
+    # -- controls
+
+    def play(self) -> None:
+        with self._cond:
+            if self._index >= len(self.rec.positions) - 1:
+                self._index = 0
+                self._moved(jumped=True)
+            self._paused = False
+            self._reanchor()
+            self._cond.notify_all()
+        self._announce()
+
+    def pause(self) -> None:
+        with self._cond:
+            self._paused = True
+            self._cond.notify_all()
+        self._announce()
+
+    def set_speed(self, speed: float) -> None:
+        with self._cond:
+            self._speed = max(0.1, min(float(speed), 16.0))
+            self._reanchor()
+            self._cond.notify_all()
+        self._announce()
+
+    def seek(self, pos: float) -> None:
+        """Jump to the last frame at or before ``pos`` seconds."""
+        with self._cond:
+            i = bisect.bisect_right(self.rec.positions, float(pos)) - 1
+            self._index = max(0, min(i, len(self.rec.positions) - 1))
+            self._reanchor()
+            self._moved(jumped=True)
+        self._announce()
+
+    def step(self, frames: int = 1) -> None:
+        """Pause and move a few frames. Going back is a jump (the agent starts fresh)."""
+        with self._cond:
+            self._paused = True
+            i = max(0, min(self._index + int(frames), len(self.rec.positions) - 1))
+            jumped = i < self._index
+            self._index = i
+            self._moved(jumped=jumped)
+        self._announce()
+
+    def close(self) -> None:
+        with self._cond:
+            self._closed = True
+            self._cond.notify_all()
+
+    # -- consumer
+
+    def _tick(self) -> Tick:
+        return Tick(self._seq, self._epoch, self._index, self.rec.chapter_at(self._index))
+
+    def wait_next(self, last_seq: int, timeout: float = 0.5) -> Tick | None:
+        """The next frame once it is due, or None on timeout or close."""
+        deadline = time.monotonic() + timeout
+        announce = False
+        tick = None
+        with self._cond:
+            while not self._closed:
+                if self._seq != last_seq:
+                    tick = self._tick()
+                    break
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    break
+                if self._paused:
+                    self._cond.wait(remaining)
+                    continue
+                nxt = self._index + 1
+                if nxt >= len(self.rec.positions):
+                    if self.loop:
+                        self._index = 0
+                        self._reanchor()
+                        self._moved(jumped=True)
+                    else:
+                        self._paused = True
+                    announce = True
+                    continue
+                due = self._anchor_wall + (self.rec.positions[nxt] - self._anchor_pos) / self._speed
+                wait = due - time.monotonic()
+                if wait <= 0:
+                    self._index = nxt
+                    self._moved(jumped=False)
+                    continue
+                self._cond.wait(min(wait, remaining))
+        if announce:
+            self._announce()
+        return tick
 
 
 class ReplayServer:

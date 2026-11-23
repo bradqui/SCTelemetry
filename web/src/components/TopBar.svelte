@@ -12,18 +12,28 @@
     agent,
     snapshot,
     compact,
+    replay = false,
     onToggleCompact,
+    onCustomize,
   }: {
     socket: "connecting" | "open" | "closed";
     agent: AgentState | null;
     snapshot: Snapshot | null;
     compact: boolean;
+    replay?: boolean;
     onToggleCompact: () => void;
+    onCustomize: () => void;
   } = $props();
 
   const live = $derived(socket === "open" && agent?.streaming);
   const statusText = $derived(
-    socket !== "open" ? "Agent offline" : agent?.streaming ? "Live" : (agent?.message ?? "Connecting"),
+    socket !== "open"
+      ? "Agent offline"
+      : agent?.streaming
+        ? replay
+          ? "Replay"
+          : "Live"
+        : (agent?.message ?? "Connecting"),
   );
   const ship = $derived(snapshot?.ship ?? null);
   const status = $derived(snapshot?.status ?? null);
@@ -56,8 +66,15 @@
     <span class="conn" class:live title={agent?.message ?? ""}>
       <span class="dot"></span>{statusText}
     </span>
-    <button class="toggle" onclick={onToggleCompact} title="Compact view for VR overlays">
+    <button class="toggle compact-toggle" onclick={onToggleCompact} title="Compact view for VR overlays">
       {compact ? "Full" : "Compact"}
+    </button>
+    <button class="toggle icon" onclick={onCustomize} title="Customize the layout" aria-label="Customize">
+      <svg viewBox="0 0 16 16" aria-hidden="true"
+        ><path
+          d="M2 4h7M13 4h1M2 12h1M7 12h7M11 2.5v3M5 10.5v3M2 8h3M9 8h5M7 6.5v3"
+        /></svg
+      >
     </button>
   </div>
 </header>
@@ -189,6 +206,19 @@
     color: var(--text-2);
     cursor: pointer;
   }
+  .toggle.icon {
+    display: grid;
+    place-items: center;
+    padding: 4px 7px;
+  }
+  .toggle.icon svg {
+    width: 16px;
+    height: 16px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.6;
+    stroke-linecap: round;
+  }
   .toggle:hover {
     color: var(--text);
     border-color: var(--accent);
@@ -209,7 +239,7 @@
     .conn {
       max-width: 90px;
     }
-    .toggle {
+    .top:not(.compact) .compact-toggle {
       display: none;
     }
   }

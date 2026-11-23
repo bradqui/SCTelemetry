@@ -83,3 +83,47 @@ def test_missing_ui_shows_build_hint():
 
     status, text = asyncio.run(_run_agent("on-foot.jsonl.gz", work))
     assert status == 200 and "npm run build" in text
+
+
+def test_replay_mode_timeline_and_controls():
+    from fleet_agent.replay import Playhead, Recording
+    from fleet_agent.runtime import ReplaySource
+
+    rec = Recording.load([FIXTURES / "cruise-nav-scm.jsonl.gz", FIXTURES / "combat.jsonl.gz"])
+    playhead = Playhead(rec, speed=4)
+
+    async def main():
+        pipeline = Pipeline()
+        server = LocalServer(pipeline, port=0, web_dir=Path("does-not-exist"), playhead=playhead)
+        await server.start()
+        source = ReplaySource(pipeline, asyncio.get_running_loop(), playhead)
+        source.start()
+        try:
+            url = f"http://127.0.0.1:{server.port}/ws"
+            async with aiohttp.ClientSession() as http, http.ws_connect(url) as ws:
+                first = [json.loads((await ws.receive()).data) for _ in range(3)]
+                target = rec.chapters[1].start + 5
+                await ws.send_str(json.dumps({"type": "replay", "action": "seek", "pos": target}))
+                await ws.send_str("not json")  # ignored
+                await ws.send_str(json.dumps({"type": "replay", "action": "speed", "speed": "x"}))
+                seen = []
+                while True:
+                    seen.append(json.loads((await asyncio.wait_for(ws.receive(), 10)).data))
+                    reset_at = seen.index({"type": "reset"}) if {"type": "reset"} in seen else None
+                    if reset_at is not None and any(
+                        m["type"] == "snapshot" for m in seen[reset_at:]
+                    ):
+                        break
+                return first, seen, target
+        finally:
+            source.stop()
+            await server.stop()
+
+    first, seen, target = asyncio.run(main())
+    assert first[0]["type"] == "hello" and first[0]["replay"] is True
+    index = first[1]
+    assert index["type"] == "replay_index" and len(index["chapters"]) == 2
+    assert first[2]["type"] == "replay"
+    statuses = [m for m in seen if m["type"] == "replay"]
+    assert any(abs(s["pos"] - target) < 1 for s in statuses), "seek reported back"
+    assert {"type": "reset"} in seen, "the view is told to start fresh"

@@ -4,6 +4,11 @@
 - ``/ws``    WebSocket: state, then every snapshot (~17/s) and event as they happen
 - ``/api/state``  the latest of everything, as JSON
 
+In replay mode (``run --replay``) the page also gets the recording's timeline
+(chapters and every event on it) and may send replay controls over ``/ws``:
+``{"type": "replay", "action": "play" | "pause" | "seek" | "speed" | "step", ...}``.
+Nothing else a page sends is acted on.
+
 Each WebSocket client has a latest-wins snapshot slot and a bounded event
 queue, so a slow client (a VR overlay, a sleeping phone) never backs up the
 pipeline.
@@ -20,12 +25,16 @@ import json
 import logging
 from collections import deque
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from aiohttp import WSMsgType, web
 from fleet_shared import Event, Snapshot
 
 from . import __version__, paths
 from .runtime import Pipeline
+
+if TYPE_CHECKING:
+    from .replay import Playhead
 
 log = logging.getLogger(__name__)
 
@@ -51,6 +60,11 @@ class _Client:
             self.messages.append(_dump(payload))  # type: ignore[arg-type]
         elif kind == "state":
             self.messages.append(json.dumps(payload.as_dict()))  # type: ignore[attr-defined]
+        elif kind == "reset":
+            self.snapshot = None
+            self.messages.append(json.dumps({"type": "reset"}))
+        elif kind == "replay":
+            self.messages.append(json.dumps({"type": "replay", **payload}))  # type: ignore[dict-item]
         self.wake.set()
 
     async def pump(self) -> None:
@@ -77,8 +91,16 @@ def _origin_ok(request: web.Request, port: int) -> bool:
 
 
 class LocalServer:
-    def __init__(self, pipeline: Pipeline, *, port: int, web_dir: Path | None = None) -> None:
+    def __init__(
+        self,
+        pipeline: Pipeline,
+        *,
+        port: int,
+        web_dir: Path | None = None,
+        playhead: Playhead | None = None,
+    ) -> None:
         self.pipeline = pipeline
+        self.playhead = playhead
         self.port = port
         self.web_dir = web_dir or paths.web_dist_dir()
         self.app = web.Application(middlewares=[self._guard])
@@ -115,26 +137,61 @@ class LocalServer:
         await ws.prepare(request)
         c = _Client(ws)
         await ws.send_str(
-            json.dumps({"type": "hello", "mode": "local", "agent_version": __version__})
+            json.dumps(
+                {
+                    "type": "hello",
+                    "mode": "local",
+                    "agent_version": __version__,
+                    "replay": self.playhead is not None,
+                }
+            )
         )
+        if self.playhead is not None:
+            await ws.send_str(json.dumps({"type": "replay_index", **self.playhead.rec.index()}))
+            await ws.send_str(json.dumps({"type": "replay", **self.playhead.status()}))
         await ws.send_str(json.dumps(self.pipeline.state.as_dict()))
         await ws.send_str(
             json.dumps(
                 {"type": "history", "events": [json.loads(_dump(e)) for e in self.pipeline.recent]}
             )
         )
+        if self.pipeline.trend:
+            await ws.send_str(json.dumps({"type": "trends", "samples": list(self.pipeline.trend)}))
         if self.pipeline.latest:
             await ws.send_str(_dump(self.pipeline.latest))
         unsubscribe = self.pipeline.subscribe(c.push)
         pump = asyncio.create_task(c.pump())
         try:
-            async for msg in ws:  # read-only: nothing a page sends is acted on
+            async for msg in ws:
                 if msg.type == WSMsgType.ERROR:
                     break
+                if msg.type == WSMsgType.TEXT and self.playhead is not None:
+                    self._replay_command(msg.data)
         finally:
             unsubscribe()
             pump.cancel()
         return ws
+
+    def _replay_command(self, text: str) -> None:
+        """Replay controls only; anything else (or anything malformed) is ignored."""
+        assert self.playhead is not None
+        try:
+            cmd = json.loads(text)
+            if not isinstance(cmd, dict) or cmd.get("type") != "replay":
+                return
+            action = cmd.get("action")
+            if action == "play":
+                self.playhead.play()
+            elif action == "pause":
+                self.playhead.pause()
+            elif action == "seek":
+                self.playhead.seek(float(cmd["pos"]))
+            elif action == "speed":
+                self.playhead.set_speed(float(cmd["speed"]))
+            elif action == "step":
+                self.playhead.step(int(cmd.get("frames", 1)))
+        except (ValueError, TypeError, KeyError):
+            log.debug("Ignored replay command %r", text[:200])
 
     async def _static(self, request: web.Request) -> web.StreamResponse:
         index = self.web_dir / "index.html"

@@ -1,6 +1,7 @@
 """Command line for the agent (the tray app comes later).
 
 python -m fleet_agent run     [--open] [--game-port 2943] [--ui-port 8740]
+python -m fleet_agent run     --replay [FILES...] [--speed 1] [--open]
 python -m fleet_agent installs
 python -m fleet_agent status  [--channel LIVE]
 python -m fleet_agent on      [--channel LIVE]
@@ -59,21 +60,39 @@ def cmd_run(args) -> None:
     import webbrowser
 
     from .localserver import LocalServer
-    from .runtime import GameReader, Pipeline
+    from .runtime import GameReader, Pipeline, ReplaySource
+
+    playhead = None
+    if args.replay is not None:
+        from .replay import FIXTURES_DIR, Playhead, Recording, default_fixtures
+
+        files = [Path(f) for f in args.replay] or default_fixtures(FIXTURES_DIR)
+        if not files:
+            sys.exit("No recordings to replay.")
+        print(f"Indexing {len(files)} recording(s)...")
+        playhead = Playhead(Recording.load(files), speed=args.speed)
 
     async def run() -> None:
-        install = _find(args)
         pipeline = Pipeline()
-        server = LocalServer(pipeline, port=args.ui_port)
+        server = LocalServer(pipeline, port=args.ui_port, playhead=playhead)
         await server.start()
-        reader = GameReader(
-            pipeline, asyncio.get_running_loop(), install=install, port=args.game_port
-        )
+        loop = asyncio.get_running_loop()
+        if playhead is not None:
+            reader = ReplaySource(pipeline, loop, playhead)
+            rec = playhead.rec
+            source = (
+                f"Replaying {len(rec.chapters)} recording(s), {rec.duration / 60:.1f} min, "
+                f"{len(rec.markers)} events. Use the timeline at the bottom of the page."
+            )
+        else:
+            install = _find(args)
+            reader = GameReader(pipeline, loop, install=install, port=args.game_port)
+            game = f"port {args.game_port}" if args.game_port else "port from Game.log"
+            source = f"Game: {install.channel if install else 'no install found'}, {game}."
         reader.start()
         url = f"http://127.0.0.1:{server.port}/"
-        game = f"port {args.game_port}" if args.game_port else "port from Game.log"
         print(f"Fleet Telemetry agent: local view at {url}")
-        print(f"Game: {install.channel if install else 'no install found'}, {game}. Ctrl+C stops.")
+        print(f"{source} Ctrl+C stops.")
         if args.open:
             webbrowser.open(url)
         try:
@@ -198,6 +217,13 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--open", action="store_true", help="Open the local view in your browser")
     p.add_argument("--game-port", type=int, help="Default: from Game.log (replay: 2943)")
     p.add_argument("--ui-port", type=int, default=8740, help="Local view port (default 8740)")
+    p.add_argument(
+        "--replay",
+        nargs="*",
+        metavar="FILE",
+        help="No game: replay recordings with a timeline in the page (default: all fixtures)",
+    )
+    p.add_argument("--speed", type=float, default=1.0, help="Replay speed (default 1)")
     add("installs", cmd_installs, "List Star Citizen installs and whether telemetry is on")
     add("status", cmd_status, "Show telemetry settings for a channel")
     add("on", cmd_on, "Switch telemetry on (edits user.cfg)").add_argument(

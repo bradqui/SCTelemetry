@@ -46,11 +46,17 @@ uv run python -m fleet_agent run --open      # local view at http://127.0.0.1:87
 Without the game, replaying real recordings:
 
 ```
-uv run python tools/replay.py                          # fake game on 127.0.0.1:2943, loops all fixtures
-uv run python -m fleet_agent run --game-port 2943 --open
+uv run python -m fleet_agent run --replay --open            # all fixtures
+uv run python -m fleet_agent run --replay captures/x.jsonl  # or your own capture
 ```
 
+A timeline appears at the bottom of the page with every event on it (seat changes, takeoff, landing, NAV/SCM, warnings). Click a marker, use **Events** to pick one from a list, or press ← / → to jump a few seconds before the previous or next event. Space plays and pauses, Shift+← / → moves 10 s, and `,` / `.` step one frame while paused. `--speed 4` starts it faster.
+
+Press the sliders button (top right) to customize the dashboard: pick a layout (Pilot, Combat, Explorer, Minimal), show, hide, resize and drag panels, choose an accent colour, switch HUD effects and the master caution banner, and use m/s or km/h. It's saved in your browser, separately for the full and compact views.
+
 Add `?compact=1` to the URL, or press **Compact**, for a narrow view that fits a VR overlay (OVR Toolkit, XSOverlay). The local view only accepts connections from this PC.
+
+To test the agent's gRPC path against a fake game instead: `uv run python tools/replay.py` (port 2943) and `uv run python -m fleet_agent run --game-port 2943 --open`.
 
 ## Capturing telemetry
 
@@ -84,10 +90,10 @@ To undo the setup: `uv run python -m fleet_agent off --channel LIVE`. It restore
 ```
 agent/     Windows agent (fleet_agent package)
 hub/       FastAPI service (planned)
-web/       PWA source (planned)
+web/       dashboard UI (Svelte 5); later also the fleet PWA
 cog/       Red cog: telemetry/ (planned)
-shared/    Pydantic wire-schema models (planned)
-tools/     capture, summarize, make_fixture (replay planned)
+shared/    Pydantic wire-schema models
+tools/     capture, summarize, make_fixture, replay
 fixtures/  scrubbed slices of real captures (gzipped JSONL)
 docs/      spec, field reference
 ```

@@ -26,6 +26,9 @@ from .normalize import Normalizer, raw_game_events
 log = logging.getLogger(__name__)
 
 RECENT_EVENTS = 50
+TREND_EVERY_MS = 250
+TREND_SAMPLES = 720
+"""Flight trend history (3 minutes at 4/s) for pages that open mid-flight."""
 
 
 def now_ms() -> int:
@@ -66,12 +69,14 @@ class Pipeline:
         self.state = GameState()
         self.latest: Snapshot | None = None
         self.recent: deque[Event] = deque(maxlen=RECENT_EVENTS)
+        self.trend: deque[list] = deque(maxlen=TREND_SAMPLES)
+        """[t, speed, alt, g] samples, oldest first."""
         self._normalizer = Normalizer()
         self._deriver = EventDeriver()
         self._listeners: list[Callable[[str, object], None]] = []
 
     def subscribe(self, listener: Callable[[str, object], None]) -> Callable[[], None]:
-        """``listener(kind, payload)`` with kind "snapshot" | "event" | "state"."""
+        """``listener(kind, payload)``: kind "snapshot" | "event" | "state" | "reset" | "replay"."""
         self._listeners.append(listener)
         return lambda: self._listeners.remove(listener)
 
@@ -107,13 +112,33 @@ class Pipeline:
         for event in self._deriver.feed(snap, raw_game_events(raw)):
             self._emit(event)
         self.latest = snap
+        self._sample(snap)
         self._notify("snapshot", snap)
+
+    def _sample(self, snap: Snapshot) -> None:
+        if self.trend and snap.t - self.trend[-1][0] < TREND_EVERY_MS:
+            return
+        f = snap.ship.flight if snap.ship else None
+        self.trend.append(
+            [snap.t, f.speed if f else None, f.alt if f else None, f.g if f else None]
+        )
+
+    def reset(self, *, clear_history: bool) -> None:
+        """Start fresh mid-stream (a replay jump): no seat/ship carry-over between scenes."""
+        self._normalizer = Normalizer()
+        self._deriver = EventDeriver()
+        if clear_history:
+            self.recent.clear()
+            self.trend.clear()
+            self.latest = None
+            self._notify("reset", None)
 
     def on_disconnect(self, message: str) -> None:
         was_streaming = self.state.streaming
         self.set_state(connected=False, streaming=False, message=message)
         if was_streaming:
             self._emit(Event(t=now_ms(), kind="game_exit"))
+            self.trend.clear()
             self.latest = None
             # A new game session starts fresh (seat, ship, debounce state).
             self._normalizer = Normalizer()
@@ -196,3 +221,58 @@ class GameReader:
             finally:
                 channel.close()
                 self._channel = None
+
+
+# ---------------------------------------------------------------- replay source
+
+
+class ReplaySource:
+    """Feeds a replay ``Playhead`` straight into the pipeline (``run --replay``).
+
+    Stands in for ``GameReader``: same thread-to-loop hand-off, no gRPC. On a
+    jump (seek, step back, loop) the pipeline starts fresh and the view clears;
+    at a chapter boundary (the next recording) it starts fresh but keeps the
+    event list, as if it were one long session.
+    """
+
+    def __init__(self, pipeline: Pipeline, loop: asyncio.AbstractEventLoop, playhead) -> None:
+        self.pipeline = pipeline
+        self.loop = loop
+        self.playhead = playhead
+        self._stop = threading.Event()
+        self._thread = threading.Thread(target=self._run, name="replay-source", daemon=True)
+        playhead.subscribe(self._on_status)
+
+    def start(self) -> None:
+        self._thread.start()
+
+    def stop(self) -> None:
+        self._stop.set()
+        self.playhead.close()
+        self._thread.join(timeout=5)
+
+    def _post(self, fn, *args) -> None:
+        if not self.loop.is_closed():
+            self.loop.call_soon_threadsafe(fn, *args)
+
+    def _on_status(self, status: dict) -> None:
+        self._post(self.pipeline._notify, "replay", status)
+
+    def _run(self) -> None:
+        self._post(lambda: self.pipeline.set_state(connected=True, port=None, message="Replaying"))
+        seq, epoch, chapter = -1, 0, 0
+        last_status = 0.0
+        while not self._stop.is_set():
+            tick = self.playhead.wait_next(seq)
+            if time.monotonic() - last_status >= 1.0:  # keeps the UI's timeline in step
+                last_status = time.monotonic()
+                self._on_status(self.playhead.status())
+            if tick is None:
+                continue
+            seq = tick.seq
+            if tick.epoch != epoch:
+                self._post(lambda: self.pipeline.reset(clear_history=True))
+            elif tick.chapter != chapter:
+                self._post(lambda: self.pipeline.reset(clear_history=False))
+            epoch, chapter = tick.epoch, tick.chapter
+            self._post(self.pipeline.on_frame, self.playhead.rec.decode(tick.index), now_ms())

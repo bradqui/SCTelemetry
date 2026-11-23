@@ -27,7 +27,40 @@
   --font: "Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, "Inter", Roboto, sans-serif;
   --mono: "Cascadia Mono", "JetBrains Mono", ui-monospace, "SF Mono", Consolas, monospace;
 
+  --glow: 0px;
+  --brackets: 0;
+  --grid-line: color-mix(in srgb, var(--accent) 6%, transparent);
+
   color-scheme: dark;
+}
+
+/* HUD effects (Customize, Look) */
+html.fx {
+  --glow: 6px;
+  --brackets: 1;
+}
+html.fx body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse at 50% 0%, #000 10%, transparent 75%);
+}
+html.fx body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 40;
+  background: repeating-linear-gradient(0deg, #ffffff05 0 1px, transparent 1px 3px);
+}
+#app {
+  position: relative;
+  z-index: 1;
 }
 
 * {

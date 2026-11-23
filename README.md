@@ -9,7 +9,7 @@ The full build spec is in [docs/SC_FLEET_TELEMETRY_SPEC.md](docs/SC_FLEET_TELEME
 ## How it fits together
 
 - **Agent** (Windows, per member): reads the game's local telemetry gRPC stream on `127.0.0.1:50051`, normalizes it, serves a local cockpit view, and pushes the shared fields outbound to the hub.
-- **Hub** (FastAPI, Docker, on the ButlerBot server): ingests agent data, serves the fleet PWA, and publishes events to Redis.
+- **Hub** (FastAPI + SQLite, one Docker container behind Virtualmin's Apache): ingests agent data, serves the fleet PWA, and streams events to the cog over an internal WebSocket.
 - **Web** (PWA): fleet board and member detail; the same bundle is the agent's local view.
 - **Cog** (`telemetry`, Red-DiscordBot): `!fleet`, `!ready`, ops, and alerts in ButlerBot.
 

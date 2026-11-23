@@ -18,6 +18,7 @@ ButlerBot is the public repo `bradqui/ButlerBot`. Its `CLAUDE.md` is the authori
 - Custom cogs live in `data/cogs/CogManager/cogs/<cog>/` and deploy by `git pull` of the ButlerBot repo on the server, then `!reload`/`!load`. Dependencies go in the cog's `info.json` `requirements` and are installed with `!pipinstall`.
 - Cog conventions: Red `Config` with a fixed identifier, `logging.getLogger("red.<cog>")`, cancel background tasks in `cog_unload`, cards and colors from the shared `_shared/butlerui.py` module (loaded by file path with `_load_butlerui()`), and a real prefix in user-facing hints (never a literal `[p]`).
 - Tests there run on an offline harness with stubbed `redbot` (`tests/harness.py`), on GitHub Actions with Python 3.11.
-- ButlerBot's repo doesn't document Redis, the reverse proxy, or the Docker network name. Ask Brad (spec §11).
+- ButlerBot runs on the same host as the hub, in its own container. Its Docker setup isn't in Git; the network name is still open (spec §11).
+- No Redis: the cog talks to the hub over its internal REST API and `/internal/events` WebSocket.
 
 **Still undecided:** whether the `telemetry` cog ships inside the ButlerBot repo (matches how the server already deploys and gives it `butlerui`) or stays in this repo's `cog/` and gets copied or synced over.

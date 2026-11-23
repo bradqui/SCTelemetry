@@ -133,15 +133,17 @@ Exact sub-field names inside `{...}` are not fully documented. **Phase 0 must ca
 │                                            └─ uplink (WSS, outbound) │
 └──────────────────────────────────────────────┼──────────────────────┘
                                                ▼
-┌──────────── Brad's server (Docker) ──────────────────────────────────┐
-│ reverse proxy (HTTPS) ─▶ Hub (FastAPI)                               │
-│                          ├─ ingest WS  /ws/agent                     │
-│                          ├─ viewer WS  /ws/view  + REST /api/*       │
-│                          ├─ serves PWA static assets                 │
-│                          ├─ live state (in-memory) + history DB      │
-│                          └─ publishes events ─▶ Redis pub/sub        │
-│ Redis ◀────────────────────────────────────────┐                     │
-│ ButlerBot (Red) ── telemetry cog ── subscribes ┘ + calls hub internal API │
+┌──────────── Brad's web server (Virtualmin + Docker) ─────────────────┐
+│ Apache (Virtualmin, Let's Encrypt, fleet.<domain>)                   │
+│   └─ ProxyPass + WebSocket upgrade ─▶ 127.0.0.1:<port>               │
+│ Hub container (FastAPI, SQLite on a volume)                          │
+│   ├─ public:   ingest WS /ws/agent, viewer WS /ws/view, REST /api/*, │
+│   │            PWA static assets                                     │
+│   ├─ internal: REST /internal/*, event WS /internal/events           │
+│   │            (Docker network only, shared-secret header)           │
+│   └─ live state (in-memory) + history DB (SQLite)                    │
+│ ButlerBot container (Red) ── telemetry cog ──▶ hub internal API      │
+│                              (subscribes to /internal/events)        │
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -155,10 +157,10 @@ Key principles:
 | Component | Stack |
 |---|---|
 | Agent | Python 3.12, `grpcio`, `protobuf`, `websockets` or `httpx`, `keyring` (Windows Credential Manager), `pystray` for tray icon, small local HTTP server (`aiohttp` or FastAPI) serving the same web UI bundle. Packaged with **PyInstaller** into a single `.exe` via GitHub Actions. |
-| Hub | Python 3.12, FastAPI + uvicorn, SQLAlchemy 2 on **SQLite** (file on a Docker volume), `redis.asyncio`, Discord OAuth2. |
+| Hub | Python 3.12, FastAPI + uvicorn, SQLAlchemy 2 on **SQLite** (file on a Docker volume), Discord OAuth2. No Redis: events go to the cog over the hub's internal WebSocket. |
 | Web UI | **Svelte 5 + Vite + TypeScript**, hand-written CSS with design tokens (no UI kit), built to static files. Svelte's compiled, fine-grained reactivity keeps 17 Hz local updates cheap and the bundle small for phones. Same bundle served by hub (fleet mode) and agent (local mode). |
-| Cog | Red-DiscordBot cog, `redis.asyncio` + `aiohttp`. Declare deps in `info.json` `requirements`. |
-| Infra | `docker-compose.yml` for hub + redis; hub joins ButlerBot's existing Docker network. Reverse proxy (Caddy/Traefik — whatever Brad already runs) or Cloudflare Tunnel. |
+| Cog | Red-DiscordBot cog on **Python 3.11** (ButlerBot's runtime), `aiohttp` (already a Red dependency) for the hub's internal REST and event WebSocket. Declare any extra deps in `info.json` `requirements`. |
+| Infra | `docker-compose.yml` with **one service: the hub**, plus a volume for the SQLite file. The hub publishes its port on `127.0.0.1` only and joins ButlerBot's Docker network so the cog can reach `/internal/*`. HTTPS is terminated by the Virtualmin-managed Apache vhost (Let's Encrypt) with a proxy path to the hub, WebSocket upgrade enabled. |
 
 Single language (Python) across agent, hub, and cog so `shared/` models can be reused.
 
@@ -227,7 +229,8 @@ Version handling: hub accepts `v` within a supported range; rejects older agents
 
 ### 5.2 Viewer auth (web)
 - Discord OAuth2 login (`identify` + `guilds.members.read`).
-- Allow only members of our guild who hold a configured role (e.g. "Member"). Re-check the role on session refresh.
+- Allow only members of the configured Discord server (initially the Friday Night Club server) who hold the configured org member role. Re-check the role on session refresh.
+- Server ID and role ID are settings, not hard-coded: the hub reads defaults from env (`DISCORD_GUILD_ID`, `DISCORD_MEMBER_ROLE_ID`), and the cog's admin commands can change the role at runtime via the internal API (stored in the hub DB).
 - Session cookie, HttpOnly, Secure, SameSite=Lax.
 
 ### 5.3 Internal API (cog ↔ hub)
@@ -266,11 +269,15 @@ Commands (prefix `[p]`):
 - `fleet` — embed of who's online, ship, role, hull/shield/fuel summary
 - `ready [@role]` — readiness check: lists members in-game, seated, shields up, gear/landing state; flags anyone not ready
 - `op start <name>` / `op stop` — marks an op window in the hub; `op stop` posts an after-action summary
-- Admin: `telemetry alerts #channel`, `telemetry alerts thresholds`, `telemetry role @Role` (viewer access role)
+- Admin: `telemetry alerts #channel`, `telemetry alerts thresholds`, `telemetry role @Role` (org member role: web access and fleet membership)
 
-Alerts (opt-in per guild, rate-limited): hull below threshold, fuel low, member joins/leaves game during an active op.
+Admin commands and `op start`/`op stop` require **server admin** (Red's `admin_or_permissions(administrator=True)`).
 
-Cog subscribes to Redis channel `telemetry.events`; uses hub internal API for queries. Red config stores guild settings.
+The cog only acts in the configured Discord server (same server ID as the hub); commands elsewhere reply that telemetry isn't set up there.
+
+Alerts (rate-limited): hull below threshold, fuel low, member joins/leaves game during an active op. Posted to the configured alerts channel: **#lab** during testing, later **#star-citizen**. Changed with `telemetry alerts #channel`; no alerts until a channel is set.
+
+Cog holds a reconnecting WebSocket to the hub's `/internal/events` and uses the hub internal API for queries. Red Config stores guild settings (alerts channel, thresholds).
 
 ---
 
@@ -333,10 +340,10 @@ Cog subscribes to Redis channel `telemetry.events`; uses hub internal API for qu
 
 ## 11. Decisions (2026-11-22)
 1. **Repo:** `bradqui/SCTelemetry`, private for now (may go public later). Hub hostname: TBD.
-2. **Hosting:** Brad's public web server (Webmin/Virtualmin), hub in Docker on a local port. HTTPS approach: open (see notes in the 2026-11-22 discussion; PWA install and secure cookies require HTTPS).
-3. **Database:** SQLite.
-4. **Discord access role / alerts channel:** open.
-5. **ButlerBot container:** Red 3.5.24, Python 3.11, `phasecorex/red-discordbot`; custom cogs deploy by `git pull` of the ButlerBot repo. Docker setup is not in Git. Docker network name, and whether bot and hub share a host: open.
-6. **Default sharing:** everything on, with per-category opt-out in the agent.
+2. **Hosting:** Brad's public web server (Webmin/Virtualmin), hub in Docker on a `127.0.0.1` port. HTTPS via a Virtualmin subdomain (Let's Encrypt) with an Apache proxy path to the hub, WebSocket upgrade on. No separate proxy container.
+3. **Database:** SQLite. **No Redis** — the cog gets events from the hub's internal WebSocket. Deployment is one container plus the SQLite volume.
+4. **Discord:** server is configurable (Friday Night Club to start); access is a configurable org member role; admin commands and ops require server admin. Alerts channel is configurable: `#lab` while testing, later `#star-citizen`.
+5. **ButlerBot container:** same host as the hub, separate container. Red 3.5.24, Python 3.11, `phasecorex/red-discordbot`; custom cogs deploy by `git pull` of the ButlerBot repo. Docker setup is not in Git. ButlerBot's Docker network name: open (needed for the hub's compose file).
+6. **Default sharing:** everything on; each member can switch off any category (e.g. aUEC, vitals) in the agent, and switched-off data is never sent.
 7. **Frontend:** Svelte 5 + Vite + TypeScript (see §3.1).
 8. **Code signing:** deferred until Phase 5.

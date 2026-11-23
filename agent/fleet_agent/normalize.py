@@ -159,7 +159,7 @@ def seat_role(seat: str | None, crew_role: str | None) -> str | None:
 
 
 def model_name(class_name: str) -> str:
-    """``RSI_Constellation_Mk5_Centaurus`` -> ``Constellation Mk5 Centaurus``; ``ORIG_m80`` -> M80."""
+    """E.g. ``RSI_Constellation_Mk5_Centaurus`` -> "Constellation Mk5 Centaurus"."""
     prefix, _, rest = class_name.partition("_")
     words = (rest or prefix).split("_")
     return " ".join(w[:1].upper() + w[1:] for w in words if w)

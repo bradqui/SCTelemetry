@@ -72,7 +72,7 @@
     background: linear-gradient(180deg, var(--panel-2), var(--panel));
     border: 1px solid var(--line);
     border-radius: var(--radius);
-    padding: 14px 18px 18px;
+    padding: 8px 11px 10px;
     min-width: 0;
     display: flex;
     flex-direction: column;
@@ -82,8 +82,8 @@
   .frame::after {
     content: "";
     position: absolute;
-    width: 14px;
-    height: 14px;
+    width: 10px;
+    height: 10px;
     border-color: color-mix(in srgb, var(--accent) 55%, transparent);
     border-style: solid;
     pointer-events: none;
@@ -102,18 +102,22 @@
     border-bottom-right-radius: var(--radius);
   }
   .bare {
-    padding: 10px 14px 8px;
+    padding: 0 10px;
+  }
+  .bare header {
+    display: none;
+  }
+  .bare.editing header {
+    display: flex;
+    padding-top: 6px;
   }
   header {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-    min-height: 22px;
-    margin-bottom: 10px;
-  }
-  .bare header {
-    margin-bottom: 2px;
+    min-height: 18px;
+    margin-bottom: 6px;
   }
   header .label {
     display: flex;
@@ -123,8 +127,8 @@
   header .label::before {
     content: "";
     width: 3px;
-    height: 11px;
-    border-radius: 2px;
+    height: 9px;
+    border-radius: 0;
     background: var(--accent);
     box-shadow: 0 0 6px var(--accent);
   }
@@ -147,9 +151,9 @@
     gap: 4px;
   }
   .tool {
-    height: 26px;
-    min-width: 26px;
-    border-radius: 6px;
+    height: 22px;
+    min-width: 22px;
+    border-radius: 2px;
     border: 1px solid var(--line-2);
     background: var(--bg-2);
     color: var(--text-2);

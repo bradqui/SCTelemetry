@@ -48,12 +48,12 @@
 <style>
   .tape {
     position: relative;
-    height: 64px;
+    height: 46px;
     overflow: hidden;
     mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
   }
   .tape.compact {
-    height: 54px;
+    height: 42px;
   }
   .none {
     display: grid;
@@ -76,12 +76,12 @@
     background: var(--text-3);
   }
   .tick.label {
-    height: 18px;
+    height: 14px;
     background: var(--text-2);
   }
   .tick b {
     position: absolute;
-    bottom: 22px;
+    bottom: 17px;
     left: 50%;
     transform: translateX(-50%);
     font-family: var(--mono);
@@ -105,9 +105,9 @@
   }
   .caret span {
     font-weight: 800;
-    font-size: 1.02rem;
-    padding: 1px 10px;
-    border-radius: 6px;
+    font-size: 0.9rem;
+    padding: 0 8px;
+    border-radius: 2px;
     color: var(--bg);
     background: var(--accent);
     box-shadow: 0 0 var(--glow, 14px) color-mix(in srgb, var(--accent) 55%, transparent);
@@ -115,7 +115,7 @@
   .caret::after {
     content: "";
     width: 2px;
-    height: 40px;
+    height: 30px;
     background: var(--accent);
     box-shadow: 0 0 8px var(--accent);
   }

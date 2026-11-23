@@ -62,6 +62,10 @@ class EventDeriver:
             assert ship and pship
             if ship.master_mode and pship.master_mode and ship.master_mode != pship.master_mode:
                 emit("mode_change", mode=ship.master_mode, previous=pship.master_mode)
+            if pship.flight.quantum is not True and ship.flight.quantum is True:
+                emit("quantum_start", ship=ship.id)
+            if pship.flight.quantum is True and ship.flight.quantum is False:
+                emit("quantum_end", ship=ship.id)
             if pship.landed is True and ship.landed is False:
                 emit("takeoff", ship=ship.id)
             if pship.landed is False and ship.landed is True:

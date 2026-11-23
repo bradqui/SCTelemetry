@@ -38,8 +38,8 @@
 <style>
   .readouts {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-    gap: 14px;
+    grid-template-columns: repeat(auto-fill, minmax(86px, 1fr));
+    gap: 6px 10px;
     align-items: end;
   }
   .air {

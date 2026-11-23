@@ -23,7 +23,9 @@ export class Trends {
     this.#last = snap.t;
     const f = snap.ship?.flight;
     const sample: Sample = { t: snap.t, speed: f?.speed ?? null, alt: f?.alt ?? null, g: f?.g ?? null };
-    const next = this.samples.length >= MAX ? this.samples.slice(1) : this.samples.slice();
+    // Keep the window by time as well as count (replay jumps, pauses).
+    const cutoff = snap.t - WINDOW_S * 1000;
+    const next = this.samples.filter((s) => s.t >= cutoff && s.t <= snap.t).slice(-(MAX - 1));
     next.push(sample);
     this.samples = next;
     let peak = 0;

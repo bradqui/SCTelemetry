@@ -99,33 +99,34 @@
 <style>
   .shipview {
     display: grid;
-    grid-template-columns: minmax(120px, 0.9fr) minmax(0, 1.1fr);
-    gap: 16px;
+    grid-template-columns: minmax(100px, 0.8fr) minmax(0, 1.2fr);
+    gap: 12px;
     align-items: center;
   }
-  @container panel (max-width: 400px) {
+  @container panel (max-width: 270px) {
     .shipview {
       grid-template-columns: minmax(0, 1fr);
     }
     .diagram {
-      max-width: 180px;
+      max-width: 130px;
     }
   }
   .diagram {
     width: 100%;
-    max-width: 250px;
+    max-width: 150px;
+    max-height: 160px;
     justify-self: center;
     overflow: visible;
   }
   .side {
     display: grid;
-    gap: 14px;
+    gap: 9px;
     min-width: 0;
   }
   .chips {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
+    gap: 4px;
   }
 
   .shield {

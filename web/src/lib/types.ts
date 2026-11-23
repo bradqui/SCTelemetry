@@ -35,6 +35,8 @@ export interface Flight {
   g_safe: boolean | null;
   coupled: boolean | null;
   prox_assist: boolean | null;
+  /** In quantum travel (inferred by the agent). */
+  quantum: boolean | null;
 }
 
 export interface Ship {

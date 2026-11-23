@@ -52,6 +52,8 @@ const EVENT_TEXT: Record<string, (d: Record<string, unknown>) => string> = {
   seat_leave: (d) => `Left the ${d.role ?? ""} seat`.replace("  ", " "),
   ship_change: (d) => `Now in ${d.model ?? "another ship"}`,
   mode_change: (d) => `${d.mode} mode`,
+  quantum_start: () => "Quantum jump",
+  quantum_end: () => "Dropped out of quantum",
   takeoff: () => "Took off",
   landed: () => "Landed",
   warning_on: (d) => `${String(d.light).toUpperCase()} warning`,
@@ -113,7 +115,7 @@ export function eventPanel(kind: string): string | null {
   if (kind.startsWith("warning") || kind === "takeoff" || kind === "landed") return "warnings";
   if (kind === "hull_threshold") return "ship";
   if (kind === "fuel_threshold") return "fuel";
-  if (kind === "mode_change") return "flight";
+  if (kind === "mode_change" || kind.startsWith("quantum")) return "flight";
   if (["spawn", "downed", "dead", "respawn"].includes(kind)) return "vitals";
   if (kind.startsWith("seat") || kind === "ship_change") return "ship";
   return null;

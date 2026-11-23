@@ -13,6 +13,7 @@
     snapshot,
     compact,
     replay = false,
+    caution = true,
     onToggleCompact,
     onCustomize,
   }: {
@@ -21,6 +22,8 @@
     snapshot: Snapshot | null;
     compact: boolean;
     replay?: boolean;
+    /** Show the master caution/warning in the bar. */
+    caution?: boolean;
     onToggleCompact: () => void;
     onCustomize: () => void;
   } = $props();
@@ -37,9 +40,33 @@
   );
   const ship = $derived(snapshot?.ship ?? null);
   const status = $derived(snapshot?.status ?? null);
+
+  const LIGHT_NAMES: Record<string, string> = {
+    pwr: "Power",
+    wpn: "Weapons",
+    thr: "Thrusters",
+    shld: "Shields",
+    cool: "Cooling",
+    qdrv: "Quantum drive",
+    radr: "Radar",
+    prox: "Proximity",
+    hit: "Taking hits",
+    misl: "Missile lock",
+  };
+  const alarm = $derived.by(() => {
+    if (!caution || !ship) return null;
+    const lit = (prefix: string) =>
+      Object.entries(ship.lights)
+        .filter(([, l]) => l?.startsWith(prefix))
+        .map(([k]) => LIGHT_NAMES[k] ?? k.toUpperCase());
+    const major = lit("major");
+    if (major.length) return { level: "warning", text: major.join(" · ") };
+    const minor = lit("minor");
+    return minor.length ? { level: "caution", text: minor.join(" · ") } : null;
+  });
 </script>
 
-<header class="top" class:compact>
+<header class="top {alarm ? `alarm-${alarm.level}` : ''}" class:compact>
   <div class="brand">
     <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 3 29 27H3z" /><circle cx="16" cy="20" r="3" /></svg>
     {#if !compact}<span>Fleet Telemetry</span>{/if}
@@ -57,8 +84,17 @@
     {/if}
   </div>
 
+  {#if alarm}
+    <div class="alarm {alarm.level}" role="alert">
+      <span class="tag">{alarm.level === "warning" ? "Warning" : "Caution"}</span>
+      <span class="what">{alarm.text}</span>
+    </div>
+  {/if}
+
   <div class="right">
-    {#if ship?.master_mode}
+    {#if ship?.flight.quantum}
+      <span class="mode qt">QT</span>
+    {:else if ship?.master_mode}
       <span class="mode {ship.master_mode.toLowerCase()}">{ship.master_mode}</span>
     {:else if ship && ship.powered === false}
       <span class="mode off">Powered down</span>
@@ -83,8 +119,8 @@
   .top {
     display: flex;
     align-items: center;
-    gap: 16px;
-    padding: 12px 18px;
+    gap: 12px;
+    padding: 5px 12px;
     border: 1px solid var(--line);
     border-radius: var(--radius);
     background: color-mix(in srgb, var(--panel) 85%, transparent);
@@ -240,6 +276,69 @@
       max-width: 90px;
     }
     .top:not(.compact) .compact-toggle {
+      display: none;
+    }
+  }
+  .alarm {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    flex: 0 1 auto;
+    overflow: hidden;
+    font-size: 0.82rem;
+    font-weight: 650;
+  }
+  .tag {
+    flex: none;
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    font-weight: 800;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    padding: 2px 7px;
+    border-radius: 2px;
+  }
+  .what {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .alarm.caution {
+    color: var(--warn);
+  }
+  .alarm.caution .tag {
+    background: var(--warn);
+    color: var(--bg);
+  }
+  .alarm.warning {
+    color: #ffd6da;
+  }
+  .alarm.warning .tag {
+    background: var(--bad);
+    color: #fff;
+    animation: flash 0.8s steps(1) infinite;
+  }
+  .top.alarm-caution {
+    border-color: var(--warn);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--warn) 40%, transparent);
+  }
+  .top.alarm-warning {
+    border-color: var(--bad);
+    animation: alarm 1s steps(1) infinite;
+  }
+  @keyframes alarm {
+    50% {
+      background: color-mix(in srgb, var(--bad) 22%, var(--panel));
+    }
+  }
+  .mode.qt {
+    color: var(--nav);
+    background: #a78bfa28;
+    animation: pulse 1.2s ease-in-out infinite;
+  }
+  @media (max-width: 640px) {
+    .what {
       display: none;
     }
   }

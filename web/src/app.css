@@ -21,9 +21,9 @@
   --nav: #a78bfa;
   --scm: #46d3ff;
 
-  --radius: 14px;
-  --radius-sm: 9px;
-  --gap: 14px;
+  --radius: 6px;
+  --radius-sm: 3px;
+  --gap: 8px;
   --font: "Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, "Inter", Roboto, sans-serif;
   --mono: "Cascadia Mono", "JetBrains Mono", ui-monospace, "SF Mono", Consolas, monospace;
 
@@ -89,7 +89,7 @@ body {
 }
 
 .label {
-  font-size: 0.72rem;
+  font-size: 0.62rem;
   font-weight: 600;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -112,16 +112,23 @@ body {
 .chip {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 5px 10px;
-  border-radius: 999px;
+  gap: 5px;
+  padding: 3px 7px;
+  border-radius: 2px;
   border: 1px solid var(--line-2);
   background: var(--bg-2);
-  color: var(--text-2);
-  font-size: 0.78rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
+  color: var(--text-3);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
   white-space: nowrap;
+}
+
+.chip.nav {
+  color: var(--nav);
+  border-color: color-mix(in srgb, var(--nav) 45%, transparent);
+  background: color-mix(in srgb, var(--nav) 14%, transparent);
 }
 
 .chip.on {
@@ -147,9 +154,9 @@ body {
 }
 
 .dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
+  width: 6px;
+  height: 6px;
+  border-radius: 1px;
   background: currentColor;
   flex: none;
 }

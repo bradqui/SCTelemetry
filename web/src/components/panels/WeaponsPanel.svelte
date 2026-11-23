@@ -31,6 +31,7 @@
       {/each}
     </ul>
   {/if}
+  <p class="note">The game doesn't report ammo or firing.</p>
   {#if w.countermeasures.length}
     <div class="cms">
       {#each w.countermeasures as cm (cm.type)}
@@ -54,7 +55,7 @@
     display: grid;
   }
   .big {
-    font-size: 2rem;
+    font-size: 1.4rem;
     font-weight: 750;
     line-height: 1;
   }
@@ -68,24 +69,23 @@
   .guns {
     list-style: none;
     padding: 0;
-    margin: 14px 0 0;
+    margin: 6px 0 0;
     display: grid;
-    gap: 4px;
+    gap: 2px;
   }
   .guns li {
     display: flex;
     align-items: center;
-    gap: 9px;
-    padding: 5px 8px;
-    border-radius: 7px;
+    gap: 7px;
+    padding: 2px 7px;
+    border-radius: 2px;
     background: var(--bg-2);
-    font-size: 0.82rem;
+    font-size: 0.78rem;
     color: var(--text-2);
   }
   .led {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
+    width: 6px;
+    height: 6px;
     background: var(--warn);
     flex: none;
   }
@@ -117,20 +117,20 @@
   }
   .cms {
     display: flex;
-    gap: 8px;
-    margin-top: 12px;
+    gap: 4px;
+    margin-top: 4px;
   }
   .cm {
     flex: 1;
     display: grid;
     justify-items: center;
-    padding: 8px;
-    border-radius: var(--radius-sm);
+    padding: 3px 6px;
+    border-radius: 2px;
     border: 1px solid var(--line);
     background: var(--bg-2);
   }
   .cm .n {
-    font-size: 1.4rem;
+    font-size: 1.05rem;
     font-weight: 700;
   }
   .cm.empty {
@@ -138,6 +138,11 @@
   }
   .cm.empty .n {
     color: var(--bad);
+  }
+  .note {
+    margin: 4px 0 0;
+    font-size: 0.64rem;
+    color: var(--text-3);
   }
   .muted {
     color: var(--text-3);

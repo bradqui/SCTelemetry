@@ -23,8 +23,8 @@
   .chips {
     display: flex;
     flex-wrap: wrap;
-    gap: 7px;
-    margin-top: 12px;
+    gap: 4px;
+    margin-top: 6px;
   }
   .pulse {
     animation: pulse 0.9s ease-in-out infinite;

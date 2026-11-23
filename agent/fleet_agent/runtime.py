@@ -260,8 +260,11 @@ class ReplaySource:
 
     def _run(self) -> None:
         self._post(lambda: self.pipeline.set_state(connected=True, port=None, message="Replaying"))
-        seq, epoch, chapter = -1, 0, 0
+        seq, epoch, chapter = -1, -1, 0
         last_status = 0.0
+        # Frames are stamped on the recording's clock, so time-based rules (debounces,
+        # the quantum freeze) behave the same at any replay speed.
+        base_wall, base_pos = now_ms(), 0.0
         while not self._stop.is_set():
             tick = self.playhead.wait_next(seq)
             if time.monotonic() - last_status >= 1.0:  # keeps the UI's timeline in step
@@ -270,9 +273,13 @@ class ReplaySource:
             if tick is None:
                 continue
             seq = tick.seq
+            pos = self.playhead.rec.positions[tick.index]
             if tick.epoch != epoch:
-                self._post(lambda: self.pipeline.reset(clear_history=True))
+                base_wall, base_pos = now_ms(), pos
+                if epoch != -1:
+                    self._post(lambda: self.pipeline.reset(clear_history=True))
             elif tick.chapter != chapter:
                 self._post(lambda: self.pipeline.reset(clear_history=False))
             epoch, chapter = tick.epoch, tick.chapter
-            self._post(self.pipeline.on_frame, self.playhead.rec.decode(tick.index), now_ms())
+            t = base_wall + int((pos - base_pos) * 1000)
+            self._post(self.pipeline.on_frame, self.playhead.rec.decode(tick.index), t)

@@ -34,7 +34,7 @@
 <style>
   .bar {
     display: grid;
-    gap: 7px;
+    gap: 4px;
   }
   .head {
     display: flex;
@@ -44,7 +44,7 @@
   }
   .val {
     font-weight: 650;
-    font-size: 1.05rem;
+    font-size: 0.92rem;
   }
   .val small {
     margin-left: 6px;
@@ -54,12 +54,12 @@
   }
   .unknown .val {
     color: var(--text-3);
-    font-size: 0.85rem;
+    font-size: 0.74rem;
     font-weight: 500;
   }
   .track {
-    height: 10px;
-    border-radius: 999px;
+    height: 7px;
+    border-radius: 1px;
     background: var(--bg-2);
     border: 1px solid var(--line);
     overflow: hidden;

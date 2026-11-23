@@ -29,7 +29,7 @@
   .ring {
     display: grid;
     justify-items: center;
-    gap: 6px;
+    gap: 3px;
     min-width: 0;
     --c: var(--good);
   }
@@ -44,7 +44,7 @@
   }
   .dial {
     position: relative;
-    width: min(100%, 84px);
+    width: min(100%, 58px);
     aspect-ratio: 1;
     display: grid;
     place-items: center;
@@ -69,7 +69,7 @@
   }
   .v {
     font-weight: 700;
-    font-size: 0.98rem;
+    font-size: 0.8rem;
   }
   .muted .v {
     color: var(--text-3);

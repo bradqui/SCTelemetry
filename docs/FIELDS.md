@@ -147,6 +147,22 @@ Capture: walking a station and hab, an Origin M80 flight (power cycle, takeoff, 
 **Weapons**
 - `weapons[]` lists each gun as `<class>_<id>` with `is_powered` and `ready_to_fire`.
 - `countermeasures` gives decoy and noise counts, e.g. 48 and 5.
+- **No ammo counts and no "firing" signal.** Over 44 minutes, including a fight, nothing in `weapons` changed except gun names (loadout changes) and countermeasure counts. `ready_to_fire` only flickers on power changes. `force_feedback.gunfire` would be the firing signal, but `force_feedback` was never sent.
+
+**Quantum travel**
+There is no quantum travel field, and `speed` does not show the jump. What happens instead:
+- During a jump the flight instruments **freeze**: `speed` repeats one exact value (0, 0.056, 21.7, whatever it was when the drive engaged; mid-jump it can step once, e.g. to exactly 0) and `g_meter.current` reads exactly 0. The heading still drifts slightly.
+- `altitude` keeps updating: it leaped 23 km → 45 km → FLT_MAX in a second on the way out and fell from 11 km on arrival while `speed` read 0.
+- `thr` often goes MAJOR_ON and `ifcs_g_safe`/`ifcs_esp` go inactive for parts of the jump, but not consistently.
+- A ship stopped dead in space also has a frozen `speed` and G of 0, but its heading is frozen too.
+
+So the normalizer infers `flight.quantum`: speed bit-identical with G exactly 0 for 1 s while the heading moves; it then lasts until G reads anything but 0. In the 44-minute session it found all three routes (one 68 s jump; two routes that were split into two legs around an obstruction) and neither of two dead stops in space. Short legs (~7 s) are only recognised near their end. One more 7 s freeze at 1026 m/s, right after an "obstructed" notice, was also flagged; we can't tell from the data what it was.
+
+**Game.log** records more (read-only, the agent already reads it for the port):
+- `<Player Selected Quantum Target - Local> ... Player has selected point <destination> as their destination` when a route is plotted.
+- `<Quantum Drive Arrived - Arrived at Final Destination>` at the end of the route (matched the telemetry to the second).
+- A notification line when the destination is obstructed.
+- No line marks the start of a jump.
 
 **Actor**
 - **Unchanged all session:** health 100 (you weren't hurt), hunger/thirst 100, body temperature 36.5, radiation 0, intoxication 0.

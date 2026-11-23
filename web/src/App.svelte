@@ -6,7 +6,6 @@
   import { Trends } from "./lib/trends.svelte";
   import Customize from "./components/Customize.svelte";
   import Dashboard from "./components/Dashboard.svelte";
-  import MasterCaution from "./components/MasterCaution.svelte";
   import ReplayBar from "./components/ReplayBar.svelte";
   import TopBar from "./components/TopBar.svelte";
 
@@ -88,13 +87,10 @@
     snapshot={snap}
     {compact}
     replay={live.replay}
+    caution={prefs.caution}
     onToggleCompact={toggleCompact}
     onCustomize={() => (customizing = !customizing)}
   />
-
-  {#if prefs.caution && ship && !waiting}
-    <MasterCaution lights={ship.lights} />
-  {/if}
 
   {#if waiting || !ctx}
     <section class="waiting">
@@ -114,11 +110,6 @@
     <Dashboard {ctx} layout={compact ? prefs.compact : prefs.full} editing={customizing} />
   {/if}
 
-  {#if !compact}
-    <footer>
-      Local view · only this PC can open it{live.agentVersion ? ` · agent ${live.agentVersion}` : ""}
-    </footer>
-  {/if}
 </main>
 
 {#if live.replay}
@@ -131,9 +122,9 @@
 
 <style>
   main {
-    max-width: 1440px;
+    max-width: 1920px;
     margin: 0 auto;
-    padding: 10px clamp(12px, 2vw, 24px) 24px;
+    padding: 8px clamp(8px, 1.2vw, 16px) 12px;
     display: grid;
     grid-template-columns: minmax(0, 1fr);
     gap: var(--gap);
@@ -144,7 +135,7 @@
     gap: 10px;
   }
   main.replay {
-    padding-bottom: 130px;
+    padding-bottom: 96px;
   }
   .waiting {
     display: grid;
@@ -207,11 +198,5 @@
     to {
       transform: rotate(360deg);
     }
-  }
-  footer {
-    text-align: center;
-    color: var(--text-3);
-    font-size: 0.78rem;
-    padding-top: 6px;
   }
 </style>

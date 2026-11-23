@@ -14,6 +14,15 @@ in any patch. Quirks handled here:
 - ``quantum_fuel`` is always 0 -> None until a non-zero value is ever seen.
 - no master mode field: NAV when the quantum drive light is lit, SCM when it's
   off, None when the ship is unpowered.
+- no quantum travel field. During a jump the flight instruments freeze: ``speed``
+  repeats the exact same value (0, 0.05, 21.7, whatever it was) and G reads
+  exactly 0, while the heading still drifts. A ship stopped in space also has a
+  frozen speed and zero G, but its heading is frozen too. So: quantum when speed
+  is bit-identical with G == 0 for ``QUANTUM_FREEZE_MS`` and the heading moved.
+  Once in a jump, it lasts until G reads anything but 0: mid-jump the speed can
+  step (e.g. to exactly 0) and the heading can hold still for 15 s or more.
+  Works in space and in atmosphere; checked against every jump in a 44-minute
+  session (including multi-leg routes) and two dead stops in space.
 """
 
 from __future__ import annotations
@@ -38,6 +47,8 @@ from fleet_shared import (
 log = logging.getLogger(__name__)
 
 LOCOMOTION_HOLD_MS = 400
+QUANTUM_FREEZE_MS = 1000
+"""How long the instruments must stay frozen before it counts as a quantum jump."""
 FUEL_SETTLE_MS = 2000
 FLT_MAX_ISH = 1e30
 
@@ -186,6 +197,7 @@ class Normalizer:
         self._vehicle_id: str | None = None
         self._master_mode: str | None = None
         self._qt_fuel_seen = False
+        self._qt_reset()
         self._warned: set[str] = set()
 
     def feed(self, raw: dict, t: int) -> Snapshot:
@@ -206,6 +218,7 @@ class Normalizer:
             self._vehicle_since = None
             self._vehicle_id = None
             self._master_mode = None
+            self._qt_reset()
         weapons = self._weapons(raw.get("weapons")) if ship is not None else None
         return Snapshot(
             t=t,
@@ -263,6 +276,7 @@ class Normalizer:
             self._vehicle_id = ship_id
             self._vehicle_since = t
             self._master_mode = None
+            self._qt_reset()
 
         power = {
             ours: v
@@ -291,6 +305,12 @@ class Normalizer:
         if not self._qt_fuel_seen:
             qt = None
 
+        speed = _num(inst.get("speed"))
+        alt = _num(inst.get("altitude"))
+        quantum = self._quantum(
+            inst.get("speed"), _get(inst, "g_meter", "current"), inst.get("heading"), t
+        )
+
         shields_powered = power.get("shield_generators")
         if shields_powered is not None and power.get("shield_emitters") is not None:
             shields_powered = shields_powered and power["shield_emitters"]
@@ -315,8 +335,8 @@ class Normalizer:
             ),
             landed=_bool(fstate.get("is_landed")),
             flight=Flight(
-                speed=_num(inst.get("speed")),
-                alt=_num(inst.get("altitude")),
+                speed=speed,
+                alt=alt,
                 radar_alt=_num(inst.get("radar_altitude")),
                 vsi=_num(inst.get("vertical_speed_indicator")),
                 heading=_num(inst.get("heading")),
@@ -331,8 +351,33 @@ class Normalizer:
                 g_safe=_bool(_get(settings, "ifcs_g_safe", "active")),
                 coupled=_bool(_get(settings, "ifcs_coupled", "active")),
                 prox_assist=_bool(_get(settings, "ifcs_proximity_assist", "active")),
+                quantum=quantum,
             ),
         )
+
+    def _qt_reset(self) -> None:
+        self._qt_last: tuple[Any, Any] | None = None  # raw (speed, heading) last frame
+        self._qt_since: int | None = None  # when the speed froze
+        self._qt_turned = False  # heading moved while frozen
+        self._qt_on = False
+
+    def _quantum(self, speed: Any, g: Any, heading: Any, t: int) -> bool | None:
+        """Raw values on purpose: "frozen" means bit-identical, not merely close."""
+        if not isinstance(speed, (int, float)) or isinstance(speed, bool):
+            self._qt_reset()
+            return None
+        last, self._qt_last = self._qt_last, (speed, heading)
+        if self._qt_on and g == 0:
+            return True
+        if last is None or speed != last[0] or g != 0:
+            self._qt_since, self._qt_turned, self._qt_on = None, False, False
+            return False
+        if self._qt_since is None:
+            self._qt_since = t
+        if heading != last[1]:
+            self._qt_turned = True
+        self._qt_on = self._qt_turned and t - self._qt_since >= QUANTUM_FREEZE_MS
+        return self._qt_on
 
     def _infer_mode(self, qdrv: str | None, powered: bool | None) -> str | None:
         if powered is False or qdrv is None:

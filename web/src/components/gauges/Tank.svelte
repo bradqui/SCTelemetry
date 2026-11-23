@@ -39,7 +39,7 @@
     display: grid;
     justify-items: center;
     align-content: start;
-    gap: 7px;
+    gap: 4px;
     min-width: 0;
     --c: var(--good);
   }
@@ -54,9 +54,9 @@
   }
   .glass {
     position: relative;
-    width: 36px;
-    height: var(--tank-h, 116px);
-    border-radius: 10px;
+    width: 28px;
+    height: var(--tank-h, 78px);
+    border-radius: 3px;
     border: 1px solid var(--line-2);
     background: var(--bg-2);
     overflow: hidden;

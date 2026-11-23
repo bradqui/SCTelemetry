@@ -72,6 +72,9 @@ class Flight(_Model):
     g_safe: bool | None = None
     coupled: bool | None = None
     prox_assist: bool | None = None
+    quantum: bool | None = None
+    """In quantum travel. Inferred: the game freezes speed and G during a jump
+    while the heading still moves (see the agent's normalizer)."""
 
 
 class Ship(_Model):
@@ -161,6 +164,8 @@ EventKind = Literal[
     "seat_leave",
     "ship_change",
     "mode_change",
+    "quantum_start",
+    "quantum_end",
     "takeoff",
     "landed",
     "warning_on",

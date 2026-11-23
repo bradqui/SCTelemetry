@@ -9,7 +9,7 @@
     format,
     unit = "",
     zero = true,
-    height = 70,
+    height = 40,
   }: {
     samples: Sample[];
     pick: (s: Sample) => number | null;
@@ -31,7 +31,9 @@
   const start = $derived(
     samples.length ? Math.min(Math.max(samples[0].t, end - WINDOW_S * 1000), end - 30_000) : 0,
   );
-  const values = $derived(samples.map(pick));
+  // Only what fits the window: older samples would draw left of the plot.
+  const inView = $derived(samples.filter((s) => s.t >= start));
+  const values = $derived(inView.map(pick));
   const extent = $derived.by(() => {
     let lo = Infinity;
     let hi = -Infinity;
@@ -62,7 +64,7 @@
       }
       run = [];
     };
-    samples.forEach((s, i) => {
+    inView.forEach((s, i) => {
       const v = values[i];
       if (v == null) flush();
       else run.push([x(s.t), y(v)]);
@@ -77,18 +79,18 @@
   });
 
   function onMove(e: PointerEvent) {
-    if (!samples.length) return;
+    if (!inView.length) return;
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const t = start + ((e.clientX - rect.left) / rect.width) * (end - start);
     let best = 0;
-    for (let i = 1; i < samples.length; i++) {
-      if (Math.abs(samples[i].t - t) < Math.abs(samples[best].t - t)) best = i;
+    for (let i = 1; i < inView.length; i++) {
+      if (Math.abs(inView[i].t - t) < Math.abs(inView[best].t - t)) best = i;
     }
     hover = best;
   }
 
-  const hv = $derived(hover != null && hover < samples.length ? values[hover] : null);
-  const hx = $derived(hover != null && hover < samples.length ? x(samples[hover].t) : 0);
+  const hv = $derived(hover != null && hover < inView.length ? values[hover] : null);
+  const hx = $derived(hover != null && hover < inView.length ? x(inView[hover].t) : 0);
 </script>
 
 <div class="spark">
@@ -117,9 +119,9 @@
       {/if}
     </svg>
     {#if extent}<span class="max num">{format(extent[1])}</span>{/if}
-    {#if hover != null && hover < samples.length}
+    {#if hover != null && hover < inView.length}
       <span class="tip num" style:left="{Math.min(Math.max(hx, 50), width - 50)}px">
-        {hv == null ? "no data" : `${format(hv)} ${unit}`} · {Math.round((end - samples[hover].t) / 1000)}s ago
+        {hv == null ? "no data" : `${format(hv)} ${unit}`} · {Math.round((end - inView[hover].t) / 1000)}s ago
       </span>
     {/if}
   </div>
@@ -128,7 +130,7 @@
 <style>
   .spark {
     display: grid;
-    gap: 6px;
+    gap: 2px;
     min-width: 0;
   }
   .head {
@@ -138,7 +140,7 @@
   }
   .now {
     font-weight: 700;
-    font-size: 1.05rem;
+    font-size: 0.9rem;
   }
   .now small {
     font-size: 0.7rem;
@@ -153,7 +155,7 @@
   }
   svg {
     display: block;
-    overflow: visible;
+    overflow: hidden;
   }
   .grid {
     stroke: var(--line);

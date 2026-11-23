@@ -6,7 +6,6 @@
   let { ctx }: { ctx: PanelCtx } = $props();
   const v = $derived(ctx.snap.vitals);
   const bpm = $derived(v?.heart_rate ?? null);
-  const beat = $derived(bpm && bpm > 20 ? 60 / bpm : null);
   const where = $derived(
     ctx.snap.status?.locomotion === "eva" ? "EVA" : ctx.snap.status?.locomotion === "seated" ? "Seated" : "On foot",
   );
@@ -21,91 +20,63 @@
     <Ring label="Hunger" value={v.hunger} />
     <Ring label="Thirst" value={v.thirst} />
   </div>
-  <div class="heart" class:fast={bpm != null && bpm > 150}>
-    <svg viewBox="0 0 200 40" preserveAspectRatio="none" aria-hidden="true">
-      <g class="trace" style:animation-duration={beat ? `${beat}s` : "0s"} class:still={!beat}>
-        <path d="M0 22 H30 l6 -4 l4 4 H52 l4 -18 l5 32 l4 -14 H90 q8 -8 16 0 H200 M200 22 H230 l6 -4 l4 4 H252 l4 -18 l5 32 l4 -14 H290 q8 -8 16 0 H400" />
-      </g>
-    </svg>
-    <div class="hr">
-      <span class="big num">{num(bpm, 0)}<small>bpm</small></span>
-      <span class="sub">Body {temp(v.body_temp)} · {where}</span>
+  <div class="stats">
+    <div class="stat">
+      <span class="label">Heart</span>
+      <span class="val num" class:warn={bpm != null && bpm > 150}>{num(bpm, 0)}<small>bpm</small></span>
     </div>
+    <div class="stat">
+      <span class="label">Body</span>
+      <span class="val num">{temp(v.body_temp)}</span>
+    </div>
+    <div class="stat">
+      <span class="label">State</span>
+      <span class="val">{where}</span>
+    </div>
+    {#if v.intoxication}
+      <div class="stat">
+        <span class="label">Intox</span>
+        <span class="val num warn">{v.intoxication}</span>
+      </div>
+    {/if}
   </div>
-  {#if v.intoxication}<span class="chip warn">Intoxication {v.intoxication}</span>{/if}
 {/if}
 
 <style>
   .rings {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 10px;
+    gap: 6px;
   }
-  @container panel (max-width: 300px) {
-    .rings {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
+  .stats {
+    display: flex;
+    gap: 4px;
+    margin-top: 8px;
   }
-  .heart {
+  .stat {
+    flex: 1;
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: center;
-    gap: 14px;
-    margin-top: 16px;
-    padding: 8px 12px;
-    border-radius: var(--radius-sm);
+    gap: 1px;
+    padding: 4px 7px;
     border: 1px solid var(--line);
     background: var(--bg-2);
-    --c: var(--good);
+    border-radius: 2px;
+    min-width: 0;
   }
-  .heart.fast {
-    --c: var(--warn);
-  }
-  svg {
-    width: 100%;
-    height: 40px;
-    overflow: hidden;
-  }
-  .trace {
-    animation: ecg linear infinite;
-  }
-  .trace.still {
-    animation: none;
-  }
-  .trace path {
-    fill: none;
-    stroke: var(--c);
-    stroke-width: 2;
-    stroke-linejoin: round;
-    vector-effect: non-scaling-stroke;
-    filter: drop-shadow(0 0 3px var(--c));
-  }
-  @keyframes ecg {
-    to {
-      transform: translateX(-200px);
-    }
-  }
-  .hr {
-    display: grid;
-    justify-items: end;
-  }
-  .big {
-    font-size: 1.5rem;
+  .val {
     font-weight: 700;
-    line-height: 1.1;
-  }
-  .big small {
-    font-size: 0.5em;
-    color: var(--text-3);
-    margin-left: 4px;
-  }
-  .sub {
-    font-size: 0.74rem;
-    color: var(--text-3);
+    font-size: 0.9rem;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
-  .chip {
-    margin-top: 10px;
+  .val small {
+    font-size: 0.65em;
+    color: var(--text-3);
+    margin-left: 3px;
+  }
+  .warn {
+    color: var(--warn);
   }
   .muted {
     color: var(--text-3);

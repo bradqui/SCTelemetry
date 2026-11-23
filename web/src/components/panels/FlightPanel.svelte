@@ -6,6 +6,7 @@
   let { ctx }: { ctx: ShipCtx } = $props();
 
   const f = $derived(ctx.ship.flight);
+  const quantum = $derived(f.quantum === true);
   const kmh = $derived(ctx.prefs.speedUnit === "kmh");
   const factor = $derived(kmh ? 3.6 : 1);
   const sp = $derived(speedIn(f.speed, ctx.prefs.speedUnit));
@@ -24,16 +25,16 @@
   const gTone = $derived(f.g == null ? "" : f.g > 9 ? "bad" : f.g > 5 ? "warn" : "");
 </script>
 
-<div class="flight">
+<div class="flight" class:quantum>
   <div class="dial">
     <ArcGauge
-      value={f.speed == null ? null : f.speed * factor}
+      value={quantum ? scale : f.speed == null ? null : f.speed * factor}
       max={scale}
-      display={sp.value}
-      unit={sp.unit.toUpperCase()}
-      caption={mode ?? (ctx.ship.powered === false ? "OFF" : "")}
-      tone={f.boost_engaged ? "warn" : mode === "NAV" ? "nav" : "accent"}
-      peak={ctx.trends.peakSpeed ? ctx.trends.peakSpeed * factor : null}
+      display={quantum ? "QT" : sp.value}
+      unit={quantum ? "JUMP" : sp.unit.toUpperCase()}
+      caption={quantum ? "QUANTUM" : (mode ?? (ctx.ship.powered === false ? "OFF" : ""))}
+      tone={quantum ? "nav" : f.boost_engaged ? "warn" : mode === "NAV" ? "nav" : "accent"}
+      peak={quantum || !ctx.trends.peakSpeed ? null : ctx.trends.peakSpeed * factor}
       inner={f.boost_reserve}
       innerLabel={f.boost_reserve == null ? "" : `BOOST ${pct(f.boost_reserve)}`}
       tickFormat={(v) => (v >= 1000 ? `${+(v / 1000).toFixed(1)}k` : String(Math.round(v)))}
@@ -45,14 +46,14 @@
       <span class="label">Altitude</span>
       <span class="big num" class:word={f.alt == null}>{alt.value}<small>{alt.unit}</small></span>
       <span class="sub">
-        {#if f.radar_alt != null}Radar <b class="num">{radar.value}{radar.unit}</b>{:else}Above ground —{/if}
+        {#if f.radar_alt != null}AGL <b class="num">{radar.value}{radar.unit}</b>{:else}AGL —{/if}
       </span>
     </div>
 
     <div class="tile">
-      <span class="label">Vertical speed</span>
+      <span class="label">Vert speed</span>
       <div class="vsi-row">
-        <span class="big num">{num(f.vsi, 0)}<small>m/s</small></span>
+        <span class="big num">{quantum ? "—" : num(f.vsi, 0)}<small>m/s</small></span>
         <div class="vsi" aria-hidden="true">
           <span class="zero"></span>
           <span
@@ -63,7 +64,6 @@
           ></span>
         </div>
       </div>
-      <span class="sub">{f.vsi == null ? "" : f.vsi > 1 ? "Climbing" : f.vsi < -1 ? "Descending" : "Level"}</span>
     </div>
 
     <div class="tile">
@@ -73,7 +73,6 @@
         <span class="gfill {gTone}" style:width="{Math.min(1, (f.g ?? 0) / gScale) * 100}%"></span>
         {#if f.g_max}<span class="gpeak" style:left="{Math.min(1, f.g_max / gScale) * 100}%"></span>{/if}
       </div>
-      <span class="sub">Peak <b class="num">{num(f.g_max, 1)}g</b></span>
     </div>
 
     <div class="tile">
@@ -82,17 +81,17 @@
         {f.atmo_density == null ? "—" : f.atmo_density < 0.005 ? "VACUUM" : num(f.atmo_density, 2)}
         {#if f.atmo_density != null && f.atmo_density >= 0.005}<small>kg/m³</small>{/if}
       </span>
-      <span class="sub">{f.atmo_density != null && f.atmo_density >= 0.005 ? "In atmosphere" : "Space"}</span>
     </div>
   </div>
 
   <div class="chips">
+    {#if quantum}<span class="chip nav pulse">Quantum</span>{/if}
     <span class="chip" class:on={f.coupled} class:warn={f.coupled === false}>
       {f.coupled === false ? "Decoupled" : "Coupled"}
     </span>
     <span class="chip" class:on={f.g_safe} class:warn={f.g_safe === false}>G-safe</span>
     <span class="chip" class:on={f.cruise}>Cruise</span>
-    <span class="chip" class:on={f.prox_assist}>Prox assist</span>
+    <span class="chip" class:on={f.prox_assist}>Prox</span>
     <span class="chip" class:warn={f.boost_engaged} class:pulse={f.boost_engaged}>Boost</span>
   </div>
 </div>
@@ -100,66 +99,74 @@
 <style>
   .flight {
     display: grid;
-    grid-template-columns: minmax(180px, 0.95fr) minmax(0, 1.2fr);
+    grid-template-columns: minmax(150px, 0.9fr) minmax(0, 1.2fr);
     grid-template-areas: "dial tiles" "chips chips";
-    gap: 6px 20px;
+    gap: 4px 12px;
     align-items: center;
   }
   .dial {
     grid-area: dial;
-    max-width: 290px;
+    max-width: 205px;
     width: 100%;
     justify-self: center;
+  }
+  .quantum .dial {
+    animation: qt 1.6s ease-in-out infinite;
+  }
+  @keyframes qt {
+    50% {
+      filter: drop-shadow(0 0 10px var(--nav));
+    }
   }
   .tiles {
     grid-area: tiles;
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
+    gap: 4px;
   }
   .chips {
     grid-area: chips;
     display: flex;
     flex-wrap: wrap;
-    gap: 7px;
-    margin-top: 8px;
+    gap: 4px;
   }
-  @container panel (max-width: 520px) {
+  @container panel (max-width: 400px) {
     .flight {
       grid-template-columns: minmax(0, 1fr);
       grid-template-areas: "dial" "tiles" "chips";
     }
     .dial {
-      max-width: 250px;
+      max-width: 180px;
     }
   }
   .tile {
     display: grid;
-    gap: 3px;
-    padding: 10px 12px;
-    border-radius: var(--radius-sm);
+    gap: 1px;
+    padding: 5px 8px;
+    border-radius: 2px;
     background: color-mix(in srgb, var(--bg-2) 70%, transparent);
     border: 1px solid var(--line);
     min-width: 0;
+    align-content: start;
   }
   .big {
-    font-size: 1.55rem;
+    font-size: 1.2rem;
     font-weight: 700;
-    line-height: 1.1;
+    line-height: 1.15;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
   .big.word {
-    font-size: 1.05rem;
+    font-size: 0.85rem;
     letter-spacing: 0.12em;
-    line-height: 1.7rem;
+    line-height: 1.38rem;
     color: var(--text-2);
   }
   .big small {
-    font-size: 0.5em;
+    font-size: 0.55em;
     color: var(--text-3);
-    margin-left: 4px;
+    margin-left: 3px;
     font-weight: 600;
     letter-spacing: 0.06em;
   }
@@ -170,9 +177,8 @@
     color: var(--bad);
   }
   .sub {
-    font-size: 0.74rem;
+    font-size: 0.68rem;
     color: var(--text-3);
-    min-height: 1em;
   }
   .sub b {
     color: var(--text-2);
@@ -182,13 +188,12 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 8px;
+    gap: 6px;
   }
   .vsi {
     position: relative;
-    width: 8px;
-    height: 34px;
-    border-radius: 4px;
+    width: 6px;
+    height: 24px;
     background: var(--bg-2);
     border: 1px solid var(--line);
     flex: none;
@@ -206,7 +211,6 @@
     left: 0;
     right: 0;
     background: var(--good);
-    border-radius: 3px;
     transition:
       height 0.2s linear,
       bottom 0.2s linear;
@@ -216,8 +220,7 @@
   }
   .gbar {
     position: relative;
-    height: 6px;
-    border-radius: 3px;
+    height: 4px;
     background: var(--bg-2);
     border: 1px solid var(--line);
     margin: 3px 0 1px;
@@ -225,7 +228,6 @@
   .gfill {
     position: absolute;
     inset: 0 auto 0 0;
-    border-radius: 3px;
     background: var(--accent);
     transition: width 0.15s linear;
   }

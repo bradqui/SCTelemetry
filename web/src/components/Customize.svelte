@@ -29,7 +29,7 @@
   <header>
     <div>
       <h2>Customize</h2>
-      <p>{compact ? "Compact view" : "Full view"} · saved in this browser</p>
+      <p>{compact ? "Compact view" : "Full view"} · saved in this browser · only this PC can open this page</p>
     </div>
     <button class="done" onclick={onClose}>Done</button>
   </header>
@@ -105,7 +105,7 @@
     </label>
     <label class="toggle">
       <input type="checkbox" bind:checked={prefs.caution} />
-      <span><b>Master caution banner</b><small>A bar across the top while a warning light is on</small></span>
+      <span><b>Master caution</b><small>Shown in the top bar while a warning light is on</small></span>
     </label>
     <label class="toggle">
       <input type="checkbox" bind:checked={prefs.autoHide} />

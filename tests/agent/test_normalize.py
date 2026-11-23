@@ -88,6 +88,29 @@ def test_quantum_travel_altitude_in_space_is_none():
     assert any(a is not None for a in alts)
 
 
+def test_quantum_travel_is_inferred():
+    """Speed and G freeze for the whole jump while the heading still drifts."""
+    snaps, events = run("quantum-travel")
+    t0 = snaps[0].t
+    on = [(s.t - t0) / 1000 for s in snaps if s.ship and s.ship.flight.quantum]
+    assert on, "the jump is detected"
+    # In this slice the jump starts ~18 s in and ends when speed returns at ~87 s.
+    assert 15 < on[0] < 20 and 84 < on[-1] < 88
+    assert kinds(events).count("quantum_start") == 1
+    assert kinds(events).count("quantum_end") == 1
+    # Sitting still at 23 km before the jump (speed 0) is not quantum travel.
+    assert not any(s.ship.flight.quantum for s in snaps if s.ship and (s.t - t0) / 1000 < 15)
+
+
+@pytest.mark.parametrize("path", [p for p in ALL if "quantum" not in p.name], ids=lambda p: p.name)
+def test_no_quantum_travel_elsewhere(path):
+    """Includes stopping dead in space (speed 0, g 0), which must not count."""
+    norm = Normalizer()
+    for t, raw in read_frames(path):
+        snap = norm.feed(raw, t)
+        assert not (snap.ship and snap.ship.flight.quantum), f"false quantum at {t}"
+
+
 def test_landing_and_leaving_seat():
     snaps, events = run("landing-leave-seat")
     k = kinds(events)

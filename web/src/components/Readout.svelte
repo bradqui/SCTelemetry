@@ -34,8 +34,8 @@
     letter-spacing: 0.08em;
   }
   .md .value.word {
-    font-size: 0.95rem;
-    line-height: 1.75rem;
+    font-size: 0.8rem;
+    line-height: 1.36rem;
   }
   .lg .value.word {
     font-size: 1.15rem;
@@ -53,7 +53,7 @@
     font-size: clamp(1.7rem, 3vw, 2.4rem);
   }
   .md .value {
-    font-size: 1.35rem;
+    font-size: 1.05rem;
   }
   .unit {
     font-size: 0.42em;

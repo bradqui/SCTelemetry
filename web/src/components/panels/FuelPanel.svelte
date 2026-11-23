@@ -16,8 +16,7 @@
   .tanks {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 10px;
-    padding-top: 4px;
+    gap: 6px;
   }
   @container panel (max-width: 300px) {
     .tanks :global(.label) {

@@ -32,14 +32,14 @@
   .grid {
     display: grid;
     grid-template-columns: repeat(5, minmax(0, 1fr));
-    gap: 8px;
+    gap: 4px;
   }
   .light {
     display: grid;
     place-items: center;
     gap: 1px;
-    padding: 10px 4px 8px;
-    border-radius: var(--radius-sm);
+    padding: 5px 2px 4px;
+    border-radius: 2px;
     border: 1px solid var(--line);
     background: var(--bg-2);
     color: var(--text-3);
@@ -62,11 +62,11 @@
   .code {
     font-family: var(--mono);
     font-weight: 700;
-    font-size: 0.9rem;
+    font-size: 0.8rem;
     letter-spacing: 0.06em;
   }
   .name {
-    font-size: 0.62rem;
+    font-size: 0.54rem;
     letter-spacing: 0.06em;
     text-transform: uppercase;
     opacity: 0.8;

@@ -17,18 +17,12 @@
     format={(v) => speed(v)}
   />
   <Sparkline samples={ctx.trends.samples} pick={(s) => s.alt} label="Altitude" unit="m" zero={false} format={fmtAlt} />
-  <Sparkline samples={ctx.trends.samples} pick={(s) => s.g} label="G-force" unit="g" format={(v) => v.toFixed(1)} height={48} />
+  <Sparkline samples={ctx.trends.samples} pick={(s) => s.g} label="G-force" unit="g" format={(v) => v.toFixed(1)} height={30} />
 </div>
-<p class="note">Up to the last 3 minutes. Hover for values. Gaps mean no reading (altitude in space).</p>
 
 <style>
   .trends {
     display: grid;
-    gap: 16px;
-  }
-  .note {
-    margin: 12px 0 0;
-    font-size: 0.72rem;
-    color: var(--text-3);
+    gap: 6px;
   }
 </style>

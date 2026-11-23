@@ -16,6 +16,7 @@
     life: "M2 8h3l1.5-3 3 6L11 8h3",
     power: "M8 1.5v6 M4.5 4a5 5 0 1 0 7 0",
     dot: "M8 6a2 2 0 1 1 0 4a2 2 0 1 1 0-4z",
+    quantum: "M1.5 8h4 M4 5.5 6.5 8 4 10.5 M8 8h6.5 M11.5 5l3 3-3 3",
   };
 
   function iconFor(k: string): string {
@@ -26,6 +27,7 @@
     if (k === "seat_leave") return "leave";
     if (k === "ship_change") return "ship";
     if (k === "mode_change") return "mode";
+    if (k === "quantum_start" || k === "quantum_end") return "quantum";
     if (["spawn", "downed", "dead", "respawn"].includes(k)) return "life";
     if (k === "game_start" || k === "game_exit") return "power";
     return "dot";

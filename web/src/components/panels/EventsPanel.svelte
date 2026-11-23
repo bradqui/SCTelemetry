@@ -14,7 +14,7 @@
   <ol>
     {#each shown as e (`${e.t}-${e.kind}-${JSON.stringify(e.data)}`)}
       <li class={eventTone(e.kind, e.data)} in:fly={{ y: -8, duration: 250 }}>
-        <span class="icon"><EventIcon kind={e.kind} /></span>
+        <span class="icon"><EventIcon kind={e.kind} size={12} /></span>
         <span class="text">{eventText(e.kind, e.data)}</span>
         <time class="num" title={clock(e.t)}>{since(e.t, ctx.now)}</time>
       </li>
@@ -28,18 +28,18 @@
     margin: 0;
     padding: 0;
     display: grid;
-    gap: 2px;
-    max-height: 340px;
+    gap: 0;
+    max-height: 190px;
     overflow-y: auto;
     scrollbar-width: thin;
   }
   li {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 6px 4px;
+    gap: 8px;
+    padding: 3px 2px;
     border-bottom: 1px solid var(--line);
-    font-size: 0.88rem;
+    font-size: 0.8rem;
     --c: var(--accent);
   }
   li:last-child {
@@ -55,12 +55,12 @@
     --c: var(--bad);
   }
   .icon {
-    width: 24px;
-    height: 24px;
+    width: 18px;
+    height: 18px;
     flex: none;
     display: grid;
     place-items: center;
-    border-radius: 7px;
+    border-radius: 2px;
     color: var(--c);
     background: color-mix(in srgb, var(--c) 14%, transparent);
   }

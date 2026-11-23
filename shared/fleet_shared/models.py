@@ -145,6 +145,15 @@ class Vitals(_Model):
 # ---------------------------------------------------------------- messages
 
 
+class Route(_Model):
+    """A plotted quantum route, from the game's Game.log (local view only for now)."""
+
+    destination: str | None = None
+    state: Literal["plotted", "en_route", "arrived", "blocked"]
+    since: int
+    """ms since epoch the state began."""
+
+
 class Snapshot(_Model):
     type: Literal["snapshot"] = "snapshot"
     v: int = SCHEMA_VERSION
@@ -155,6 +164,8 @@ class Snapshot(_Model):
     weapons: Weapons | None = None
     vitals: Vitals | None = None
     uec: int | None = None
+    route: Route | None = None
+    """Never shared off this PC (see apply_sharing)."""
 
 
 EventKind = Literal[
@@ -166,6 +177,9 @@ EventKind = Literal[
     "mode_change",
     "quantum_start",
     "quantum_end",
+    "quantum_route",
+    "quantum_arrived",
+    "quantum_blocked",
     "takeoff",
     "landed",
     "warning_on",
@@ -216,5 +230,7 @@ def apply_sharing(snapshot: Snapshot, share: set[str] | list[str]) -> Snapshot:
             "weapons": snapshot.weapons if "weapons" in share else None,
             "vitals": snapshot.vitals if "vitals" in share else None,
             "uec": snapshot.uec if "uec" in share else None,
+            # Where you're heading is location: local only until the org decides otherwise.
+            "route": None,
         }
     )

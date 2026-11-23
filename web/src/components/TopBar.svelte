@@ -93,7 +93,7 @@
 
   <div class="right">
     {#if ship?.flight.quantum}
-      <span class="mode qt">QT</span>
+      <span class="mode qt" title={snapshot?.route?.destination ? `Quantum to ${snapshot.route.destination}` : "Quantum travel"}>QT</span>
     {:else if ship?.master_mode}
       <span class="mode {ship.master_mode.toLowerCase()}">{ship.master_mode}</span>
     {:else if ship && ship.powered === false}

@@ -59,6 +59,7 @@ def cmd_run(args) -> None:
     import asyncio
     import webbrowser
 
+    from .gamelog import GameLogTail
     from .localserver import LocalServer
     from .runtime import GameReader, Pipeline, ReplaySource
 
@@ -73,6 +74,7 @@ def cmd_run(args) -> None:
         playhead = Playhead(Recording.load(files), speed=args.speed)
 
     async def run() -> None:
+        tail = None
         pipeline = Pipeline()
         server = LocalServer(pipeline, port=args.ui_port, playhead=playhead)
         await server.start()
@@ -87,9 +89,18 @@ def cmd_run(args) -> None:
         else:
             install = _find(args)
             reader = GameReader(pipeline, loop, install=install, port=args.game_port)
+            if install is not None:
+                tail = GameLogTail(
+                    install.game_log,
+                    lambda line, quiet: loop.call_soon_threadsafe(
+                        lambda: pipeline.on_log(line, None, quiet)
+                    ),
+                )
             game = f"port {args.game_port}" if args.game_port else "port from Game.log"
             source = f"Game: {install.channel if install else 'no install found'}, {game}."
         reader.start()
+        if tail is not None:
+            tail.start()
         url = f"http://127.0.0.1:{server.port}/"
         print(f"Fleet Telemetry agent: local view at {url}")
         print(f"{source} Ctrl+C stops.")
@@ -99,6 +110,8 @@ def cmd_run(args) -> None:
             await asyncio.Event().wait()
         finally:
             reader.stop()
+            if tail is not None:
+                tail.stop()
             await server.stop()
 
     with contextlib.suppress(KeyboardInterrupt):

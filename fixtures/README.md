@@ -1,6 +1,6 @@
 # Fixtures
 
-Slices of real telemetry captures, gzipped JSONL, aUEC scrubbed. Made with `tools/make_fixture.py` from `captures/session-20261123-101902.jsonl` (LIVE, 2026-11-23). Lines are `{"t", "label", "frame"}` or `{"t", "label", "note"}`.
+Slices of real telemetry captures, gzipped JSONL, aUEC scrubbed. Made with `tools/make_fixture.py` from `captures/session-20261123-101902.jsonl` (LIVE, 2026-11-23). Lines are `{"t", "label", "frame"}`, `{"t", "label", "note"}`, or `{"t", "label", "log"}` (a Game.log line the agent understands; `quantum-travel` has the real route and arrival lines added from that session's Game.log).
 
 | File | What happens |
 |---|---|

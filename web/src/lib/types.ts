@@ -84,6 +84,13 @@ export interface Vitals {
   environment: { temperature: number | null; breathable: boolean | null; radiation: number | null };
 }
 
+/** A plotted quantum route, from the game's Game.log. Local view only. */
+export interface Route {
+  destination: string | null;
+  state: "plotted" | "en_route" | "arrived" | "blocked";
+  since: number;
+}
+
 export interface Snapshot {
   type: "snapshot";
   v: number;
@@ -93,6 +100,7 @@ export interface Snapshot {
   weapons: Weapons | null;
   vitals: Vitals | null;
   uec: number | null;
+  route?: Route | null;
 }
 
 export interface TelemetryEvent {

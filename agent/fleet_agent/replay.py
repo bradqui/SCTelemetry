@@ -137,6 +137,8 @@ class Recording:
     chapters: list[Chapter]
     markers: list[Marker]
     response_cls: type
+    logs: dict[int, list[str]] = field(default_factory=dict)
+    """Game.log lines recorded with the capture, by the index of the frame they precede."""
 
     @property
     def duration(self) -> float:
@@ -166,7 +168,9 @@ class Recording:
 
     @classmethod
     def load(cls, paths: list[Path], protoset: Path = DEFAULT_PROTOSET) -> Recording:
+        from .capturefile import read_records
         from .events import EventDeriver
+        from .gamelog import RouteTracker, parse_line
         from .normalize import Normalizer, raw_game_events
 
         schema = TelemetrySchema.from_protoset(protoset)
@@ -175,12 +179,27 @@ class Recording:
         for path in paths:
             # Each file is a separate slice of play. The agent starts each one
             # fresh (see ReplaySource), so the event index does too.
-            normalizer, deriver = Normalizer(), EventDeriver()
+            normalizer, deriver, route = Normalizer(), EventDeriver(), RouteTracker()
             first = len(rec.positions)
-            for delay, payload, raw in _frames(schema, [path]):
+            # Log lines (t, line) in this file, attached to the next frame at or after them.
+            lines = sorted(
+                (r["t"], r["log"]) for r in read_records(path) if "log" in r and "t" in r
+            )
+            frame_times = [t for t, _ in read_frames(path)]
+            li = 0
+            for k, (delay, payload, raw) in enumerate(_frames(schema, [path])):
                 pos += delay if rec.positions else 0.0
                 if len(rec.positions) == first and first:
                     pos += MAX_GAP_S / 2
+                index = len(rec.positions)
+                ms = int(pos * 1000)
+                while li < len(lines) and lines[li][0] <= frame_times[k]:
+                    line = lines[li][1]
+                    rec.logs.setdefault(index, []).append(line)
+                    if ev := parse_line(line):
+                        for e in route.on_log(ev, ms):
+                            rec.markers.append(Marker(pos, e.kind, e.data))
+                    li += 1
                 rec.positions.append(pos)
                 rec.payloads.append(payload)
                 snap = normalizer.feed(raw, int(pos * 1000))

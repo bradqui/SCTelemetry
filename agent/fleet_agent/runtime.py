@@ -20,6 +20,7 @@ from fleet_shared import Event, Snapshot
 
 from . import client
 from .events import EventDeriver
+from .gamelog import RouteTracker, parse_line
 from .installs import Install
 from .normalize import Normalizer, raw_game_events
 
@@ -73,6 +74,7 @@ class Pipeline:
         """[t, speed, alt, g] samples, oldest first."""
         self._normalizer = Normalizer()
         self._deriver = EventDeriver()
+        self._route = RouteTracker()
         self._listeners: list[Callable[[str, object], None]] = []
 
     def subscribe(self, listener: Callable[[str, object], None]) -> Callable[[], None]:
@@ -109,6 +111,10 @@ class Pipeline:
             self.set_state(streaming=True, message="Receiving telemetry")
             self._emit(Event(t=t, kind="game_start"))
         snap = self._normalizer.feed(raw, t)
+        quantum = snap.ship.flight.quantum if snap.ship else None
+        route = self._route.route(t, quantum)
+        if route is not None:
+            snap = snap.model_copy(update={"route": route})
         for event in self._deriver.feed(snap, raw_game_events(raw)):
             self._emit(event)
         self.latest = snap
@@ -123,10 +129,21 @@ class Pipeline:
             [snap.t, f.speed if f else None, f.alt if f else None, f.g if f else None]
         )
 
+    def on_log(self, line: str, t: int | None = None, quiet: bool = False) -> None:
+        """A Game.log line. ``quiet``: history being caught up on, so state only, no events."""
+        ev = parse_line(line)
+        if ev is None:
+            return
+        events = self._route.on_log(ev, now_ms() if t is None else t)
+        if not quiet:
+            for event in events:
+                self._emit(event)
+
     def reset(self, *, clear_history: bool) -> None:
         """Start fresh mid-stream (a replay jump): no seat/ship carry-over between scenes."""
         self._normalizer = Normalizer()
         self._deriver = EventDeriver()
+        self._route = RouteTracker()
         if clear_history:
             self.recent.clear()
             self.trend.clear()
@@ -143,6 +160,7 @@ class Pipeline:
             # A new game session starts fresh (seat, ship, debounce state).
             self._normalizer = Normalizer()
             self._deriver = EventDeriver()
+            self._route = RouteTracker()
 
 
 # ---------------------------------------------------------------- reader thread
@@ -265,6 +283,7 @@ class ReplaySource:
         # Frames are stamped on the recording's clock, so time-based rules (debounces,
         # the quantum freeze) behave the same at any replay speed.
         base_wall, base_pos = now_ms(), 0.0
+        epoch_fed = 0
         while not self._stop.is_set():
             tick = self.playhead.wait_next(seq)
             if time.monotonic() - last_status >= 1.0:  # keeps the UI's timeline in step
@@ -282,4 +301,15 @@ class ReplaySource:
                 self._post(lambda: self.pipeline.reset(clear_history=False))
             epoch, chapter = tick.epoch, tick.chapter
             t = base_wall + int((pos - base_pos) * 1000)
-            self._post(self.pipeline.on_frame, self.playhead.rec.decode(tick.index), t)
+            rec = self.playhead.rec
+            if tick.epoch != epoch_fed:
+                # After a jump, catch up quietly on this chapter's log so far (a route
+                # plotted before the jump point is still known), without events.
+                first = rec.chapters[tick.chapter].first if rec.chapters else 0
+                for i in range(first, tick.index):
+                    for line in rec.logs.get(i, ()):
+                        self._post(self.pipeline.on_log, line, t, True)
+                epoch_fed = tick.epoch
+            for line in rec.logs.get(tick.index, ()):
+                self._post(self.pipeline.on_log, line, t, False)
+            self._post(self.pipeline.on_frame, rec.decode(tick.index), t)

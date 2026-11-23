@@ -54,6 +54,9 @@ const EVENT_TEXT: Record<string, (d: Record<string, unknown>) => string> = {
   mode_change: (d) => `${d.mode} mode`,
   quantum_start: () => "Quantum jump",
   quantum_end: () => "Dropped out of quantum",
+  quantum_route: (d) => `Route set: ${d.destination ?? "unknown"}`,
+  quantum_arrived: (d) => (d.destination ? `Arrived at ${d.destination}` : "Arrived"),
+  quantum_blocked: (d) => `Route obstructed${d.destination ? `: ${d.destination}` : ""}`,
   takeoff: () => "Took off",
   landed: () => "Landed",
   warning_on: (d) => `${String(d.light).toUpperCase()} warning`,
@@ -73,7 +76,8 @@ export function eventText(kind: string, data: Record<string, unknown>): string {
 export function eventTone(kind: string, data: Record<string, unknown>): "info" | "good" | "warn" | "bad" {
   if (kind === "warning_on") return String(data.level).startsWith("major") ? "bad" : "warn";
   if (["hull_threshold", "fuel_threshold", "downed", "dead"].includes(kind)) return "bad";
-  if (["warning_off", "landed", "game_start", "respawn"].includes(kind)) return "good";
+  if (["warning_off", "landed", "game_start", "respawn", "quantum_arrived"].includes(kind)) return "good";
+  if (kind === "quantum_blocked") return "warn";
   return "info";
 }
 

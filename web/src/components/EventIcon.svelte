@@ -27,7 +27,7 @@
     if (k === "seat_leave") return "leave";
     if (k === "ship_change") return "ship";
     if (k === "mode_change") return "mode";
-    if (k === "quantum_start" || k === "quantum_end") return "quantum";
+    if (k.startsWith("quantum")) return "quantum";
     if (["spawn", "downed", "dead", "respawn"].includes(k)) return "life";
     if (k === "game_start" || k === "game_exit") return "power";
     return "dot";

@@ -23,6 +23,16 @@
   );
   const gScale = $derived(niceMax(Math.max(f.g_max ?? 0, f.g ?? 0, 6), 6));
   const gTone = $derived(f.g == null ? "" : f.g > 9 ? "bad" : f.g > 5 ? "warn" : "");
+
+  // Quantum route from Game.log, if the agent has one.
+  const route = $derived(ctx.snap.route ?? null);
+  const routeState = $derived(
+    !route
+      ? ""
+      : quantum
+        ? "Jumping"
+        : { plotted: "Plotted", en_route: "En route", arrived: "Arrived", blocked: "Obstructed" }[route.state],
+  );
 </script>
 
 <div class="flight" class:quantum>
@@ -84,6 +94,15 @@
     </div>
   </div>
 
+  {#if route}
+    <div class="route {route.state}" class:jumping={quantum}>
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 8h4 M4 5.5 6.5 8 4 10.5 M8 8h6.5 M11.5 5l3 3-3 3" /></svg>
+      <span class="label">Route</span>
+      <b>{route.destination ?? "Unknown"}</b>
+      <em>{routeState}</em>
+    </div>
+  {/if}
+
   <div class="chips">
     {#if quantum}<span class="chip nav pulse">Quantum</span>{/if}
     <span class="chip" class:on={f.coupled} class:warn={f.coupled === false}>
@@ -100,7 +119,7 @@
   .flight {
     display: grid;
     grid-template-columns: minmax(150px, 0.9fr) minmax(0, 1.2fr);
-    grid-template-areas: "dial tiles" "chips chips";
+    grid-template-areas: "dial tiles" "route route" "chips chips";
     gap: 4px 12px;
     align-items: center;
   }
@@ -133,7 +152,7 @@
   @container panel (max-width: 400px) {
     .flight {
       grid-template-columns: minmax(0, 1fr);
-      grid-template-areas: "dial" "tiles" "chips";
+      grid-template-areas: "dial" "tiles" "route" "chips";
     }
     .dial {
       max-width: 180px;
@@ -243,6 +262,62 @@
     bottom: -3px;
     width: 2px;
     background: var(--text-2);
+  }
+  .route {
+    grid-area: route;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 4px 8px;
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--nav);
+    border-radius: 2px;
+    background: color-mix(in srgb, var(--nav) 7%, var(--bg-2));
+    min-width: 0;
+  }
+  .route svg {
+    width: 13px;
+    height: 13px;
+    flex: none;
+  }
+  .route path {
+    fill: none;
+    stroke: var(--nav);
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .route b {
+    font-size: 0.86rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+  }
+  .route em {
+    margin-left: auto;
+    font-style: normal;
+    font-size: 0.64rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--nav);
+    flex: none;
+  }
+  .route.jumping {
+    animation: pulse 1.2s ease-in-out infinite;
+  }
+  .route.arrived {
+    border-left-color: var(--good);
+  }
+  .route.arrived em {
+    color: var(--good);
+  }
+  .route.blocked {
+    border-left-color: var(--warn);
+  }
+  .route.blocked em {
+    color: var(--warn);
   }
   .pulse {
     animation: pulse 0.9s ease-in-out infinite;

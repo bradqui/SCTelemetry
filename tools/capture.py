@@ -11,7 +11,9 @@ the same file), and stops on Ctrl+C.
 Each line is {"t": <ms epoch>, "label": ..., "frame": {...}}, with field names as
 in the game's .proto, or {"t", "label", "note": "..."} for a note: either typed
 into the terminal while recording (press Enter), or written by the tool itself
-("[capture] ...") when the stream drops and comes back.
+("[capture] ...") when the stream drops and comes back. Game.log lines the
+agent understands (quantum route, arrival, obstruction) are recorded as
+{"t", "label", "log": "..."}; no other log lines are kept.
 
 aUEC fields are scrubbed unless --raw is given. Captures stay in the gitignored
 captures/ folder. Also writes captures/telemetry.protoset for grpcurl.
@@ -32,6 +34,7 @@ sys.path.insert(0, str(ROOT / "agent"))
 
 import grpc  # noqa: E402
 from fleet_agent import client, installs, protoset, scrub  # noqa: E402
+from fleet_agent.gamelog import GameLogTail  # noqa: E402
 
 STATUS_EVERY = 10.0  # seconds between progress lines
 
@@ -150,12 +153,21 @@ def main() -> None:
     print(f"\nRecording to {out_file}")
     print("Just play. Optional: type a note and press Enter to mark a moment. Ctrl+C stops.\n")
     threading.Thread(target=read_notes, args=(rec,), daemon=True).start()
+    tail = None
+    if install is not None:
+        # Only lines from now on (quiet history is skipped).
+        tail = GameLogTail(
+            install.game_log, lambda line, quiet: None if quiet else rec.write({"log": line})
+        )
+        tail.start()
 
     try:
         record(channel, schema, rec, args)
     except KeyboardInterrupt:
         pass
     finally:
+        if tail is not None:
+            tail.stop()
         rec.close()
     size_mb = out_file.stat().st_size / 1_000_000
     print(f"\nSaved {rec.frames} frames ({size_mb:.1f} MB) to {out_file}")

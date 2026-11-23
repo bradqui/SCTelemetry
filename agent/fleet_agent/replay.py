@@ -53,12 +53,22 @@ def default_fixtures(fixtures_dir: Path) -> list[Path]:
     return present + extra
 
 
-def _drop_scrubbed(value):
-    """Scrubbed fields are strings like "<scrubbed>", which won't parse back into an int64."""
+FLOAT32_MAX = float.fromhex("0x1.fffffep+127")
+
+
+def _parseable(value):
+    """Undo what JSON did to a frame so it parses back into the message.
+
+    - Scrubbed fields are strings like "<scrubbed>", which won't parse into an int64.
+    - The game's FLT_MAX ("in space" altitude) comes out of JSON as 3.4028235e38,
+      a hair above float32's max, which the parser rejects.
+    """
     if isinstance(value, dict):
-        return {k: _drop_scrubbed(v) for k, v in value.items() if v != SCRUBBED}
+        return {k: _parseable(v) for k, v in value.items() if v != SCRUBBED}
     if isinstance(value, list):
-        return [_drop_scrubbed(v) for v in value]
+        return [_parseable(v) for v in value]
+    if isinstance(value, float) and abs(value) > FLOAT32_MAX:
+        return FLOAT32_MAX if value > 0 else -FLOAT32_MAX
     return value
 
 
@@ -73,9 +83,7 @@ def load_messages(schema: TelemetrySchema, paths: Iterable[Path]) -> list[tuple[
             if last_t is None and out:
                 delay = MAX_GAP_S / 2
             last_t = t
-            msg = json_format.ParseDict(
-                _drop_scrubbed(raw), response_cls(), ignore_unknown_fields=True
-            )
+            msg = json_format.ParseDict(_parseable(raw), response_cls(), ignore_unknown_fields=True)
             out.append((delay, msg.SerializeToString()))
     return out
 

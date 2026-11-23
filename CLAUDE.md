@@ -15,6 +15,13 @@ Star Citizen org fleet telemetry: Windows agent → FastAPI hub → PWA + Butler
 - Agent code lives in `agent/fleet_agent/` (CLI: `uv run python -m fleet_agent --help`). Tools in `tools/`.
 - Set `FLEET_TELEMETRY_HOME` to a scratch folder when experimenting, so the real `%LOCALAPPDATA%\FleetTelemetry` state isn't touched.
 - Never switch telemetry on/off in Brad's real `user.cfg` without asking. Read-only commands (`installs`, `status`, `protoset`) are fine.
+- Code map:
+  - `shared/fleet_shared/models.py`: the wire schema (Python 3.11-safe; CI checks it).
+  - `agent/fleet_agent/normalize.py` + `events.py`: raw frames to snapshots and events. Every behaviour has a fixture test in `tests/agent/test_normalize.py`.
+  - `runtime.py` + `localserver.py`: the live pipeline and the 127.0.0.1 server.
+  - `replay.py`: the fake game.
+- Develop without the game: `uv run python tools/replay.py` (port 2943) plus `uv run python -m fleet_agent run --game-port 2943`.
+- Web UI: `web/`, Svelte 5 + Vite + TS. `web/src/lib/types.ts` mirrors the Python models, so change both together. TypeScript is pinned to 6.x because svelte-check doesn't support TS 7 yet. To check layouts without a browser tool, screenshot with headless Edge (`msedge --headless=new --screenshot=... --window-size=W,H --virtual-time-budget=4000 URL`); its minimum width is 500 px.
 - The real schema is in [docs/FIELDS.md](docs/FIELDS.md). The normalizer must treat every field as optional: LIVE lacks hull/shields/master mode today, and CIG can change it in any patch.
 
 ## ButlerBot integration facts

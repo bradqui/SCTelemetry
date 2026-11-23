@@ -2,7 +2,7 @@
 
 Live Star Citizen ship and crew status for our org: shown on each member's second monitor or VR overlay, on phones as a PWA, and in Discord through ButlerBot.
 
-**Status:** Phase 0 (spike) done. The first real session was captured on LIVE on 2026-11-23. What the game sends is in [docs/FIELDS.md](docs/FIELDS.md), and test slices are in [fixtures/](fixtures/). Next is Phase 1: the normalizer, replay server and local view.
+**Status:** Phase 1 (agent, local only) built. The agent reads the game, normalizes it, and serves a live local cockpit view. Real field reference: [docs/FIELDS.md](docs/FIELDS.md). Next is Phase 2: the hub and fleet board.
 
 The full build spec is in [docs/SC_FLEET_TELEMETRY_SPEC.md](docs/SC_FLEET_TELEMETRY_SPEC.md).
 
@@ -24,6 +24,33 @@ uv sync --python 3.12
 uv run pytest -q
 uv run ruff check . && uv run ruff format --check .
 ```
+
+Web UI (Node 24):
+
+```
+cd web
+npm install
+npm run build        # the agent serves web/dist
+npm run dev          # live-reload dev server on :5173, proxying to a running agent on :8740
+npm run check        # type check
+```
+
+## Running the agent
+
+With the game (telemetry switched on, see below):
+
+```
+uv run python -m fleet_agent run --open      # local view at http://127.0.0.1:8740
+```
+
+Without the game, replaying real recordings:
+
+```
+uv run python tools/replay.py                          # fake game on 127.0.0.1:2943, loops all fixtures
+uv run python -m fleet_agent run --game-port 2943 --open
+```
+
+Add `?compact=1` to the URL, or press **Compact**, for a narrow view that fits a VR overlay (OVR Toolkit, XSOverlay). The local view only accepts connections from this PC.
 
 ## Capturing telemetry
 

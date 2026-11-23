@@ -31,6 +31,20 @@ def test_replay_roundtrip_matches_fixture():
         assert sa == sb, f"frame {i} differs after replay"
 
 
+def test_every_fixture_loads_for_replay():
+    """Includes FLT_MAX altitudes (space) and scrubbed aUEC, which must survive the round trip."""
+    server = ReplayServer(default_fixtures(FIXTURES), speed=0)
+    try:
+        response_cls = server.schema.response_class("TelemetryStream")
+        alts = [
+            response_cls.FromString(p).vehicle.state.flight.instruments.altitude
+            for _, p in server.frames
+        ]
+        assert max(alts) > 3e38, "space altitude kept"
+    finally:
+        server.stop()
+
+
 def test_default_fixture_order_is_a_session():
     files = default_fixtures(FIXTURES)
     assert files[0].name == "on-foot.jsonl.gz"

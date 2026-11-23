@@ -1,0 +1,155 @@
+/* Fleet Telemetry — cockpit theme. Dark only: it sits next to a game. */
+:root {
+  --bg: #070b10;
+  --bg-2: #0b1118;
+  --panel: #0f1720;
+  --panel-2: #131d28;
+  --line: #1e2b38;
+  --line-2: #2a3a4b;
+  --text: #e6eef6;
+  --text-2: #9fb0c2;
+  --text-3: #66798d;
+
+  --accent: #46d3ff;
+  --accent-dim: #46d3ff33;
+  --good: #3ddc97;
+  --good-dim: #3ddc9726;
+  --warn: #ffb020;
+  --warn-dim: #ffb02026;
+  --bad: #ff4d5e;
+  --bad-dim: #ff4d5e2b;
+  --nav: #a78bfa;
+  --scm: #46d3ff;
+
+  --radius: 14px;
+  --radius-sm: 9px;
+  --gap: 14px;
+  --font: "Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, "Inter", Roboto, sans-serif;
+  --mono: "Cascadia Mono", "JetBrains Mono", ui-monospace, "SF Mono", Consolas, monospace;
+
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  background: radial-gradient(1200px 600px at 70% -10%, #0e2233 0%, transparent 60%), var(--bg);
+  background-attachment: fixed;
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  overflow-x: hidden;
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+.label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.panel {
+  background: linear-gradient(180deg, var(--panel-2), var(--panel));
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  min-width: 0;
+}
+
+.panel > .label:first-child {
+  display: block;
+  margin-bottom: 12px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line-2);
+  background: var(--bg-2);
+  color: var(--text-2);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.chip.on {
+  color: var(--good);
+  border-color: #3ddc9755;
+  background: var(--good-dim);
+}
+
+.chip.off {
+  color: var(--text-3);
+}
+
+.chip.warn {
+  color: var(--warn);
+  border-color: #ffb02055;
+  background: var(--warn-dim);
+}
+
+.chip.bad {
+  color: var(--bad);
+  border-color: #ff4d5e55;
+  background: var(--bad-dim);
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: none;
+}
+
+@keyframes flash {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0.25;
+  }
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}

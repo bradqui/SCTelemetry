@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 jobs:
-  tests:
+  python:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest]
@@ -24,3 +24,29 @@ jobs:
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       - run: uv run pytest -q
+
+  # The ButlerBot cog runs on Python 3.11: the shared models must import there.
+  shared-py311:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv run --python 3.11 --with "pydantic>=2.8" python -c "import sys; sys.path.insert(0, 'shared'); import fleet_shared; print(fleet_shared.SCHEMA_VERSION)"
+
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npm run check
+      - run: npm run build

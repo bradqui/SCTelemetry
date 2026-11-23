@@ -9,6 +9,14 @@ Star Citizen org fleet telemetry: Windows agent → FastAPI hub → PWA + Butler
 - Everything is shared by default, but any category a member switches off never leaves the agent.
 - Fixtures must be scrubbed of aUEC before they are committed. Raw captures go in the gitignored `captures/` folder.
 
+## Development
+
+- Python 3.12 via `uv` (`uv sync --python 3.12`, `uv run pytest -q`, `uv run ruff check .`, `uv run ruff format .`). CI runs the same on Ubuntu and Windows.
+- Agent code lives in `agent/fleet_agent/` (CLI: `uv run python -m fleet_agent --help`). Tools in `tools/`.
+- Set `FLEET_TELEMETRY_HOME` to a scratch folder when experimenting, so the real `%LOCALAPPDATA%\FleetTelemetry` state isn't touched.
+- Never switch telemetry on/off in Brad's real `user.cfg` without asking. Read-only commands (`installs`, `status`, `protoset`) are fine.
+- The real schema is in [docs/FIELDS.md](docs/FIELDS.md). The normalizer must treat every field as optional: LIVE lacks hull/shields/master mode today, and CIG can change it in any patch.
+
 ## ButlerBot integration facts
 
 ButlerBot is the public repo `bradqui/ButlerBot`. Its `CLAUDE.md` is the authority on the points below; these are summarized from it (2026-11-22):

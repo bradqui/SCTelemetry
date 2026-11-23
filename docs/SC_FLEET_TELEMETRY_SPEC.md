@@ -38,7 +38,7 @@ Reference: https://github.com/TheBanjolorian/7hills-link/blob/main/docs/TELEMETR
 | `TriggerGameAction` | unary | args `action_name`, `hold_ms`; returns a `status` |
 
 ### 2.2 Enabling it (agent must automate this)
-Append to the channel's `user.cfg` (e.g. `...\StarCitizen\LIVE\user.cfg`; support LIVE, PTU, EPTU, TECH-PREVIEW):
+Append to the channel's `user.cfg` (e.g. `...\StarCitizen\LIVE\user.cfg`; support LIVE, PTU, EPTU, TECH-PREVIEW, HOTFIX):
 
 ```
 grpc.client.server.enabled = 1
@@ -72,6 +72,9 @@ Either way, also emit a `.protoset` file usable with `grpcurl -protoset` for deb
 Convert frames with `json_format.MessageToDict(msg, preserving_proto_field_name=True)`.
 
 ### 2.4 Frame contents (documented paths)
+
+> **Superseded by [FIELDS.md](FIELDS.md)** (2026-11-23), which lists the real schema extracted from the LIVE exe. Notably, LIVE has **no vehicle hull health, shields, or master mode**, and no game-action RPCs. The community notes below are kept for reference.
+
 Top-level keys: `actor`, `vehicle`, `weapons`, `events`, `turret`, `force_feedback`.
 
 ```

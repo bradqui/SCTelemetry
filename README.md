@@ -2,7 +2,7 @@
 
 Live Star Citizen ship and crew status for our org: shown on each member's second monitor or VR overlay, on phones as a PWA, and in Discord through ButlerBot.
 
-**Status:** greenfield, Phase 0 (spike) not started.
+**Status:** Phase 0 (spike). The `user.cfg` switch, install finder, schema extraction and capture tool are built; real frame captures are next. Real field list: [docs/FIELDS.md](docs/FIELDS.md).
 
 The full build spec is in [docs/SC_FLEET_TELEMETRY_SPEC.md](docs/SC_FLEET_TELEMETRY_SPEC.md).
 
@@ -14,6 +14,37 @@ The full build spec is in [docs/SC_FLEET_TELEMETRY_SPEC.md](docs/SC_FLEET_TELEME
 - **Cog** (`telemetry`, Red-DiscordBot): `!fleet`, `!ready`, ops, and alerts in ButlerBot.
 
 No world position, no remote control of anyone's game, and nothing that touches memory or Easy Anti-Cheat.
+
+## Development
+
+Requires [uv](https://docs.astral.sh/uv/). Python 3.12.
+
+```
+uv sync --python 3.12
+uv run pytest -q
+uv run ruff check . && uv run ruff format --check .
+```
+
+## Phase 0: capturing real frames
+
+On the gaming PC:
+
+```
+uv run python -m fleet_agent installs              # finds LIVE/PTU/... and shows on/off
+uv run python -m fleet_agent on --channel LIVE     # backs up user.cfg, adds 3 keys, sets the env var
+```
+
+Then **fully quit the RSI Launcher** (including the tray icon), start the game and load in.
+
+```
+uv run python -m fleet_agent probe                 # is the server up? does it offer reflection?
+uv run python tools/capture.py on-foot --seconds 30
+uv run python tools/capture.py seated-pilot        # Ctrl+C to stop
+```
+
+Captures go to the gitignored `captures/` folder, with aUEC scrubbed. Suggested scenarios: on-foot, seated-pilot, seated-turret, seated-other, scm, nav, qt-spool, landing, taking-damage, shields-down, leaving-seat, ship-swap.
+
+To undo the setup: `uv run python -m fleet_agent off --channel LIVE`. It restores the keys exactly as they were. The untouched original is also kept as `user.cfg.bak-<timestamp>`.
 
 ## Planned layout
 

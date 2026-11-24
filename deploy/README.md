@@ -106,9 +106,15 @@ One SQLite file in the `hub-data` volume (`hub.sqlite3`): members, sign-in sessi
 Back up while running:
 
 ```bash
-docker compose exec hub python -c "import sqlite3; s=sqlite3.connect('/data/hub.sqlite3'); s.backup(sqlite3.connect('/data/backup.sqlite3'))"
-docker cp fleet-hub:/data/backup.sqlite3 ./hub-backup.sqlite3
+docker compose exec -u hub hub python -c "import sqlite3; s=sqlite3.connect('/data/hub.sqlite3'); s.backup(sqlite3.connect('/data/backup.sqlite3'))"
+docker compose cp hub:/data/backup.sqlite3 ./hub-backup.sqlite3
 ```
+
+## Troubleshooting
+
+**`sqlite3.OperationalError: unable to open database file`, restarting over and over.** The hub runs as its own user (uid 10001), which couldn't write to `/data`. That happens with a host folder mounted there (`./data:/data`, owned by root) or a volume an older setup made as root. Since 0.5.0 the image hands `/data` to that user on start; update with `docker compose pull && docker compose up -d`. On an older image, or if `/data` is mounted read-only: `sudo chown -R 10001:10001 <your data folder>`.
+
+**Everyone gets "too many attempts" at once.** Hubs before 0.5.0 only trusted the proxy's forwarded address from 127.0.0.1, but in Docker the proxy's connections come from the Docker bridge, so every visitor shared one limit. Update the hub.
 
 ## Trying it on your PC
 

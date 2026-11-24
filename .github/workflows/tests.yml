@@ -67,3 +67,14 @@ jobs:
           curl -fs http://127.0.0.1:8100/api/mode
           curl -fs http://127.0.0.1:8100/ | grep -q '<div id="app">'
           docker logs hub 2>&1 | tee /dev/stderr | grep -q 'No admin yet'
+      - name: A data folder owned by root (a host folder mounted at /data) still works
+        run: |
+          mkdir -p "$RUNNER_TEMP/hubdata" && sudo chown root:root "$RUNNER_TEMP/hubdata"
+          docker run -d --name hub2 -p 127.0.0.1:8101:8100 -e HUB_DEV_LOGIN=1 \
+            -v "$RUNNER_TEMP/hubdata:/data" starglance-hub:ci
+          for i in $(seq 1 30); do curl -fs http://127.0.0.1:8101/api/health && break; sleep 1; done
+          curl -fs http://127.0.0.1:8101/api/health
+          # The hub itself runs as its own user, not root.
+          docker exec hub2 grep '^Uid:' /proc/1/status | tee /dev/stderr | grep -qw 10001
+          sudo test -f "$RUNNER_TEMP/hubdata/hub.sqlite3"
+          stat -c '%u' "$RUNNER_TEMP/hubdata/hub.sqlite3" | grep -qx 10001

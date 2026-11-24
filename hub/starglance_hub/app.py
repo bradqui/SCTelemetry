@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import ipaddress
 import json
 import logging
 import time
@@ -61,10 +62,23 @@ class RateLimit:
         return False
 
 
+def _proxied(peer: str) -> bool:
+    """A peer that can only be our reverse proxy: loopback, or a private address (in Docker
+    the proxy's connections arrive from the bridge, 172.x.0.1, not loopback). The hub's
+    port is published on 127.0.0.1 only (deploy/docker-compose.yml), so nobody else can
+    connect from there to set a forwarded address."""
+    try:
+        ip = ipaddress.ip_address(peer)
+    except ValueError:
+        return False
+    return ip.is_loopback or ip.is_private
+
+
 def client_ip(request: web.Request) -> str:
-    """The visitor's address. Behind the proxy (and maybe Cloudflare) the peer is loopback."""
+    """The visitor's address, for rate limits: behind the proxy (and maybe Cloudflare), from
+    its forwarded headers; otherwise the peer."""
     peer = request.remote or ""
-    if peer in ("127.0.0.1", "::1"):
+    if _proxied(peer):
         forwarded = (
             request.headers.get("CF-Connecting-IP")
             or request.headers.get("X-Forwarded-For", "").split(",")[0].strip()

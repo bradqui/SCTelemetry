@@ -910,3 +910,30 @@ def test_agent_settings_two_fleets(tmp_path, monkeypatch):
                 await server.stop()
 
     asyncio.run(main())
+
+
+def test_visitors_behind_docker_get_their_own_rate_limit():
+    """In Docker the proxy connects from the bridge (172.x.0.1), not loopback: trust its
+    forwarded address there too, or the whole org shares one visitor's limit."""
+    from aiohttp.test_utils import make_mocked_request
+    from starglance_hub.app import client_ip
+
+    def visitor(peer, **headers):
+        req = make_mocked_request("GET", "/", headers=headers)
+        req._transport_peername = (peer, 50000)  # what request.remote reads
+        return client_ip(req.clone(remote=peer))
+
+    assert visitor("172.18.0.1", **{"X-Forwarded-For": "203.0.113.7, 172.18.0.1"}) == "203.0.113.7"
+    assert visitor("127.0.0.1", **{"CF-Connecting-IP": "198.51.100.2"}) == "198.51.100.2"
+    assert visitor("172.18.0.1") == "172.18.0.1"
+    # Straight from the internet: its own claims are ignored.
+    assert visitor("93.184.215.14", **{"X-Forwarded-For": "1.2.3.4"}) == "93.184.215.14"
+
+
+def test_unwritable_database_says_why(tmp_path):
+    import pytest
+    from starglance_hub.db import Database
+
+    with pytest.raises(SystemExit) as stop:
+        Database(tmp_path)  # a folder: as unopenable as an unwritable one
+    assert "Can't open the database" in str(stop.value)

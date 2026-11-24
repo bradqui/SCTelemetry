@@ -29,12 +29,17 @@ COPY shared/ shared/
 COPY hub/starglance_hub/ hub/starglance_hub/
 COPY --from=web /web/dist/ web/
 
-RUN useradd --system --uid 10001 hub && mkdir -p /data && chown hub /data
-USER hub
+# The hub runs as this user; the entrypoint starts as root only to hand it /data (a
+# host folder mounted there is usually root's), then drops to it.
+RUN groupadd --system --gid 10001 hub && useradd --system --uid 10001 --gid hub hub     && mkdir -p /data && chown hub:hub /data
+COPY hub/entrypoint.sh /usr/local/bin/starglance-entrypoint
+RUN sed -i 's/
+$//' /usr/local/bin/starglance-entrypoint && chmod 755 /usr/local/bin/starglance-entrypoint
 VOLUME /data
 EXPOSE 8100
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8100/api/health', timeout=4)"
 
+ENTRYPOINT ["starglance-entrypoint"]
 CMD ["python", "-m", "starglance_hub"]

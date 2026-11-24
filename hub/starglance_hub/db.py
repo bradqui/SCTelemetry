@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import secrets
 import sqlite3
 import time
@@ -222,7 +223,18 @@ class Database:
     def __init__(self, path: Path | str) -> None:
         if str(path) != ":memory:":
             Path(path).parent.mkdir(parents=True, exist_ok=True)
-        self.conn = sqlite3.connect(str(path), isolation_level=None, check_same_thread=False)
+        try:
+            self.conn = sqlite3.connect(str(path), isolation_level=None, check_same_thread=False)
+            self.conn.execute("PRAGMA user_version").fetchone()
+        except sqlite3.OperationalError as exc:
+            uid = getattr(os, "getuid", lambda: None)()
+            who = f" (uid {uid})" if uid is not None else ""
+            raise SystemExit(
+                f"Can't open the database {path}: {exc}. Its folder must exist and be "
+                f"writable by the user the hub runs as{who}. "
+                "In Docker the image fixes this on start; with a host folder mounted at "
+                "/data, check it isn't read-only (deploy/README.md, Troubleshooting)."
+            ) from exc
         self.conn.row_factory = sqlite3.Row
         self.conn.execute("PRAGMA journal_mode=WAL")
         self.conn.execute("PRAGMA foreign_keys=ON")

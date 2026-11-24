@@ -20,7 +20,7 @@ Discord is optional: members join with invite links; a hub can also offer "Sign 
 
 ## For players
 
-Download **starglance.exe** from the [latest release](https://github.com/bradqui/starglance/releases/latest) and double-click it. Your cockpit view opens in the browser (`http://127.0.0.1:8740`); keep the agent's window open while you play.
+Download **starglance.exe** from the [latest release](https://github.com/bradqui/starglance/releases/latest) and double-click it. Starglance opens in its own window, with an icon in the system tray: closing the window keeps it running there (right-click the icon for Fleet, Settings, *Always on top*, or Quit). Starting it again just brings the window back. The same view is at `http://127.0.0.1:8740` for a browser, a second screen or a VR overlay.
 
 Then open **Settings → Agent** (the sliders button, top right):
 
@@ -28,13 +28,15 @@ Then open **Settings → Agent** (the sliders button, top right):
 2. **Fleet**: paste the invite link from your org's admin and pick your display name (your in-game handle by default).
 3. **What you share**: everything is on by default; switch off anything you'd rather keep to yourself.
 
-Everything there is also on the command line (`starglance.exe --help`, or `uv run python -m starglance` from the source):
+Everything there is also on the command line, from a terminal (`starglance.exe --help`, or `uv run python -m starglance` from the source):
 
 ```
 starglance on                 # switch the game's telemetry on (backs up user.cfg)
 starglance link <invite>      # join with the invite link from your org's admin
 starglance run --open         # cockpit view, and sends to the fleet
 ```
+
+`starglance.exe` is a windowed app, so in PowerShell or cmd the prompt can come back before its output: `start /wait starglance.exe installs` waits for it.
 
 **Fleet** in the cockpit view's top bar shows the whole fleet in the same page, and the **Wingmates** panel (Pilot and Combat layouts, or add it in Customize) keeps everyone's ship, mode, speed and altitude next to your own dashboard. **Open on the hub** in the fleet view, or `starglance open`, opens the hub's fleet page in your browser, signed in.
 

@@ -39,7 +39,7 @@ The first time the hub image is pushed, make the package public on GitHub so ser
 
 ```
 cd web && npm install && npm run build && cd ..
-uv run --with pyinstaller==6.22.3 pyinstaller packaging/starglance.spec --noconfirm
+uv run --extra app --with pyinstaller==6.22.3 pyinstaller packaging/starglance.spec --noconfirm
 dist\starglance.exe --help
 ```
 

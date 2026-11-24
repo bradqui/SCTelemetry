@@ -66,7 +66,7 @@ jobs:
           npm install --no-audit --no-fund
           npm run build
       - name: starglance.exe
-        run: uv run --with pyinstaller==6.22.3 pyinstaller packaging/starglance.spec --noconfirm
+        run: uv run --extra app --with pyinstaller==6.22.3 pyinstaller packaging/starglance.spec --noconfirm
       - name: It starts
         shell: bash
         run: |
@@ -165,7 +165,7 @@ jobs:
           {
             echo "## Agent (Windows)"
             echo
-            echo "Download **starglance.exe** below and double-click it: the cockpit view opens in your browser. **Settings → Agent** (the sliders button, top right) switches the game's telemetry on, joins a fleet with your invite link, and chooses what you share."
+            echo "Download **starglance.exe** below and double-click it: Starglance opens in its own window, with an icon in the system tray (closing the window keeps it running there; Quit is in the tray icon's menu). **Settings → Agent** (the sliders button, top right) switches the game's telemetry on, joins a fleet with your invite link, and chooses what you share."
             echo
             if [ "${{ needs.agent.outputs.signed }}" = "true" ]; then
               echo "Signed: free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org)."

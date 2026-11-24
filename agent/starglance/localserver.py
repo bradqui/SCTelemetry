@@ -7,6 +7,7 @@
 - ``/api/fleet/open``  POST: a one-time link to the fleet page, signed in (when linked)
 - ``/api/agent/settings`` GET, and POST ``/api/agent/share``, ``/join``, ``/leave``,
   ``/telemetry``: the cockpit's Agent settings (``control.AgentControl``)
+- ``/api/app/show`` POST: the Windows app brings its window forward (a second launch)
 - ``/ws/fleet``  WebSocket: the hub's fleet stream, relayed (when linked). The agent
   connects to the hub with its own token; the page may only send ``focus``.
 
@@ -133,6 +134,7 @@ class LocalServer:
                 web.post("/api/agent/join", self._agent_join),
                 web.post("/api/agent/leave", self._agent_leave),
                 web.post("/api/agent/telemetry", self._agent_telemetry),
+                web.post("/api/app/show", self._app_show),
                 web.get("/{tail:.*}", self._static),
             ]
         )
@@ -141,6 +143,8 @@ class LocalServer:
         """Set when linked to a hub: async () -> one-time sign-in URL."""
         self.fleet_view = None
         """Set when linked to a hub: () -> async context giving the hub's fleet WebSocket."""
+        self.on_show = None
+        """The Windows app: () -> bring its window forward (starting it again does this)."""
         self.control = None
         """The running agent's settings (control.AgentControl); None in tests."""
         self.uplink: dict | None = None
@@ -259,6 +263,12 @@ class LocalServer:
             request,
             lambda b: self.control.set_telemetry(str(b.get("channel", "")), bool(b.get("on"))),
         )
+
+    async def _app_show(self, _request: web.Request) -> web.Response:
+        if self.on_show is None:
+            return web.json_response({"error": "not the app"}, status=404)
+        self.on_show()
+        return web.json_response({"ok": True})
 
     async def _api_mode(self, _request: web.Request) -> web.Response:
         return web.json_response({"mode": "local", "agent_version": __version__})

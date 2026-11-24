@@ -66,81 +66,97 @@ def cmd_run(args) -> None:
     import asyncio
     import webbrowser
 
+    def ready(server) -> None:
+        if args.open:
+            webbrowser.open(f"http://127.0.0.1:{server.port}/")
+
+    with contextlib.suppress(KeyboardInterrupt):
+        asyncio.run(serve(args, on_ready=ready))
+
+
+def cmd_app(args) -> None:
+    from .app import run_app
+
+    run_app(args)
+
+
+async def serve(args, *, stop=None, on_ready=None, say=print) -> None:
+    """The agent: read the game (or a replay), serve the local view, send to the fleet when
+    linked. Until ``stop`` (an asyncio.Event) is set, or forever. ``on_ready(server)`` once
+    the local view is up. ``run`` and the Windows app (app.py) both use this."""
+    import asyncio
+
     from .gamelog import GameLogTail
     from .localserver import LocalServer
     from .runtime import GameReader, Pipeline, ReplaySource
 
     playhead = None
-    if args.replay is not None:
+    if getattr(args, "replay", None) is not None:
         from .replay import FIXTURES_DIR, Playhead, Recording, default_fixtures
 
         files = [Path(f) for f in args.replay] or default_fixtures(FIXTURES_DIR)
         if not files:
-            sys.exit("No recordings to replay.")
-        print(f"Indexing {len(files)} recording(s)...")
+            raise SystemExit("No recordings to replay.")
+        say(f"Indexing {len(files)} recording(s)...")
         playhead = Playhead(Recording.load(files), speed=args.speed)
 
-    async def run() -> None:
-        tail = None
-        pipeline = Pipeline()
-        server = LocalServer(pipeline, port=args.ui_port, playhead=playhead)
-        await server.start()
-        loop = asyncio.get_running_loop()
-        if playhead is not None:
-            reader = ReplaySource(pipeline, loop, playhead)
-            rec = playhead.rec
-            source = (
-                f"Replaying {len(rec.chapters)} recording(s), {rec.duration / 60:.1f} min, "
-                f"{len(rec.markers)} events. Use the timeline at the bottom of the page."
-            )
-        else:
-            install = _find(args)
-            reader = GameReader(pipeline, loop, install=install, port=args.game_port)
-            if install is not None:
-                pipeline.attach_log()
-                tail = GameLogTail(
-                    install.game_log,
-                    lambda line, quiet: loop.call_soon_threadsafe(
-                        lambda: pipeline.on_log(line, None, quiet)
-                    ),
-                    lambda: loop.call_soon_threadsafe(pipeline.on_new_log),
-                )
-            game = f"port {args.game_port}" if args.game_port else "port from Game.log"
-            source = f"Game: {install.channel if install else 'no install found'}, {game}."
-        reader.start()
-        if tail is not None:
-            tail.start()
-        # Live: send to the fleet when linked. Replay: only when asked (it isn't real play).
-        from .control import AgentControl
-
-        control = AgentControl(
-            pipeline,
-            server,
-            install=None if playhead else _find(args),
-            hub_override=args.hub,
-            uplink_wanted=args.uplink if playhead is not None else not args.no_uplink,
+    tail = None
+    pipeline = Pipeline()
+    server = LocalServer(pipeline, port=args.ui_port, playhead=playhead)
+    await server.start()
+    loop = asyncio.get_running_loop()
+    if playhead is not None:
+        reader = ReplaySource(pipeline, loop, playhead)
+        rec = playhead.rec
+        source = (
+            f"Replaying {len(rec.chapters)} recording(s), {rec.duration / 60:.1f} min, "
+            f"{len(rec.markers)} events. Use the timeline at the bottom of the page."
         )
-        if control.uplink_wanted and not control.start_uplink():
-            print(
-                "Fleet: not linked. Local view only. To join a fleet: Agent settings in the "
-                "cockpit view (the gear, top right), or starglance link <invite link>."
+    else:
+        install = _find(args)
+        reader = GameReader(pipeline, loop, install=install, port=args.game_port)
+        if install is not None:
+            pipeline.attach_log()
+            tail = GameLogTail(
+                install.game_log,
+                lambda line, quiet: loop.call_soon_threadsafe(
+                    lambda: pipeline.on_log(line, None, quiet)
+                ),
+                lambda: loop.call_soon_threadsafe(pipeline.on_new_log),
             )
-        url = f"http://127.0.0.1:{server.port}/"
-        print(f"Starglance agent: local view at {url}")
-        print(f"{source} Ctrl+C stops.")
-        if args.open:
-            webbrowser.open(url)
-        try:
-            await asyncio.Event().wait()
-        finally:
-            reader.stop()
-            if tail is not None:
-                tail.stop()
-            await control.stop_uplink()
-            await server.stop()
+        game = f"port {args.game_port}" if args.game_port else "port from Game.log"
+        source = f"Game: {install.channel if install else 'no install found'}, {game}."
+    reader.start()
+    if tail is not None:
+        tail.start()
+    # Live: send to the fleet when linked. Replay: only when asked (it isn't real play).
+    from .control import AgentControl
 
-    with contextlib.suppress(KeyboardInterrupt):
-        asyncio.run(run())
+    control = AgentControl(
+        pipeline,
+        server,
+        install=None if playhead else _find(args),
+        hub_override=args.hub,
+        uplink_wanted=args.uplink if playhead is not None else not args.no_uplink,
+        announce=say,
+    )
+    if control.uplink_wanted and not control.start_uplink():
+        say(
+            "Fleet: not linked. Local view only. To join a fleet: Settings -> Agent in the "
+            "cockpit view, or starglance link <invite link>."
+        )
+    say(f"Starglance agent: local view at http://127.0.0.1:{server.port}/")
+    say(source)
+    if on_ready is not None:
+        on_ready(server)
+    try:
+        await (stop or asyncio.Event()).wait()
+    finally:
+        reader.stop()
+        if tail is not None:
+            tail.stop()
+        await control.stop_uplink()
+        await server.stop()
 
 
 def cmd_link(args) -> None:
@@ -333,6 +349,11 @@ def build_parser() -> argparse.ArgumentParser:
         p.set_defaults(func=func)
         return p
 
+    p = add("app", cmd_app, "The Windows app: tray icon and its own window (the default)")
+    p.add_argument("--ui-port", type=int, default=8740, help="Local view port (default 8740)")
+    p.add_argument("--hidden", action="store_true", help="Start in the tray, window closed")
+    p.set_defaults(game_port=None, hub=None, no_uplink=False, uplink=False, replay=None)
+
     p = add("run", cmd_run, "Run the agent: read the game, serve the local view")
     p.add_argument("--open", action="store_true", help="Open the local view in your browser")
     p.add_argument("--game-port", type=int, help="Default: from Game.log (replay: 2943)")
@@ -373,11 +394,27 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _console_for_commands() -> None:
+    """starglance.exe is a windowed app (no console window). Run with a command from a
+    terminal, it writes to that terminal."""
+    if sys.stdout is not None or sys.platform != "win32":
+        return
+    import ctypes
+
+    if ctypes.windll.kernel32.AttachConsole(-1):  # ATTACH_PARENT_PROCESS
+        sys.stdout = open("CONOUT$", "w", buffering=1, encoding="utf-8")  # noqa: SIM115
+        sys.stderr = sys.stdout
+
+
 def main(argv: list[str] | None = None) -> None:
-    if argv is None and getattr(sys, "frozen", False) and len(sys.argv) == 1:
-        argv = ["run", "--open"]  # starglance.exe double-clicked: start, show the cockpit
+    if argv is None and getattr(sys, "frozen", False):
+        if len(sys.argv) == 1:
+            argv = ["app"]  # starglance.exe double-clicked: the tray icon and its window
+        else:
+            _console_for_commands()
     args = build_parser().parse_args(argv)
-    logging.basicConfig(level=logging.DEBUG if args.verbose else logging.WARNING)
+    if args.command != "app":  # the app logs to a file
+        logging.basicConfig(level=logging.DEBUG if args.verbose else logging.WARNING)
     try:
         args.func(args)
     except (gamecfg.CfgWriteError, protoset.ExtractionError) as exc:

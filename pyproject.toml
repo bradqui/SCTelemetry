@@ -1,7 +1,7 @@
 [project]
 name = "starglance"
 version = "0.2.0"
-description = "Star Citizen org fleet telemetry: Windows agent, hub, and tools"
+description = "Starglance: Star Citizen ship and crew status. Windows agent, self-hosted hub, and tools"
 readme = "README.md"
 # The agent and hub target 3.12; the shared models also run on 3.11 (for integrations).
 requires-python = ">=3.11"
@@ -22,7 +22,14 @@ dev = [
 
 [project.scripts]
 starglance = "starglance.__main__:main"
-fleet-hub = "starglance_hub.__main__:main"
+starglance-hub = "starglance_hub.__main__:main"
+
+[project.optional-dependencies]
+app = [
+    "pillow>=10.4 ; sys_platform == 'win32'",
+    "pystray>=0.19 ; sys_platform == 'win32'",
+    "pywebview>=5.3 ; sys_platform == 'win32'",
+]
 
 [build-system]
 requires = ["hatchling"]

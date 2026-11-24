@@ -25,7 +25,7 @@ If you never join a fleet, the agent sends nothing anywhere.
 **What it stores on your PC**
 
 - The key that links this PC to your org's hub, in Windows Credential Manager.
-- Its settings (hub address, what you share, your display name) and caches in `%LOCALAPPDATA%\Starglance`.
+- Its settings (hub address, what you share, your display name), its window's size and position, the page's own storage (your dashboard layouts and theme), caches and a log file, all in `%LOCALAPPDATA%\Starglance`.
 - Recordings, only if you run the capture tool yourself (`tools/capture.py`, from the source code). They stay in a local folder, with aUEC amounts removed.
 
 **Stopping**

@@ -1,7 +1,8 @@
-# PyInstaller spec for starglance.exe: one file, the web UI inside, Windows version info.
+# PyInstaller spec for starglance.exe: one file, the web UI inside, a windowed app (tray
+# icon and its own window: starglance/app.py), Windows version info and icon.
 #
 #   cd web && npm ci && npm run build && cd ..
-#   uv run --with pyinstaller pyinstaller packaging/starglance.spec
+#   uv run --extra app --with pyinstaller pyinstaller packaging/starglance.spec
 #
 # Output: dist/starglance.exe. The release workflow builds it on GitHub's Windows runners
 # and sends it to SignPath for signing (docs/CODE_SIGNING.md).
@@ -52,11 +53,24 @@ version_info = VSVersionInfo(
     ],
 )
 
+# The icon: the logo, drawn by the app's own code at the sizes Windows uses.
+from starglance.app import draw_icon  # noqa: E402
+
+ICON = Path(workpath) / "starglance.ico"
+ICON.parent.mkdir(parents=True, exist_ok=True)
+draw_icon(256).save(ICON, sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])
+
 a = Analysis(
     [str(ROOT / "packaging" / "entry.py")],
     pathex=[str(ROOT / "agent"), str(ROOT / "shared")],
-    datas=[(str(WEB), "web")],
-    hiddenimports=["keyring.backends.Windows", "win32ctypes.core"],
+    datas=[(str(WEB), "web"), (str(ICON), ".")],
+    hiddenimports=[
+        "keyring.backends.Windows",
+        "win32ctypes.core",
+        "pystray._win32",
+        "webview.platforms.edgechromium",
+        "webview.platforms.winforms",
+    ],
     excludes=["tkinter", "starglance_hub"],
 )
 pyz = PYZ(a.pure)
@@ -66,7 +80,8 @@ exe = EXE(
     a.binaries,
     a.datas,
     name="starglance",
-    console=True,  # the agent's status lines; closing the window stops it
+    console=False,  # a windowed app: tray icon and window; output in logs/starglance.log
+    icon=str(ICON),
     upx=False,  # packed executables look suspicious to antivirus and to signing checks
     version=version_info,
 )

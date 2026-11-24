@@ -5,38 +5,37 @@
   import { PrefsStore } from "../lib/prefs.svelte";
   import { applyTheme, palette, THEME_BY_ID, THEMES } from "../lib/themes";
   import type { Account, HubMode } from "../lib/types";
-  import raw from "../../showcase/demo-fleet.json";
-
-  // The write-up around a live demo: the real fleet page, on recorded telemetry.
-  const data = raw as unknown as DemoData;
-  const fleet = new DemoFleet(data);
+  // The write-up around a live demo: the real fleet page, on recorded telemetry
+  // (demo-fleet.json beside the page: tools/demo_fleet.py).
+  let data = $state.raw<DemoData | null>(null);
+  let fleet = $state.raw<DemoFleet | null>(null);
+  let loadError = $state("");
   const store = new PrefsStore();
   store.value.theme = "RSI";
   store.value.scheme = "dark";
   store.value.matchShip = true;
   const prefs = $derived(store.value);
 
-  const meRow = data.members.find((m) => m.id === data.me)!;
-  const me: Account = {
-    id: meRow.id,
-    name: meRow.name,
-    avatar: null,
-    role: "admin",
-    active: true,
-    discord: false,
-    created_at: 0,
-  };
-  const mode: HubMode = {
-    mode: "fleet",
-    hub_version: "0.1.0",
-    org: data.org,
-    me,
-    discord: false,
-    dev_login: false,
-    setup: false,
-  };
+  const me = $derived.by<Account | null>(() => {
+    const row = data?.members.find((m) => m.id === data?.me);
+    return row
+      ? { id: row.id, name: row.name, avatar: null, role: "admin", active: true, discord: false, created_at: 0 }
+      : null;
+  });
+  const mode = $derived<HubMode | null>(
+    data && me
+      ? { mode: "fleet", hub_version: "0.1.0", org: data.org, me, discord: false, dev_login: false, setup: false }
+      : null,
+  );
 
-  onMount(() => {
+  onMount(async () => {
+    try {
+      const r = await fetch("./demo-fleet.json");
+      data = (await r.json()) as DemoData;
+      fleet = new DemoFleet(data);
+    } catch {
+      loadError = "The demo data didn't load. Reload the page to try again.";
+    }
     // The page around the demo wears the RSI theme's tokens, without its details.
     const root = document.documentElement;
     applyTheme(root, THEME_BY_ID.RSI, "dark");
@@ -55,7 +54,7 @@
     { id: "m_nova", who: "Nova", what: "on foot in a spaceport" },
   ];
   function openPilot(id: string) {
-    fleet.open(id);
+    fleet?.open(id);
     document.getElementById("demo")?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 </script>
@@ -119,7 +118,11 @@
     </div>
 
     <div class="frame">
-      <Board {mode} {me} source={fleet} {store} embedded />
+      {#if fleet && mode && me}
+        <Board {mode} {me} source={fleet} {store} embedded />
+      {:else}
+        <p class="loading">{loadError || "Loading the fleet…"}</p>
+      {/if}
     </div>
 
     <div class="pilots">
@@ -499,6 +502,11 @@
     border-radius: 8px;
     overflow: hidden;
     box-shadow: 0 30px 80px -30px rgb(0 0 0 / 0.8);
+  }
+  .loading {
+    margin: 0;
+    padding: 40px;
+    color: var(--text-3);
   }
   .pilots {
     display: flex;

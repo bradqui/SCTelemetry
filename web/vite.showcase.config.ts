@@ -3,10 +3,12 @@ import { svelte } from "@sveltejs/vite-plugin-svelte";
 
 // The showcase page (npm run build:showcase): the real fleet page on recorded data, with a
 // write-up around it. Relative paths, so it works from any folder or host.
-// Needs web/showcase/demo-fleet.json: uv run python tools/demo_fleet.py
+// Needs web/showcase/demo-fleet.json first: uv run python tools/demo_fleet.py
 export default defineConfig({
   plugins: [svelte()],
   base: "./",
+  // web/showcase/ holds demo-fleet.json; it's copied next to the page.
+  publicDir: "showcase",
   build: {
     outDir: "dist-showcase",
     emptyOutDir: true,

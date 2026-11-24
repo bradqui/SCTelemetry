@@ -40,7 +40,7 @@
 
   <section>
     <h3>From your gaming PC</h3>
-    <p>If your agent is linked, run <code>fleet_agent open</code> or click <b>Fleet</b> in its cockpit view.</p>
+    <p>If your agent is linked, run <code>fleet_agent open</code>, or in its cockpit view open <b>Fleet</b>, then <b>Open on the hub</b> in your name's menu.</p>
   </section>
 
   <section>

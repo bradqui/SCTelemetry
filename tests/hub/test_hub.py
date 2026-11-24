@@ -650,3 +650,123 @@ def test_without_discord_there_is_no_discord_sign_in(tmp_path):
             assert resp.status == 404
 
     asyncio.run(main())
+
+
+def test_the_local_fleet_view_through_the_agent(tmp_path):
+    """A linked PC's agent opens the fleet stream with its token and relays it to its
+    local page; the page may only choose who's open. Without a link: "unlinked"."""
+    from fleet_agent.localserver import LocalServer
+    from fleet_agent.runtime import Pipeline
+    from fleet_agent.uplink import Uplink
+
+    async def main():
+        async with running_hub(tmp_path) as (hub, _srv), browser() as viewer:
+            await sign_in(viewer, hub, "Rook")
+            token = await link_agent(hub, viewer)
+            snap = ship_snapshot()
+            async with aiohttp.ClientSession() as http, agent_socket(http, hub, token) as agent:
+                await until(agent, lambda d: True)
+                await agent.send_json({"type": "hello", "v": 1, "agent_version": "t"})
+                await agent.send_json(snap)
+
+                pipeline = Pipeline()
+                server = LocalServer(pipeline, port=0, web_dir=tmp_path / "none")
+                await server.start()
+                try:
+                    url = f"http://127.0.0.1:{server.port}/ws/fleet"
+                    async with http.ws_connect(url) as page:
+                        assert (await page.receive_json())["type"] == "unlinked"
+
+                    uplink = Uplink(pipeline, hub.cfg.hub_url, token, set())
+                    server.fleet_view = uplink.fleet_view
+                    async with http.ws_connect(url) as page:
+                        hello = await until(page, lambda d: d["type"] == "hello")
+                        assert hello["me"]["name"] == "Rook" and hello["org"]
+                        roster = await until(page, lambda d: d["type"] == "roster")
+                        (member_id,) = roster["members"]
+                        await page.send_json({"type": "nonsense"})  # not passed on
+                        await page.send_json({"type": "focus", "member": member_id})
+                        full = await until(page, lambda d: d["type"] == "member")
+                        assert full["snapshot"]["ship"]["class"] == snap["ship"]["class"]
+
+                    # A revoked token: the page hears why.
+                    server.fleet_view = Uplink(pipeline, hub.cfg.hub_url, "bogus", set()).fleet_view
+                    async with http.ws_connect(url) as page:
+                        err = await until(page, lambda d: d["type"] == "error")
+                        assert "link it again" in err["message"]
+                finally:
+                    await server.stop()
+
+    asyncio.run(main())
+
+
+IPHONE = (
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15"
+    " (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1"
+)
+EDGE = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko)"
+    " Chrome/131.0.0.0 Safari/537.36 Edg/131.0.0.0"
+)
+
+
+def test_device_labels():
+    from fleet_hub.auth import device_label
+
+    assert device_label(IPHONE) == "Safari on iPhone"
+    assert device_label(EDGE) == "Edge on Windows"
+    assert device_label("") is None
+
+
+def test_signed_in_devices_and_signing_them_out(tmp_path):
+    """See where you're signed in; sign out a lost phone, or everything but here."""
+
+    async def main():
+        async with running_hub(tmp_path) as (hub, _srv):
+            pc = aiohttp.ClientSession(
+                cookie_jar=aiohttp.CookieJar(unsafe=True), headers={"User-Agent": EDGE}
+            )
+            phone = aiohttp.ClientSession(
+                cookie_jar=aiohttp.CookieJar(unsafe=True), headers={"User-Agent": IPHONE}
+            )
+            tablet = browser()
+            async with pc, phone, tablet:
+                for http in (pc, phone, tablet):
+                    await sign_in(http, hub, "Rook")
+                url = f"{hub.cfg.hub_url}/api/me/sessions"
+                devices = await (await pc.get(url)).json()
+                assert {d["label"] for d in devices} >= {"Edge on Windows", "Safari on iPhone"}
+                assert [d["current"] for d in devices].count(True) == 1
+                here = next(d for d in devices if d["current"])
+                assert here["label"] == "Edge on Windows" and here["how"] == "dev"
+                phone_id = next(d["id"] for d in devices if d["label"] == "Safari on iPhone")
+
+                # The phone's open fleet view closes when it's signed out.
+                async with phone.ws_connect(
+                    ws_url(hub, "/ws/view"), headers={"Origin": hub.cfg.origin}
+                ) as view:
+                    await until(view, lambda d: d["type"] == "hello")
+                    async with post(pc, hub, f"/api/me/sessions/{phone_id}/end") as r:
+                        assert r.status == 200
+
+                    async def closed():
+                        while (await view.receive()).type == aiohttp.WSMsgType.TEXT:
+                            pass  # what was already queued
+
+                    await asyncio.wait_for(closed(), 5)
+                assert (await phone.get(f"{hub.cfg.hub_url}/api/me")).status == 401
+                async with post(pc, hub, "/api/me/sessions/nothere12345678/end") as r:
+                    assert r.status == 404
+
+                async with post(pc, hub, "/api/me/sessions/others/end") as r:
+                    assert (await r.json())["ended"] == 1  # the tablet
+                assert (await tablet.get(f"{hub.cfg.hub_url}/api/me")).status == 401
+                assert (await pc.get(f"{hub.cfg.hub_url}/api/me")).status == 200
+
+                # Signing out this device from the list signs you out here.
+                (only,) = await (await pc.get(url)).json()
+                async with post(pc, hub, f"/api/me/sessions/{only['id']}/end") as r:
+                    assert r.status == 200
+                assert (await pc.get(f"{hub.cfg.hub_url}/api/me")).status == 401
+
+    asyncio.run(main())

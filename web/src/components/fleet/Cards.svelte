@@ -73,6 +73,7 @@
     grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
     gap: var(--gap);
     align-items: stretch;
+    align-content: start; /* a single row stays card-sized, not the whole height */
   }
   .empty {
     color: var(--text-3);

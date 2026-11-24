@@ -1,12 +1,14 @@
 <script lang="ts">
   import { onMount, untrack } from "svelte";
   import type { PanelCtx } from "./lib/context";
+  import { FleetConnection } from "./lib/fleet.svelte";
   import { LiveConnection } from "./lib/live.svelte";
   import { PrefsStore } from "./lib/prefs.svelte";
   import { applyTheme, DEFAULT_THEME, forcedTheme, THEME_BY_ID, themeForShip } from "./lib/themes";
   import { Trends } from "./lib/trends.svelte";
   import Customize from "./components/Customize.svelte";
   import Dashboard from "./components/Dashboard.svelte";
+  import LocalFleet from "./components/LocalFleet.svelte";
   import ReplayBar from "./components/ReplayBar.svelte";
   import TopBar from "./components/TopBar.svelte";
 
@@ -19,11 +21,31 @@
   onMount(() => {
     const stop = live.start();
     const timer = setInterval(() => (now = Date.now()), 1000);
+    const onHash = () => (fleetOpen = location.hash === "#fleet");
+    addEventListener("hashchange", onHash);
     return () => {
       stop();
       clearInterval(timer);
+      removeEventListener("hashchange", onHash);
     };
   });
+
+  // The fleet, in this page (#fleet): the agent relays the hub's fleet stream.
+  let fleetOpen = $state(location.hash === "#fleet");
+  let pushed = false; // we added the #fleet entry, so Back returns to the cockpit
+  function showFleet(on: boolean) {
+    if (on === fleetOpen) return;
+    if (on) {
+      pushed = true;
+      location.hash = "#fleet";
+    } else if (pushed) {
+      pushed = false;
+      history.back();
+    } else {
+      history.replaceState(null, "", location.pathname + location.search);
+      fleetOpen = false;
+    }
+  }
 
   // -- view mode and customizing
 
@@ -79,14 +101,33 @@
     root.classList.toggle("fx", prefs.effects);
   });
 
+  // Wingmates: the fleet, relayed by the agent, only while that panel is on screen.
+  const wingShown = $derived(
+    !fleetOpen && !!live.uplink && (compact ? prefs.compact : prefs.full).some((s) => s.id === "wingmates" && !s.hidden),
+  );
+  let wing = $state<FleetConnection | null>(null);
+  $effect(() => {
+    if (!wingShown) return;
+    const w = new FleetConnection({ local: true });
+    const stop = w.start();
+    wing = w;
+    return () => {
+      stop();
+      wing = null;
+    };
+  });
+
   const snap = $derived(live.snapshot);
   const ship = $derived(snap?.ship ?? null);
   const waiting = $derived(live.socket !== "open" || !live.agent?.streaming || !snap);
   const ctx = $derived<PanelCtx | null>(
-    snap ? { snap, ship, events: live.events, trends, prefs, compact, now } : null,
+    snap ? { snap, ship, events: live.events, trends, prefs, compact, now, wing } : null,
   );
 </script>
 
+{#if fleetOpen}
+  <LocalFleet {store} onBack={() => showFleet(false)} />
+{:else}
 <main class:compact class:replay={live.replay}>
   <TopBar
     socket={live.socket}
@@ -98,6 +139,7 @@
     uplink={live.uplink}
     onToggleCompact={toggleCompact}
     onCustomize={() => (customizing = !customizing)}
+    onFleet={() => showFleet(true)}
   />
 
   {#if waiting || !ctx}
@@ -120,11 +162,13 @@
 
 </main>
 
-{#if live.replay}
+{/if}
+
+{#if live.replay && !fleetOpen}
   <ReplayBar {live} />
 {/if}
 
-{#if customizing}
+{#if customizing && !fleetOpen}
   <Customize {store} {compact} onClose={() => (customizing = false)} />
 {/if}
 

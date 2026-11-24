@@ -13,6 +13,7 @@ export const PANEL_IDS = [
   "environment",
   "mission",
   "events",
+  "wingmates",
 ] as const;
 export type PanelId = (typeof PANEL_IDS)[number];
 
@@ -45,6 +46,7 @@ export const PANELS: Record<PanelId, PanelInfo> = {
   environment: { title: "Environment", blurb: "Temperature, gravity, pressure, air", ship: false },
   mission: { title: "Contract", blurb: "Current contract, objective, rewards", ship: false },
   events: { title: "Activity", blurb: "What just happened, session counts, filters", ship: false },
+  wingmates: { title: "Wingmates", blurb: "Your fleet: ship, mode, speed, altitude (when linked)", ship: false },
 };
 
 export interface Slot {
@@ -87,6 +89,7 @@ export const PRESETS: Preset[] = [
       ["mission", 3],
       ["events", 6],
       ["trends", 3],
+      ["wingmates", 6],
     ]),
   },
   {
@@ -103,6 +106,7 @@ export const PRESETS: Preset[] = [
       ["events", 6],
       ["mission", 3],
       ["vitals", 3],
+      ["wingmates", 6],
     ]),
   },
   {

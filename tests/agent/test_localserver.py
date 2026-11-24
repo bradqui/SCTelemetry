@@ -127,3 +127,27 @@ def test_replay_mode_timeline_and_controls():
     statuses = [m for m in seen if m["type"] == "replay"]
     assert any(abs(s["pos"] - target) < 1 for s in statuses), "seek reported back"
     assert {"type": "reset"} in seen, "the view is told to start fresh"
+
+
+def test_a_page_opened_later_hears_the_fleet_link():
+    """The hub link's status goes out when it changes; a page opened afterwards gets the
+    latest on connect (else it never shows the Fleet chip)."""
+
+    async def main():
+        pipeline = Pipeline()
+        server = LocalServer(pipeline, port=0, web_dir=Path("does-not-exist"))
+        await server.start()
+        try:
+            pipeline._notify("uplink", {"state": "connected", "hub": "http://h", "member": "Rook"})
+            url = f"http://127.0.0.1:{server.port}/ws"
+            async with aiohttp.ClientSession() as http, http.ws_connect(url) as ws:
+                for _ in range(10):
+                    data = json.loads((await asyncio.wait_for(ws.receive(), 5)).data)
+                    if data["type"] == "uplink":
+                        assert data["state"] == "connected" and data["member"] == "Rook"
+                        return
+                raise AssertionError("no uplink status")
+        finally:
+            await server.stop()
+
+    asyncio.run(main())

@@ -45,13 +45,13 @@ HEARTBEAT_S = 25.0
 EVENT_BUFFER = 500
 
 
-def ws_url(hub_url: str) -> str:
+def ws_url(hub_url: str, path: str = "/ws/agent") -> str:
     base = hub_url.rstrip("/")
     if base.startswith("https://"):
-        return "wss://" + base[8:] + "/ws/agent"
+        return "wss://" + base[8:] + path
     if base.startswith("http://"):
-        return "ws://" + base[7:] + "/ws/agent"
-    return base + "/ws/agent"
+        return "ws://" + base[7:] + path
+    return base + path
 
 
 class Uplink:
@@ -79,6 +79,21 @@ class Uplink:
         self._task: asyncio.Task | None = None
         self._unsubscribe: Callable[[], None] | None = None
         self.sent = {"snapshot": 0, "delta": 0, "event": 0, "heartbeat": 0}
+
+    @contextlib.asynccontextmanager
+    async def fleet_view(self):
+        """The hub's fleet stream (/ws/view) as this PC's member, for the local fleet view.
+        Opened only while a local page shows the fleet; the agent relays it to 127.0.0.1."""
+        async with (
+            aiohttp.ClientSession() as http,
+            http.ws_connect(
+                ws_url(self.hub_url, "/ws/view"),
+                headers={"Authorization": f"Bearer {self.token}"},
+                heartbeat=25,
+                max_msg_size=0,
+            ) as ws,
+        ):
+            yield ws
 
     async def login_link(self) -> str:
         """A one-time address that opens the fleet page signed in (the cockpit's Fleet chip)."""

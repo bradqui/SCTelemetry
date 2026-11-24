@@ -3,10 +3,23 @@ import type { FleetEvent, Me, MemberSummary, Snapshot, TelemetryEvent } from "./
 
 const MAX_EVENTS = 200;
 
-/** The hub's /ws/view: the roster, fleet events, and the member you have open. */
+/** The hub's /ws/view: the roster, fleet events, and the member you have open.
+ * ``local``: the same stream relayed by the agent on this PC (/ws/fleet), for the fleet
+ * view in the cockpit page; the agent signs in to the hub with the PC's link. */
 export class FleetConnection {
   socket = $state<"connecting" | "open" | "closed">("connecting");
   me = $state.raw<Me | null>(null);
+  /** The org's name (from the hub's hello). */
+  org = $state<string | null>(null);
+  /** Local only: this PC isn't linked to a fleet. */
+  unlinked = $state(false);
+  /** Local only: why the agent couldn't reach the hub. */
+  problem = $state<string | null>(null);
+  readonly local: boolean;
+
+  constructor(opts: { local?: boolean } = {}) {
+    this.local = !!opts.local;
+  }
   roster = $state.raw<Record<string, MemberSummary>>({});
   events = $state.raw<FleetEvent[]>([]);
   /** The member open in the detail view, and their full state. */
@@ -21,6 +34,9 @@ export class FleetConnection {
   #stopped = false;
 
   start(): () => void {
+    // Started already (the cockpit's fleet view starts it to learn who you are, then the
+    // board starts it again): one socket.
+    if (this.#ws && !this.#stopped) return () => this.stop();
     this.#stopped = false;
     this.#connect();
     return () => this.stop();
@@ -68,7 +84,7 @@ export class FleetConnection {
   #connect(): void {
     this.socket = "connecting";
     const proto = location.protocol === "https:" ? "wss:" : "ws:";
-    const ws = new WebSocket(`${proto}//${location.host}/ws/view`);
+    const ws = new WebSocket(`${proto}//${location.host}${this.local ? "/ws/fleet" : "/ws/view"}`);
     this.#ws = ws;
     let opened = false;
     ws.onopen = () => {
@@ -81,6 +97,12 @@ export class FleetConnection {
     ws.onclose = () => {
       this.socket = "closed";
       if (this.#stopped) return;
+      if (this.local) {
+        // The agent says why (unlinked, hub down); try again now and then.
+        this.#timer = setTimeout(() => this.#connect(), this.unlinked ? 15000 : this.#retry);
+        this.#retry = Math.min(this.#retry * 2, 10000);
+        return;
+      }
       if (!opened) {
         // Refused before it opened: maybe we're signed out. Ask the hub.
         fetch("/api/mode")
@@ -99,6 +121,15 @@ export class FleetConnection {
     switch (msg.type) {
       case "hello":
         this.me = msg.me as Me;
+        this.org = (msg.org as string | undefined) ?? null;
+        this.unlinked = false;
+        this.problem = null;
+        break;
+      case "unlinked":
+        this.unlinked = true;
+        break;
+      case "error":
+        this.problem = String(msg.message ?? "Can't reach the fleet hub.");
         break;
       case "roster":
         this.roster = msg.members as Record<string, MemberSummary>;

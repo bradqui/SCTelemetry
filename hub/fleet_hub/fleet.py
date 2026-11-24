@@ -289,9 +289,13 @@ def _words(name: str | None) -> set[str]:
 
 
 class Viewer:
-    def __init__(self, ws: web.WebSocketResponse, member: Member) -> None:
+    def __init__(
+        self, ws: web.WebSocketResponse, member: Member, session: str | None = None
+    ) -> None:
         self.ws = ws
         self.member_id = member.id
+        self.session = session
+        """The browser session's public id; None for a PC's agent relaying it."""
         self.focus: str | None = None
         self.sent_roster: dict[str, dict] = {}
         self.roster_version = -1
@@ -461,6 +465,19 @@ class Fleet:
 
     def remove_viewer(self, viewer: Viewer) -> None:
         self.viewers.discard(viewer)
+
+    async def close_viewers(
+        self, member_id: str, session: str | None = None, *, keep: str | None = None
+    ) -> None:
+        """A device was signed out: close its open fleet views. ``session``: that one;
+        ``keep``: every browser but this one. PCs' agents aren't sessions: unlink those."""
+        for v in list(self.viewers):
+            if v.member_id != member_id or v.session is None:
+                continue
+            if (session is not None and v.session == session) or (
+                keep is not None and v.session != keep
+            ):
+                await v.ws.close(code=4001, message=b"signed out")
 
     def set_focus(self, viewer: Viewer, member_id: str | None) -> None:
         viewer.focus = member_id if member_id in self.members else None

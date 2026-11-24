@@ -207,6 +207,9 @@ class Hub:
                 web.patch("/api/me", self.me_update),
                 web.delete("/api/me", self.me_delete),
                 web.post("/api/me/device-code", self.device_code),
+                web.get("/api/me/sessions", self.my_sessions),
+                web.post("/api/me/sessions/others/end", self.end_other_sessions),
+                web.post("/api/me/sessions/{id}/end", self.end_session),
                 web.post("/api/me/discord/disconnect", self.discord_disconnect),
                 web.get("/api/me/agents", self.my_agents),
                 web.post("/api/me/agents/{id}/revoke", self.revoke_agent),
@@ -342,7 +345,7 @@ class Hub:
         body = await _body(request)
         member = self._create_from_invite(str(body.get("code", "")), str(body.get("name", "")))
         resp = web.json_response({"ok": True, "me": member.account()})
-        self.auth.sign_in(resp, member)
+        self.auth.sign_in(resp, member, request, "invite")
         return resp
 
     async def signin_code(self, request: web.Request) -> web.Response:
@@ -352,7 +355,7 @@ class Hub:
         if member is None or not member.active:
             raise _json_error(404, "That code has expired or was mistyped.")
         resp = web.json_response({"ok": True, "me": member.account()})
-        self.auth.sign_in(resp, member)
+        self.auth.sign_in(resp, member, request, "code")
         return resp
 
     async def signin_link(self, request: web.Request) -> web.StreamResponse:
@@ -361,7 +364,7 @@ class Hub:
         if member is None or not member.active:
             return page(410, "Link expired", "Open the fleet from your agent again.")
         resp = web.HTTPFound(valid_next(request.query.get("next", "/")))
-        self.auth.sign_in(resp, member)
+        self.auth.sign_in(resp, member, request, "link")
         raise resp
 
     async def logout(self, request: web.Request) -> web.Response:
@@ -382,7 +385,7 @@ class Hub:
             member = self.db.new_member(name, role="member" if self.db.admin_count() else "admin")
             self.refresh_setup()
         resp = web.HTTPFound(valid_next(request.query.get("next", "/")))
-        self.auth.sign_in(resp, member)
+        self.auth.sign_in(resp, member, request, "dev")
         raise resp
 
     # -- agents: join with an invite, link to an account, open the page
@@ -517,6 +520,34 @@ class Hub:
                 for a in self.db.agents_of(member.id)
             ]
         )
+
+    async def my_sessions(self, request: web.Request) -> web.Response:
+        """Your signed-in devices (browsers), this one marked."""
+        member = await self._member(request)
+        here = self.db.session_public_id(request.cookies.get(SESSION_COOKIE, ""))
+        return web.json_response(
+            [{**s, "current": s["id"] == here} for s in self.db.member_sessions(member.id)]
+        )
+
+    async def end_session(self, request: web.Request) -> web.Response:
+        """Sign one device out (a lost phone). Ending this one signs you out here too."""
+        member = await self._member(request)
+        public_id = request.match_info["id"]
+        if not self.db.end_member_session(member.id, public_id):
+            raise _json_error(404, "no such device")
+        await self.fleet.close_viewers(member.id, public_id)
+        resp = web.json_response({"ok": True})
+        if public_id == self.db.session_public_id(request.cookies.get(SESSION_COOKIE, "")):
+            resp.del_cookie(SESSION_COOKIE, path="/")
+        return resp
+
+    async def end_other_sessions(self, request: web.Request) -> web.Response:
+        """Sign out everywhere but here."""
+        member = await self._member(request)
+        here = request.cookies.get(SESSION_COOKIE, "")
+        ended = self.db.end_other_sessions(member.id, here)
+        await self.fleet.close_viewers(member.id, keep=self.db.session_public_id(here))
+        return web.json_response({"ok": True, "ended": ended})
 
     async def revoke_agent(self, request: web.Request) -> web.Response:
         member = await self._member(request)
@@ -769,13 +800,26 @@ class Hub:
     async def ws_view(self, request: web.Request) -> web.StreamResponse:
         if request.headers.get("Origin") not in (None, self.cfg.origin):
             raise _json_error(403, "cross-site request refused")
-        member = await self._member(request)
+        # A browser signs in with its session; a linked PC's agent with its token, for the
+        # fleet view in its local dashboard (it relays this stream to 127.0.0.1).
+        session = None
+        if _bearer(request):
+            _, member = self._agent_member(request)
+        else:
+            member = await self._member(request)
+            session = self.db.session_public_id(request.cookies.get(SESSION_COOKIE, ""))
         ws = web.WebSocketResponse(heartbeat=25, max_msg_size=4096)
         await ws.prepare(request)
-        viewer = Viewer(ws, member)
+        viewer = Viewer(ws, member, session)
         fleet = self.fleet
         await ws.send_json(
-            {"type": "hello", "mode": "fleet", "hub_version": __version__, "me": member.public()}
+            {
+                "type": "hello",
+                "mode": "fleet",
+                "hub_version": __version__,
+                "org": self.auth.org_name(),
+                "me": member.public(),
+            }
         )
         await ws.send_json({"type": "roster", "members": fleet.roster})
         await ws.send_json({"type": "history", "events": list(fleet.recent)})

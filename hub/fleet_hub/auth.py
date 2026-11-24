@@ -32,6 +32,38 @@ from .db import Database, Member, now_ms
 log = logging.getLogger(__name__)
 
 SESSION_COOKIE = "ft_session"
+
+_SYSTEMS = (
+    ("iPhone", "iPhone"),
+    ("iPad", "iPad"),
+    ("Android", "Android"),
+    ("CrOS", "ChromeOS"),
+    ("Windows", "Windows"),
+    ("Macintosh", "Mac"),
+    ("Linux", "Linux"),
+)
+_BROWSERS = (
+    ("Edg", "Edge"),
+    ("OPR/", "Opera"),
+    ("Firefox/", "Firefox"),
+    ("FxiOS", "Firefox"),
+    ("CriOS", "Chrome"),
+    ("Chrome/", "Chrome"),
+    ("Safari/", "Safari"),
+)
+
+
+def device_label(user_agent: str) -> str | None:
+    """A rough name for a device from its User-Agent: "Safari on iPhone", "Edge on Windows"."""
+    if not user_agent:
+        return None
+    system = next((name for key, name in _SYSTEMS if key in user_agent), None)
+    browser = next((name for key, name in _BROWSERS if key in user_agent), None)
+    if browser and system:
+        return f"{browser} on {system}"
+    return browser or system or "A browser"
+
+
 STATE_COOKIE = "ft_oauth"
 RECHECK_MS = 3_600_000
 SCOPES = "identify guilds.members.read"
@@ -138,8 +170,15 @@ class Auth:
 
     # -- sessions
 
-    def sign_in(self, resp: web.StreamResponse, member: Member) -> None:
-        sid = self.db.new_session(member.id)
+    def sign_in(
+        self,
+        resp: web.StreamResponse,
+        member: Member,
+        request: web.Request | None = None,
+        how: str | None = None,
+    ) -> None:
+        agent = request.headers.get("User-Agent", "") if request is not None else ""
+        sid = self.db.new_session(member.id, device_label(agent), how)
         resp.set_cookie(
             SESSION_COOKIE,
             sid,
@@ -156,6 +195,7 @@ class Auth:
         member = self.db.session_member(sid) if sid else None
         if member is None:
             return None
+        self.db.touch_session(sid)
         member = await self.recheck(member)
         return member if member.active else None
 
@@ -287,7 +327,7 @@ class Auth:
             )
         assert member is not None
         resp = web.HTTPFound(valid_next(next_url or "/"))
-        self.sign_in(resp, member)
+        self.sign_in(resp, member, request, "discord")
         resp.del_cookie(STATE_COOKIE, path="/auth/")
         raise resp
 

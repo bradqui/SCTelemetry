@@ -102,9 +102,16 @@ MIGRATIONS: list[str] = [
         value TEXT NOT NULL
     );
     """,
+    # 2: signed-in devices you can see and sign out (Account page)
+    """
+    ALTER TABLE sessions ADD COLUMN label TEXT;      -- "Safari on iPhone", from the User-Agent
+    ALTER TABLE sessions ADD COLUMN how TEXT;        -- invite | code | link | discord | dev
+    ALTER TABLE sessions ADD COLUMN last_seen INTEGER;
+    """,
 ]
 
 SESSION_DAYS = 30
+SESSION_ID_LEN = 16
 PAIR_CODE_TTL_S = 600
 LOGIN_LINK_TTL_S = 120
 # No 0/O, 1/I/L: codes are read off one screen and typed on another.
@@ -324,14 +331,62 @@ class Database:
 
     # -- sessions (browser sign-in)
 
-    def new_session(self, member_id: str) -> str:
+    def new_session(self, member_id: str, label: str | None = None, how: str | None = None) -> str:
         sid = secrets.token_urlsafe(32)
         t = now_ms()
         self.conn.execute(
-            "INSERT INTO sessions VALUES (?, ?, ?, ?)",
-            (sha256(sid), member_id, t, t + SESSION_DAYS * 86_400_000),
+            """INSERT INTO sessions (id_hash, member_id, created_at, expires_at, label, how,
+                                     last_seen) VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (sha256(sid), member_id, t, t + SESSION_DAYS * 86_400_000, label, how, t),
         )
         return sid
+
+    def touch_session(self, sid: str) -> None:
+        """Note the device was used (at most every 5 minutes: it's for "last active")."""
+        t = now_ms()
+        self.conn.execute(
+            "UPDATE sessions SET last_seen=? WHERE id_hash=? AND COALESCE(last_seen, 0) < ?",
+            (t, sha256(sid), t - 300_000),
+        )
+
+    def member_sessions(self, member_id: str) -> list[dict]:
+        """A member's signed-in devices. ``id`` is a prefix of the stored hash: enough to
+        name one, useless for signing in."""
+        rows = self.conn.execute(
+            """SELECT id_hash, label, how, created_at, last_seen FROM sessions
+               WHERE member_id=? AND expires_at > ?
+               ORDER BY COALESCE(last_seen, created_at) DESC""",
+            (member_id, now_ms()),
+        ).fetchall()
+        return [
+            {
+                "id": r["id_hash"][:SESSION_ID_LEN],
+                "label": r["label"],
+                "how": r["how"],
+                "created_at": r["created_at"],
+                "last_seen": r["last_seen"],
+            }
+            for r in rows
+        ]
+
+    def end_member_session(self, member_id: str, public_id: str) -> bool:
+        if len(public_id) != SESSION_ID_LEN or not public_id.isalnum():
+            return False
+        cur = self.conn.execute(
+            "DELETE FROM sessions WHERE member_id=? AND substr(id_hash, 1, ?)=?",
+            (member_id, SESSION_ID_LEN, public_id),
+        )
+        return cur.rowcount > 0
+
+    def end_other_sessions(self, member_id: str, keep_sid: str) -> int:
+        cur = self.conn.execute(
+            "DELETE FROM sessions WHERE member_id=? AND id_hash<>?", (member_id, sha256(keep_sid))
+        )
+        return cur.rowcount
+
+    @staticmethod
+    def session_public_id(sid: str) -> str:
+        return sha256(sid)[:SESSION_ID_LEN] if sid else ""
 
     def session_member(self, sid: str) -> Member | None:
         row = self._one(

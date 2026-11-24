@@ -1,5 +1,6 @@
 <script lang="ts">
   import { LIGHT_NAMES, ROLE_NAMES as ROLE } from "../lib/format";
+  import { openOnHub } from "../lib/hub";
   import LocationChips from "./LocationChips.svelte";
   import type { AgentState, Snapshot, UplinkStatus } from "../lib/types";
 
@@ -11,6 +12,7 @@
     replay = false,
     caution = true,
     uplink = null,
+    onFleet,
     onToggleCompact,
     onCustomize,
   }: {
@@ -23,6 +25,8 @@
     caution?: boolean;
     /** Sending to the fleet hub? */
     uplink?: UplinkStatus | null;
+    /** Show the fleet in this page (else the chip opens the hub's page). */
+    onFleet?: () => void;
     onToggleCompact: () => void;
     onCustomize: () => void;
   } = $props();
@@ -48,18 +52,6 @@
     return mine ? `your ${a.ship}` : `${a.owner}'s ${a.ship}`;
   });
 
-  async function openFleet() {
-    // The agent asks the hub for a one-time sign-in link; open it in a new tab.
-    const tab = window.open("about:blank", "_blank");
-    try {
-      const r = await fetch("/api/fleet/open", { method: "POST" });
-      const body = await r.json();
-      if (body.url && tab) tab.location.href = body.url;
-      else tab?.close();
-    } catch {
-      tab?.close();
-    }
-  }
 
   const alarm = $derived.by(() => {
     if (!caution || !ship) return null;
@@ -117,9 +109,9 @@
     {#if uplink}
       <button
         class="fleet {uplink.state}"
-        onclick={openFleet}
+        onclick={() => (onFleet ? onFleet() : openOnHub())}
         title={uplink.state === "connected"
-          ? `Sending to the fleet${uplink.member ? ` as ${uplink.member}` : ""}. Click to open the fleet page.`
+          ? `Sending to the fleet${uplink.member ? ` as ${uplink.member}` : ""}. Click to see the fleet.`
           : (uplink.message ?? "Connecting to the fleet hub")}><span class="dot"></span>Fleet</button
       >
     {/if}

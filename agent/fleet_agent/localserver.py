@@ -5,6 +5,8 @@
 - ``/api/state``  the latest of everything, as JSON
 - ``/api/mode``   ``{"mode": "local"}``: the same page is served by the hub in fleet mode
 - ``/api/fleet/open``  POST: a one-time link to the fleet page, signed in (when linked)
+- ``/ws/fleet``  WebSocket: the hub's fleet stream, relayed (when linked). The agent
+  connects to the hub with its own token; the page may only send ``focus``.
 
 In replay mode (``run --replay``) the page also gets the recording's timeline
 (chapters and every event on it) and may send replay controls over ``/ws``:
@@ -94,6 +96,15 @@ def _origin_ok(request: web.Request, port: int) -> bool:
     return origin in {f"http://{h}:{port}" for h in LOCAL_HOSTS}
 
 
+def _hub_error(exc: Exception) -> str:
+    status = getattr(exc, "status", None)
+    if status == 401:
+        return "The hub doesn't recognise this PC any more: link it again."
+    if status == 403:
+        return "Your membership is suspended."
+    return "Can't reach the fleet hub."
+
+
 class LocalServer:
     def __init__(
         self,
@@ -114,12 +125,22 @@ class LocalServer:
                 web.get("/api/state", self._api_state),
                 web.get("/api/mode", self._api_mode),
                 web.post("/api/fleet/open", self._fleet_open),
+                web.get("/ws/fleet", self._fleet_ws),
                 web.get("/{tail:.*}", self._static),
             ]
         )
         self._runner: web.AppRunner | None = None
         self.fleet_open = None
         """Set when linked to a hub: async () -> one-time sign-in URL."""
+        self.fleet_view = None
+        """Set when linked to a hub: () -> async context giving the hub's fleet WebSocket."""
+        self.uplink: dict | None = None
+        """The hub link's latest status, for pages that open later (the Fleet chip)."""
+        pipeline.subscribe(self._remember)
+
+    def _remember(self, kind: str, payload: object) -> None:
+        if kind == "uplink" and isinstance(payload, dict):
+            self.uplink = payload
 
     @web.middleware
     async def _guard(self, request: web.Request, handler):
@@ -139,6 +160,50 @@ class LocalServer:
         except Exception as exc:  # the hub is down, the token was revoked...
             return web.json_response({"error": str(exc)}, status=502)
         return web.json_response({"url": url})
+
+    async def _fleet_ws(self, request: web.Request) -> web.WebSocketResponse:
+        """Relay the hub's fleet view to a local page. Hub -> page: everything; page ->
+        hub: only which member is open. Either side closing closes both."""
+        ws = web.WebSocketResponse(heartbeat=20)
+        await ws.prepare(request)
+        if self.fleet_view is None:
+            await ws.send_json({"type": "unlinked"})
+            await ws.close()
+            return ws
+        try:
+            async with self.fleet_view() as hub:
+
+                async def down() -> None:
+                    async for msg in hub:
+                        if msg.type != WSMsgType.TEXT:
+                            break
+                        await ws.send_str(msg.data)
+
+                relay = asyncio.create_task(down())
+                try:
+                    async for msg in ws:
+                        if msg.type != WSMsgType.TEXT:
+                            break
+                        try:
+                            data = json.loads(msg.data)
+                        except ValueError:
+                            continue
+                        if isinstance(data, dict) and data.get("type") == "focus":
+                            member = data.get("member")
+                            await hub.send_json(
+                                {"type": "focus", "member": str(member) if member else None}
+                            )
+                        if relay.done():
+                            break
+                finally:
+                    relay.cancel()
+        except Exception as exc:  # the hub is down or refused us
+            log.info("Fleet view: %s", exc)
+            if not ws.closed:
+                await ws.send_json({"type": "error", "message": _hub_error(exc)})
+        if not ws.closed:
+            await ws.close()
+        return ws
 
     async def _api_mode(self, _request: web.Request) -> web.Response:
         return web.json_response({"mode": "local", "agent_version": __version__})
@@ -170,6 +235,8 @@ class LocalServer:
             await ws.send_str(json.dumps({"type": "replay_index", **self.playhead.rec.index()}))
             await ws.send_str(json.dumps({"type": "replay", **self.playhead.status()}))
         await ws.send_str(json.dumps(self.pipeline.state.as_dict()))
+        if self.uplink is not None:
+            await ws.send_str(json.dumps({"type": "uplink", **self.uplink}))
         await ws.send_str(
             json.dumps(
                 {"type": "history", "events": [json.loads(_dump(e)) for e in self.pipeline.recent]}

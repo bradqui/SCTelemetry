@@ -17,6 +17,7 @@
   import VitalsPanel from "./panels/VitalsPanel.svelte";
   import WarningsPanel from "./panels/WarningsPanel.svelte";
   import WeaponsPanel from "./panels/WeaponsPanel.svelte";
+  import WingmatesPanel from "./panels/WingmatesPanel.svelte";
 
   let { ctx, layout, editing = false }: { ctx: PanelCtx; layout: Layout; editing?: boolean } = $props();
 
@@ -34,6 +35,7 @@
     environment: EnvironmentPanel,
     mission: MissionPanel,
     events: EventsPanel,
+    wingmates: WingmatesPanel,
   };
 
   // The same array until the set of panels really changes. A new one every frame (ctx.ship
@@ -42,7 +44,12 @@
   let shown: Layout = [];
   const visible = $derived.by(() => {
     const inShip = !!ctx.ship;
-    const next = layout.filter((s) => !s.hidden && (editing || !(PANELS[s.id].ship && !inShip && ctx.prefs.autoHide)));
+    const next = layout.filter(
+      (s) =>
+        !s.hidden &&
+        !(s.id === "wingmates" && ctx.wing === undefined) && // the hub's pages: not yours to show
+        (editing || !(PANELS[s.id].ship && !inShip && ctx.prefs.autoHide)),
+    );
     if (next.length === shown.length && next.every((s, i) => s === shown[i])) return shown;
     shown = next;
     return next;

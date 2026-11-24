@@ -22,6 +22,8 @@
     store: givenStore,
     embedded = false,
     defaultView = "overview",
+    onBack,
+    onHub,
   }: {
     mode: HubMode;
     me: Account;
@@ -33,6 +35,9 @@
     embedded?: boolean;
     /** What the main area shows with nobody open, until the viewer picks. */
     defaultView?: "overview" | "cards";
+    /** In the cockpit page: back to your own dashboard; open the hub's page. */
+    onBack?: () => void;
+    onHub?: () => void;
   } = $props();
 
   // Overview (totals, ships, activity) or Cards (everyone's numbers), remembered per browser.
@@ -93,7 +98,9 @@
   // Back to the fleet: Esc (unless a dialog or the Customize drawer has it), or clicking
   // the open member in the roster again.
   function onKey(e: KeyboardEvent) {
-    if (e.key === "Escape" && fleet.focus && !customizing && !dialog) open(null);
+    if (e.key !== "Escape" || customizing || dialog) return;
+    if (fleet.focus) open(null);
+    else onBack?.(); // the cockpit page: Esc on the fleet goes back to your dashboard
   }
   function toggle(id: string) {
     open(id === fleet.focus ? null : id);
@@ -168,6 +175,8 @@
       onAdmin={() => (dialog = "admin")}
       onCustomize={() => (customizing = true)}
       onSignOut={signOut}
+      {onBack}
+      {onHub}
     />
     <div class="body">
       <aside>

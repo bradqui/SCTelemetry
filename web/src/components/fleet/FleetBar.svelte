@@ -13,6 +13,8 @@
     onAdmin,
     onCustomize,
     onSignOut,
+    onBack,
+    onHub,
   }: {
     org: string;
     me: Account;
@@ -25,6 +27,10 @@
     onAdmin: () => void;
     onCustomize: () => void;
     onSignOut: () => void;
+    /** In the cockpit page: back to your own dashboard. */
+    onBack?: () => void;
+    /** In the cockpit page: open the hub's fleet page (phones, other screens, account). */
+    onHub?: () => void;
   } = $props();
 
   const online = $derived(rows.filter((m) => m.presence !== "offline"));
@@ -61,6 +67,11 @@
 </script>
 
 <header class="top topbar {worst ? `alarm-${worst}` : ''}">
+  {#if onBack}
+    <button class="back" onclick={onBack} title="Back to your cockpit view">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3 5 8l5 5" /></svg>Cockpit
+    </button>
+  {/if}
   <div class="brand">
     <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 3 29 27H3z" /><circle cx="16" cy="20" r="3" /></svg>
     <span class="display">{org}</span>
@@ -96,6 +107,9 @@
         <div class="menu" role="menu">
           {#if !demo}<button role="menuitem" onclick={() => ((menu = false), onAccount())}>Your account</button>{/if}
           <button role="menuitem" onclick={() => ((menu = false), onCustomize())}>Theme and layout</button>
+          {#if onHub}
+            <button role="menuitem" onclick={() => ((menu = false), onHub())}>Open on the hub</button>
+          {/if}
           {#if me.role === "admin" && !demo}
             <button role="menuitem" onclick={() => ((menu = false), onAdmin())}>Admin</button>
           {/if}
@@ -129,6 +143,31 @@
     50% {
       background: color-mix(in srgb, var(--bad) 18%, var(--panel));
     }
+  }
+  .back {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    flex: none;
+    border: 1px solid var(--line-2);
+    background: var(--bg-2);
+    color: var(--text-2);
+    border-radius: var(--radius-chip);
+    padding: 3px 10px 3px 6px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .back:hover {
+    color: var(--text);
+    border-color: var(--accent);
+  }
+  .back svg {
+    width: 13px;
+    height: 13px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
   }
   .brand {
     display: flex;

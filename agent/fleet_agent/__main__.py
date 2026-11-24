@@ -117,6 +117,7 @@ def cmd_run(args) -> None:
             uplink = _start_uplink(args, pipeline, install=None if playhead else _find(args))
             if uplink is not None:
                 server.fleet_open = uplink.login_link
+                server.fleet_view = uplink.fleet_view
         url = f"http://127.0.0.1:{server.port}/"
         print(f"Fleet Telemetry agent: local view at {url}")
         print(f"{source} Ctrl+C stops.")

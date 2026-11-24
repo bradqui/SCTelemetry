@@ -1,3 +1,4 @@
+import type { FleetConnection } from "./fleet.svelte";
 import type { Prefs } from "./prefs.svelte";
 import type { Trends } from "./trends.svelte";
 import type { Ship, Snapshot, TelemetryEvent } from "./types";
@@ -14,6 +15,8 @@ export interface PanelCtx {
   now: number;
   /** Whose data this is, when it isn't yours (the fleet page): labels say their name. */
   who?: string;
+  /** Your cockpit view, linked to a fleet: the fleet, relayed by the agent (Wingmates). */
+  wing?: FleetConnection | null;
 }
 
 /** The same, for panels that only render in a ship. */

@@ -15,6 +15,22 @@
     connected: boolean;
   }
   let pcs = $state<Pc[] | null>(null);
+  interface Device {
+    id: string;
+    label: string | null;
+    how: string | null;
+    created_at: number;
+    last_seen: number | null;
+    current: boolean;
+  }
+  let devices = $state<Device[] | null>(null);
+  const HOW: Record<string, string> = {
+    invite: "joined with an invite",
+    code: "signed in with a code",
+    link: "opened from your PC",
+    discord: "signed in with Discord",
+    dev: "test sign-in",
+  };
   let error = $state("");
   let name = $state("");
   let saved = $state(false);
@@ -25,7 +41,10 @@
   onMount(async () => {
     name = me.name;
     try {
-      pcs = await api<Pc[]>("GET", "/api/me/agents");
+      [pcs, devices] = await Promise.all([
+        api<Pc[]>("GET", "/api/me/agents"),
+        api<Device[]>("GET", "/api/me/sessions"),
+      ]);
     } catch (e) {
       error = String((e as Error).message);
     }
@@ -48,6 +67,26 @@
     try {
       await api("POST", `/api/me/agents/${pc.id}/revoke`);
       pcs = (pcs ?? []).filter((p) => p.id !== pc.id);
+    } catch (e) {
+      error = (e as Error).message;
+    }
+  }
+  async function signOutDevice(d: Device) {
+    const what = d.current ? "this device" : (d.label ?? "that device");
+    if (!confirm(`Sign out ${what}? It needs a new code (or Discord) to get back in.`)) return;
+    try {
+      await api("POST", `/api/me/sessions/${d.id}/end`);
+      if (d.current) location.href = "/";
+      else devices = (devices ?? []).filter((x) => x.id !== d.id);
+    } catch (e) {
+      error = (e as Error).message;
+    }
+  }
+  async function signOutOthers() {
+    if (!confirm("Sign out every other device? Only this one stays signed in.")) return;
+    try {
+      await api("POST", "/api/me/sessions/others/end");
+      devices = (devices ?? []).filter((x) => x.current);
     } catch (e) {
       error = (e as Error).message;
     }
@@ -110,6 +149,34 @@
   </section>
 
   <section>
+    <h3>Signed-in devices</h3>
+    <p>Browsers signed in to the fleet page. Lost a phone? Sign it out here.</p>
+    {#if devices === null}
+      <p>Loading…</p>
+    {:else}
+      <div class="list">
+        {#each devices as d (d.id)}
+          <div class="item">
+            <span class="dot" style:color={d.current ? "var(--good)" : "var(--text-3)"}></span>
+            <span class="grow"
+              ><b>{d.label ?? "A browser"}{#if d.current}<em class="here">this device</em>{/if}</b>
+              <small
+                >{d.how ? `${HOW[d.how] ?? d.how} · ` : ""}{d.current
+                  ? "active now"
+                  : `last active ${ago(d.last_seen ?? d.created_at, now)}`}</small
+              ></span
+            >
+            <button class="btn danger" onclick={() => signOutDevice(d)}>Sign out</button>
+          </div>
+        {/each}
+      </div>
+      {#if devices.length > 1}
+        <button class="btn" onclick={signOutOthers}>Sign out all other devices</button>
+      {/if}
+    {/if}
+  </section>
+
+  <section>
     <h3>Sign in on another device</h3>
     {#if deviceCode && left > 0}
       <p>On your phone or other PC, open <code>{hub}</code>, choose “I have a code” and enter:</p>
@@ -154,5 +221,14 @@
     color: inherit;
     text-decoration: none;
     display: inline-block;
+  }
+  .here {
+    margin-left: 6px;
+    font-style: normal;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: var(--label-spacing);
+    text-transform: var(--label-case);
+    color: var(--good);
   }
 </style>

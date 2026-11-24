@@ -5,11 +5,11 @@ The hub is one Docker container: the fleet page, sign-in, and the place your mem
 ## 1. Start it
 
 ```bash
-git clone https://github.com/bradqui/SCTelemetry.git
-cd SCTelemetry/deploy
+git clone https://github.com/bradqui/starglance.git
+cd starglance/deploy
 cp .env.example .env
 nano .env                       # HUB_URL and HUB_ORG_NAME at least
-docker compose pull             # the released hub image (ghcr.io/bradqui/sctelemetry-hub)
+docker compose pull             # the released hub image (ghcr.io/bradqui/starglance-hub)
 docker compose up -d
 docker compose logs hub
 ```
@@ -17,11 +17,11 @@ docker compose logs hub
 The log shows a **setup link** the first time:
 
 ```
-WARNING fleet_hub.app: No admin yet. Open this link to create the admin account:
-WARNING fleet_hub.app:     https://fleet.example.org/join/AbC...
+WARNING starglance_hub.app: No admin yet. Open this link to create the admin account:
+WARNING starglance_hub.app:     https://fleet.example.org/join/AbC...
 ```
 
-Open it once your proxy is up (step 2), or paste it into your agent: `fleet_agent link <setup link>` creates your admin account and links your PC in one go. The link works once. If you lose it, restart the container while there's still no admin, and a new one is logged.
+Open it once your proxy is up (step 2), or paste it into your agent: `starglance link <setup link>` creates your admin account and links your PC in one go. The link works once. If you lose it, restart the container while there's still no admin, and a new one is logged.
 
 The hub listens on `127.0.0.1:8100` only. `curl -s http://127.0.0.1:8100/api/health` should answer.
 
@@ -70,10 +70,10 @@ Redirect plain http to https. **Cloudflare's proxy** (orange cloud) works: set S
 
 On the fleet page, **your name → Admin → Invites**: pick how many uses and how long it lasts, create, and send the link.
 
-- **Players** run `fleet_agent link <invite link>` on their gaming PC. That creates their account (named after their in-game handle unless they pick another) and links the PC. `fleet_agent open`, or **Fleet** in the cockpit view, opens the fleet page signed in.
+- **Players** run `starglance link <invite link>` on their gaming PC. That creates their account (named after their in-game handle unless they pick another) and links the PC. `starglance open`, or **Fleet** in the cockpit view, opens the fleet page signed in.
 - **Watchers without the game** open the link in a browser and join there.
 - **Another device**: **Your account → Sign in on another device** shows a short code to type on it.
-- **Another PC**: `fleet_agent link https://fleet.example.org` on it, then confirm the code on the page.
+- **Another PC**: `starglance link https://fleet.example.org` on it, then confirm the code on the page.
 
 Admins can suspend or remove members (removing deletes their PCs and history), make other admins, and change the org name (**Admin → Members / Settings**).
 
@@ -94,7 +94,7 @@ Nothing requires Discord: without it, everything above works with invites and co
 ## Updating
 
 ```bash
-cd SCTelemetry && git pull && cd deploy && docker compose pull && docker compose up -d
+cd starglance && git pull && cd deploy && docker compose pull && docker compose up -d
 ```
 
 The database upgrades itself on start. Agents reconnect by themselves. Hub and agents are released together (same version): after updating the hub, agents that are behind show an **Update** button in their cockpit view, and agents older than the hub supports are told to update. To stay on a version, set `HUB_VERSION=0.2.0` in `.env`. To run your own changes, `docker compose up -d --build` builds from the checkout.
@@ -113,15 +113,15 @@ docker cp fleet-hub:/data/backup.sqlite3 ./hub-backup.sqlite3
 ## Trying it on your PC
 
 ```bash
-HUB_DEV_LOGIN=1 uv run python -m fleet_hub
+HUB_DEV_LOGIN=1 uv run python -m starglance_hub
 ```
 
-Open `http://127.0.0.1:8100`, sign in with any name (the first one becomes admin), and create an invite under **Admin → Invites**. Then, in another terminal (`FLEET_TELEMETRY_HOME` keeps this test apart from your real agent settings):
+Open `http://127.0.0.1:8100`, sign in with any name (the first one becomes admin), and create an invite under **Admin → Invites**. Then, in another terminal (`STARGLANCE_HOME` keeps this test apart from your real agent settings):
 
 ```bash
-export FLEET_TELEMETRY_HOME=/tmp/fleet-test
-uv run python -m fleet_agent link <invite link> --name "Test Pilot"
-uv run python -m fleet_agent run --replay --uplink     # recordings, sent to your test hub
+export STARGLANCE_HOME=/tmp/fleet-test
+uv run python -m starglance link <invite link> --name "Test Pilot"
+uv run python -m starglance run --replay --uplink     # recordings, sent to your test hub
 ```
 
 Test sign-in is refused on an https hub.

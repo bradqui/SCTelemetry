@@ -5,9 +5,9 @@ import json
 from pathlib import Path
 
 import aiohttp
-from fleet_agent.localserver import LocalServer
-from fleet_agent.replay import ReplayServer
-from fleet_agent.runtime import GameReader, Pipeline
+from starglance.localserver import LocalServer
+from starglance.replay import ReplayServer
+from starglance.runtime import GameReader, Pipeline
 
 FIXTURES = Path(__file__).parents[2] / "fixtures"
 
@@ -86,8 +86,8 @@ def test_missing_ui_shows_build_hint():
 
 
 def test_replay_mode_timeline_and_controls():
-    from fleet_agent.replay import Playhead, Recording
-    from fleet_agent.runtime import ReplaySource
+    from starglance.replay import Playhead, Recording
+    from starglance.runtime import ReplaySource
 
     rec = Recording.load([FIXTURES / "cruise-nav-scm.jsonl.gz", FIXTURES / "combat.jsonl.gz"])
     playhead = Playhead(rec, speed=4)

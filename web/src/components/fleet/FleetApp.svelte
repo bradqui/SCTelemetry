@@ -10,7 +10,7 @@
   const path = location.pathname.replace(/\/+$/, "");
   const join = /^\/join\/([A-Za-z0-9_-]+)$/.exec(path);
   $effect(() => {
-    document.title = `${mode.org} · Fleet Telemetry`;
+    document.title = `${mode.org} · Starglance`;
   });
 </script>
 

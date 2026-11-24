@@ -6,17 +6,17 @@ import asyncio
 import json
 
 import aiohttp
-from fleet_agent import fleetlink
-from fleet_agent.capturefile import read_frames
-from fleet_agent.runtime import Pipeline
-from fleet_agent.uplink import Uplink
-from fleet_shared import apply_sharing, event_shared
+from starglance import fleetlink
+from starglance.capturefile import read_frames
+from starglance.runtime import Pipeline
+from starglance.uplink import Uplink
+from starglance_shared import apply_sharing, event_shared
 
 from .test_hub import FIXTURES, browser, running_hub, sign_in, until, ws_url
 
 
 async def link_with_command(hub, viewer) -> str:
-    """``fleet_agent link``: shows a code, the member confirms it in the browser."""
+    """``starglance link``: shows a code, the member confirms it in the browser."""
     codes: asyncio.Queue[str] = asyncio.Queue()
 
     def say(line: str) -> None:
@@ -39,7 +39,7 @@ async def link_with_command(hub, viewer) -> str:
 
 
 def test_replay_through_pipeline_and_uplink(tmp_path, monkeypatch):
-    monkeypatch.setenv("FLEET_TELEMETRY_HOME", str(tmp_path / "agent"))
+    monkeypatch.setenv("STARGLANCE_HOME", str(tmp_path / "agent"))
 
     async def main():
         async with running_hub(tmp_path / "hub") as (hub, _srv), browser() as viewer:
@@ -103,7 +103,7 @@ def test_uplink_gives_up_on_a_revoked_token(tmp_path):
 
 
 def test_agent_token_is_stored_per_hub(tmp_path, monkeypatch):
-    monkeypatch.setenv("FLEET_TELEMETRY_HOME", str(tmp_path))
+    monkeypatch.setenv("STARGLANCE_HOME", str(tmp_path))
     fleetlink.save_token("https://fleet.example", "abc")
     assert fleetlink.load_token("https://fleet.example") == "abc"
     assert fleetlink.load_token("https://other.example") is None
@@ -131,7 +131,7 @@ def test_invite_links_and_hub_addresses():
 
 
 def test_join_with_an_invite_from_the_agent(tmp_path, monkeypatch):
-    monkeypatch.setenv("FLEET_TELEMETRY_HOME", str(tmp_path / "agent"))
+    monkeypatch.setenv("STARGLANCE_HOME", str(tmp_path / "agent"))
     log = tmp_path / "Game.log"
     log.write_text(
         "<2026-11-23T18:13:52.484Z> [Notice] <Legacy login response> [CIG-net] User Login "
@@ -165,9 +165,9 @@ def test_join_with_an_invite_from_the_agent(tmp_path, monkeypatch):
 
 
 def test_update_notice_only_for_a_newer_agent():
-    from fleet_agent import __version__
-    from fleet_agent.uplink import update_notice
-    from fleet_shared import RELEASES_URL, version_tuple
+    from starglance import __version__
+    from starglance.uplink import update_notice
+    from starglance_shared import RELEASES_URL, version_tuple
 
     assert version_tuple("0.2.0") == (0, 2, 0) and version_tuple("v1.10") == (1, 10)
     assert version_tuple("dev") is None and version_tuple(None) is None

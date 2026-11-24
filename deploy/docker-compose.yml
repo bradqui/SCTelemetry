@@ -12,11 +12,11 @@
 
 services:
   hub:
-    image: ghcr.io/bradqui/sctelemetry-hub:${HUB_VERSION:-latest}
+    image: ghcr.io/bradqui/starglance-hub:${HUB_VERSION:-latest}
     build: # only with --build: from this checkout
       context: ..
       dockerfile: hub/Dockerfile
-    container_name: fleet-hub
+    container_name: starglance-hub
     restart: unless-stopped
     env_file: .env
     ports:

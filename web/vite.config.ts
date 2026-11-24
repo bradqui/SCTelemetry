@@ -1,7 +1,7 @@
 import { defineConfig } from "vite";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 
-// `npm run dev` proxies the live data to a running agent (python -m fleet_agent run).
+// `npm run dev` proxies the live data to a running agent (python -m starglance run).
 const agent = "http://127.0.0.1:8740";
 
 export default defineConfig({

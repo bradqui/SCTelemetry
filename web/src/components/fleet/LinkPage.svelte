@@ -4,7 +4,7 @@
   import type { HubMode, Me } from "../../lib/types";
   import Card from "./Card.svelte";
 
-  // /link?code=ABC-123: the browser half of `fleet_agent link <hub>` (another PC).
+  // /link?code=ABC-123: the browser half of `starglance link <hub>` (another PC).
   let { mode, me }: { mode: HubMode; me: Me } = $props();
 
   const code = new URLSearchParams(location.search).get("code") ?? "";
@@ -15,7 +15,7 @@
   onMount(async () => {
     if (!code) {
       phase = "error";
-      error = "This page needs the code your agent showed. Run fleet_agent link again.";
+      error = "This page needs the code your agent showed. Run starglance link again.";
       return;
     }
     try {

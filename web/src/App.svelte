@@ -162,7 +162,7 @@
       <div class="radar" aria-hidden="true"><span></span><i></i></div>
       {#if live.socket !== "open"}
         <h1>Can't reach the agent</h1>
-        <p>Start it with <code>python -m fleet_agent run</code>. This page reconnects by itself.</p>
+        <p>Start it with <code>python -m starglance run</code>. This page reconnects by itself.</p>
       {:else if live.agent?.connected}
         <h1>Connected to Star Citizen</h1>
         <p>Load into the game and your telemetry will appear here.</p>

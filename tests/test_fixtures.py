@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 
 import pytest
-from fleet_agent import scrub
+from starglance import scrub
 
 FIXTURES = sorted((Path(__file__).parents[1] / "fixtures").glob("*.jsonl.gz"))
 

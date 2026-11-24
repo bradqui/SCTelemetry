@@ -1,6 +1,6 @@
 # Star Citizen Org Fleet Telemetry — Build Spec
 
-> The original handoff document for Claude Code, kept as the design record. Working name: **Fleet Telemetry**.
+> The original handoff document for Claude Code, kept as the design record. Working name: **Fleet Telemetry**; the project is now **Starglance** (decision 20).
 > Later decisions (§11) override earlier sections. Since decisions 15–17 the project is open source and any org can run a hub; there is no ButlerBot cog in this repo (§6.4 and Phase 3 are superseded: bots use the hub's integration API, docs/HUB_API.md), and Discord is optional (§5 is rewritten).
 
 ## 1. Goal
@@ -66,7 +66,7 @@ Requirements for the agent's config writer:
 
 ### 2.3 Getting the protobuf definitions
 
-> **Verified (2026-11-23):** the game's server has no reflection (`UNIMPLEMENTED`). Extraction from `StarCitizen.exe` works and takes under a second (`fleet_agent/protoset.py`).
+> **Verified (2026-11-23):** the game's server has no reflection (`UNIMPLEMENTED`). Extraction from `StarCitizen.exe` works and takes under a second (`starglance/protoset.py`).
 
 The `.proto` files aren't published. Two approaches, try in order:
 
@@ -179,7 +179,7 @@ Single language (Python) across agent, hub, and cog so `shared/` models can be r
 ### 3.2 Repo layout (monorepo)
 ```
 /agent        Windows agent (gRPC client, normalizer, uplink, local UI, cfg writer)
-/hub          the hub (fleet_hub package, Dockerfile)
+/hub          the hub (starglance_hub package, Dockerfile)
 /deploy       docker-compose.yml, .env.example, server setup steps
 /web          PWA source (builds to /web/dist)
 /cog          Red cog: telemetry/
@@ -242,16 +242,16 @@ Version handling: hub accepts `v` within a supported range; rejects older agents
 - Members are the hub's own accounts: a random id, a display name, a role (`member` or `admin`). No passwords anywhere.
 - **First admin:** while a hub has no admin it logs a one-time setup link (`<hub>/join/<code>`, admin role, single use). Using it creates the admin.
 - **Invites:** admins (or integrations with the `invites` scope, members only) create links with a use limit (1, 5, 25, unlimited) and expiry (1, 7, 30 days, never). Only a hash of the code is stored; the link is shown once.
-- **Joining from the agent:** `fleet_agent link <invite link>` → `POST /api/agent/join {invite, name, machine}` creates the account and returns the PC's token in one step. The link carries the hub's address, so one agent build serves every org. The name defaults to the in-game handle from Game.log.
+- **Joining from the agent:** `starglance link <invite link>` → `POST /api/agent/join {invite, name, machine}` creates the account and returns the PC's token in one step. The link carries the hub's address, so one agent build serves every org. The name defaults to the in-game handle from Game.log.
 - **Joining from a browser** (watchers without the game): the invite page creates the account and signs the browser in.
 
 ### 5.2 PCs
 - Token per PC (long random; Windows Credential Manager on the agent; hash only on the hub).
-- **Another PC** for an existing member: `fleet_agent link <hub>` → the agent shows a short code (10 min) and opens `<hub>/link?code=...`; the member confirms it while signed in; the agent, polling with a secret, receives its token once.
+- **Another PC** for an existing member: `starglance link <hub>` → the agent shows a short code (10 min) and opens `<hub>/link?code=...`; the member confirms it while signed in; the agent, polling with a secret, receives its token once.
 - Revoke from **Your account** (own PCs) or by an admin removing or suspending the member.
 
 ### 5.3 Browsers
-- **From the agent:** `fleet_agent open` (or **Open on the hub** in the cockpit page's fleet view) asks `POST /api/agent/login-link` (bearer token) for a one-time link (2 min) that signs the browser in.
+- **From the agent:** `starglance open` (or **Open on the hub** in the cockpit page's fleet view) asks `POST /api/agent/login-link` (bearer token) for a one-time link (2 min) that signs the browser in.
 - **The cockpit page itself** needs no browser sign-in to show the fleet: the agent opens the hub's `/ws/view` with the PC's token and relays it on `127.0.0.1` (decision 19).
 - **Another device:** a signed-in browser shows a short code (10 min, single use); the other device types it on the sign-in page.
 - **Discord (optional):** with `DISCORD_*` set, invite pages offer "Join with Discord", members can connect Discord, and connected members can sign in with it. Admins may let holders of the member role join without an invite. Members who connected Discord are re-checked hourly with their own token (`guilds.members.read`): losing the role suspends them, regaining it restores them. Members without Discord are managed by admins only.
@@ -273,7 +273,7 @@ Version handling: hub accepts `v` within a supported range; rejects older agents
 - Uplink: reconnecting WSS client; drop snapshots if backpressured (latest-wins), never queue unbounded; events are buffered (bounded) and sent on reconnect.
 - **Sharing defaults:** everything ON (ship, status, weapons, vitals, aUEC). Each category can be switched off by the member in the agent; switched-off fields are never transmitted.
 - Update check: hub exposes `/api/agent/latest`; agent shows a banner when newer.
-- Logging to `%LOCALAPPDATA%\FleetTelemetry\logs`, rotating. A "Capture 60s of raw frames" button for bug reports (aUEC scrubbed).
+- Logging to `%LOCALAPPDATA%\Starglance\logs`, rotating. A "Capture 60s of raw frames" button for bug reports (aUEC scrubbed).
 
 ### 6.2 Hub
 - Live state in memory; mark member stale after 10s without snapshot/heartbeat; offline after 60s.
@@ -386,4 +386,5 @@ Cog holds a reconnecting WebSocket to the hub's `/internal/events` and uses the 
 17. **Open source (2026-11-23):** public repo under MIT. Nothing org-specific in code (the hub address comes from the invite, the org name from hub settings); a disclaimer that it's not affiliated with CIG; scrubbed fixtures only. Each org runs its own hub (deploy/README.md); whoever runs it sees what members share, which the docs say plainly.
 18. **Who's aboard (2026-11-24):** boarding a ship joins its comms channel, and Game.log names it `"<Manufacturer Model> : <owner handle>"`. The agent reports it as `location.aboard`, so crew on foot are placed with the ship they're on. The hub matches the owner to a member by handle (sent as `status.handle`), then by display name. Leaving isn't always logged, so another channel, a server change, death or a new game also end it.
 19. **The fleet in the cockpit page (2026-11-24):** the cockpit view shows the fleet too: a Fleet view (the same board as the hub's page) and a Wingmates panel. The agent relays the hub's viewer stream with the PC's token, only while one is on screen; the page may only send which member is open. The hub's page stays for phones, other screens, accounts and admin. Cost: the UI ships with the agent, so UI changes reach members when they update it.
+20. **Renamed Starglance (2026-11-24):** the agent works on its own as a personal dashboard; the fleet is the big extra, not a requirement, so the name covers both. Repo `bradqui/starglance` (old URLs redirect), `starglance.exe`, image `ghcr.io/bradqui/starglance-hub`, packages `starglance` (agent), `starglance_hub`, `starglance_shared`. The agent moves `%LOCALAPPDATA%\FleetTelemetry` and its Credential Manager entry over on first start. Checked for clashes first: no GitHub repos or software named Starglance, no US trademarks for it or "Star Glance" (only marks on the plain word GLANCE, none for game software).
 9. **Hull/shield bars (2026-11-23):** LIVE doesn't send hull health or shield levels (see FIELDS.md). The fleet board keeps hull and shield bars in the design anyway, alongside shield power and warning lights. Final call near the end of the build.

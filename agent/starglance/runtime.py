@@ -16,7 +16,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 
 import grpc
-from fleet_shared import Event, Snapshot
+from starglance_shared import Event, Snapshot
 
 from . import client
 from .events import EventDeriver

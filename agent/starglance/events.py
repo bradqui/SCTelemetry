@@ -14,7 +14,7 @@ fault (see ``expected_light``).
 
 from __future__ import annotations
 
-from fleet_shared import Event, Snapshot, expected_light
+from starglance_shared import Event, Snapshot, expected_light
 
 WARNING_OFF_HOLD_MS = 5000
 WARNING_ON_HOLD_MS = 600

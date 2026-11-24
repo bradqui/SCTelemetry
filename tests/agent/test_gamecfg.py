@@ -2,8 +2,8 @@ from datetime import datetime
 from pathlib import Path
 
 import pytest
-from fleet_agent import gamecfg
-from fleet_agent.gamecfg import ACTION_SETTINGS, TELEMETRY_SETTINGS, CfgState
+from starglance import gamecfg
+from starglance.gamecfg import ACTION_SETTINGS, TELEMETRY_SETTINGS, CfgState
 
 NOW = datetime(2026, 11, 23, 12, 0, 0)
 

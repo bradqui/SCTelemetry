@@ -104,7 +104,7 @@ Anything a member chose not to share is `null` (or `0` for `session.earned`).
 
 ### `GET /api/v1/members/{id}` (read)
 
-One member: `{"summary": {...as above...}, "snapshot": {...}}`. The snapshot is the full live state the agent sends (schema in `shared/fleet_shared/models.py`, field notes in `docs/FIELDS.md`): weapons, every warning light, power, vitals, contracts. `snapshot` is `null` while they're not in game.
+One member: `{"summary": {...as above...}, "snapshot": {...}}`. The snapshot is the full live state the agent sends (schema in `shared/starglance_shared/models.py`, field notes in `docs/FIELDS.md`): weapons, every warning light, power, vitals, contracts. `snapshot` is `null` while they're not in game.
 
 ### `GET /api/v1/events?since=<ms>&limit=<n>` (read)
 
@@ -144,7 +144,7 @@ Useful kinds for alerts:
 | `armistice_enter` / `armistice_leave`, `restricted_enter` / `restricted_leave` | |
 | `game_start`, `game_exit`, `seat_enter`, `seat_leave`, `ship_change`, `takeoff`, `landed` | (seat events: `seat`, `role`) |
 
-The full list is `EventKind` in `shared/fleet_shared/models.py`. A member's events only arrive if they share that category.
+The full list is `EventKind` in `shared/starglance_shared/models.py`. A member's events only arrive if they share that category.
 
 ### `POST /api/v1/invites` (invites)
 

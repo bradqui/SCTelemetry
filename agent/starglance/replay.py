@@ -7,7 +7,7 @@ Two ways to use a recording:
   pace (``speed`` scales it), optionally looping. It offers gRPC reflection, so
   the agent needs neither ``StarCitizen.exe`` nor a protoset to talk to it.
 - ``Playhead``: one shared, controllable position in a ``Recording`` (play,
-  pause, speed, seek, step). ``fleet_agent run --replay`` feeds it straight into
+  pause, speed, seek, step). ``starglance run --replay`` feeds it straight into
   the pipeline, and the local view gets a timeline with every event on it.
 """
 

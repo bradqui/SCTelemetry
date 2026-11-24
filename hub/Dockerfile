@@ -1,5 +1,5 @@
 # The fleet hub: the web UI (built here) plus the Python server.
-# Build from the repo root:  docker build -f hub/Dockerfile -t fleet-telemetry-hub .
+# Build from the repo root:  docker build -f hub/Dockerfile -t starglance-hub .
 # deploy/docker-compose.yml does this for you.
 
 FROM node:24-slim AS web
@@ -26,7 +26,7 @@ RUN pip install --no-cache-dir uv==0.9.25 \
     && pip uninstall -y uv && rm /tmp/requirements.txt
 
 COPY shared/ shared/
-COPY hub/fleet_hub/ hub/fleet_hub/
+COPY hub/starglance_hub/ hub/starglance_hub/
 COPY --from=web /web/dist/ web/
 
 RUN useradd --system --uid 10001 hub && mkdir -p /data && chown hub /data
@@ -37,4 +37,4 @@ EXPOSE 8100
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8100/api/health', timeout=4)"
 
-CMD ["python", "-m", "fleet_hub"]
+CMD ["python", "-m", "starglance_hub"]

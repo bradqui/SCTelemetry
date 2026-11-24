@@ -15,7 +15,7 @@ import logging
 from collections.abc import Callable
 
 import aiohttp
-from fleet_shared import SHARE_CATEGORIES
+from starglance_shared import SHARE_CATEGORIES
 
 from . import __version__, gamecfg, installs, switch
 from .fleetlink import (

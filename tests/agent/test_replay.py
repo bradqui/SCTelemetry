@@ -1,9 +1,9 @@
 from pathlib import Path
 
-from fleet_agent import client
-from fleet_agent.capturefile import read_frames
-from fleet_agent.normalize import Normalizer
-from fleet_agent.replay import ReplayServer, default_fixtures
+from starglance import client
+from starglance.capturefile import read_frames
+from starglance.normalize import Normalizer
+from starglance.replay import ReplayServer, default_fixtures
 
 FIXTURES = Path(__file__).parents[2] / "fixtures"
 
@@ -53,7 +53,7 @@ def test_default_fixture_order_is_a_session():
 
 # ---------------------------------------------------------------- recording + playhead
 
-from fleet_agent.replay import Playhead, Recording  # noqa: E402
+from starglance.replay import Playhead, Recording  # noqa: E402
 
 
 def _recording(*names: str) -> Recording:

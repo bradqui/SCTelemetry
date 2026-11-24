@@ -34,7 +34,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from aiohttp import WSMsgType, web
-from fleet_shared import Event, Snapshot
+from starglance_shared import Event, Snapshot
 
 from . import __version__, paths
 from .runtime import Pipeline
@@ -340,7 +340,7 @@ class LocalServer:
         if not index.exists():
             return web.Response(
                 content_type="text/html",
-                text="<h1>Fleet Telemetry agent</h1><p>The web UI isn't built. Run "
+                text="<h1>Starglance agent</h1><p>The web UI isn't built. Run "
                 "<code>npm install && npm run build</code> in <code>web/</code>.</p>"
                 '<p>Live data: <a href="/api/state">/api/state</a></p>',
             )

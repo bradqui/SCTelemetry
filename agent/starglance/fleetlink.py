@@ -1,21 +1,21 @@
 """Joining a fleet hub, linking more PCs, and what this PC shares (spec §5.1, §6.1).
 
 - **Joining** (new member): an admin sends you an invite link
-  (``https://<hub>/join/<code>``). ``fleet_agent link <that link>`` creates your
+  (``https://<hub>/join/<code>``). ``starglance link <that link>`` creates your
   account with a display name (your in-game handle, unless you pick another)
   and links this PC in one go. The link carries the hub's address, so one
   agent works for any org's hub.
-- **Another PC** (existing member): ``fleet_agent link https://<hub>`` shows a
+- **Another PC** (existing member): ``starglance link https://<hub>`` shows a
   code and opens the hub's page, where you confirm it while signed in.
-- **Opening the page**: ``fleet_agent open`` (or the Fleet chip in the cockpit
+- **Opening the page**: ``starglance open`` (or the Fleet chip in the cockpit
   view) signs a browser in with a one-time link.
 
-The PC's token is kept in Windows Credential Manager. With ``FLEET_TELEMETRY_HOME``
+The PC's token is kept in Windows Credential Manager. With ``STARGLANCE_HOME``
 set (tests, portable use), or where no credential store exists, it goes in a
 file in the agent's data folder instead.
 
 Sharing: every category is on by default; each can be switched off and is then
-never sent (``fleet_shared.apply_sharing``).
+never sent (``starglance_shared.apply_sharing``).
 """
 
 from __future__ import annotations
@@ -33,11 +33,13 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 import aiohttp
-from fleet_shared import SHARE_CATEGORIES
+from starglance_shared import SHARE_CATEGORIES
 
 from . import paths
 
-KEYRING_SERVICE = "FleetTelemetry"
+KEYRING_SERVICE = "Starglance"
+OLD_KEYRING_SERVICE = "FleetTelemetry"
+"""The Credential Manager entry's name before the rename: a key saved there is moved."""
 TOKEN_FILE = "hub-token"
 _INVITE = re.compile(r"^(https?://[^/]+)(/.*)?/join/([A-Za-z0-9_-]+)/?$")
 
@@ -99,7 +101,7 @@ def save_settings(s: FleetSettings) -> None:
 
 
 def _use_keyring() -> bool:
-    if os.environ.get("FLEET_TELEMETRY_HOME"):
+    if os.environ.get("STARGLANCE_HOME"):
         return False
     try:
         import keyring  # noqa: F401
@@ -133,6 +135,12 @@ def load_token(hub_url: str) -> str | None:
             token = keyring.get_password(KEYRING_SERVICE, hub_url)
             if token:
                 return token
+        with contextlib.suppress(Exception):  # linked before the rename: move it over
+            token = keyring.get_password(OLD_KEYRING_SERVICE, hub_url)
+            if token:
+                keyring.set_password(KEYRING_SERVICE, hub_url, token)
+                keyring.delete_password(OLD_KEYRING_SERVICE, hub_url)
+                return token
     try:
         data = json.loads(_token_file().read_text(encoding="utf-8"))
     except (FileNotFoundError, json.JSONDecodeError):
@@ -144,8 +152,9 @@ def forget_token(hub_url: str) -> None:
     if _use_keyring():
         import keyring
 
-        with contextlib.suppress(Exception):
-            keyring.delete_password(KEYRING_SERVICE, hub_url)
+        for service in (KEYRING_SERVICE, OLD_KEYRING_SERVICE):
+            with contextlib.suppress(Exception):
+                keyring.delete_password(service, hub_url)
     with contextlib.suppress(FileNotFoundError):
         _token_file().unlink()
 

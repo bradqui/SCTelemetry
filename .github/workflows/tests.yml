@@ -32,7 +32,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
-      - run: uv run --python 3.11 --with "pydantic>=2.8" python -c "import sys; sys.path.insert(0, 'shared'); import fleet_shared; print(fleet_shared.SCHEMA_VERSION)"
+      - run: uv run --python 3.11 --with "pydantic>=2.8" python -c "import sys; sys.path.insert(0, 'shared'); import starglance_shared; print(starglance_shared.SCHEMA_VERSION)"
 
   web:
     runs-on: ubuntu-latest
@@ -59,10 +59,10 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-      - run: docker build -f hub/Dockerfile -t fleet-telemetry-hub:ci .
+      - run: docker build -f hub/Dockerfile -t starglance-hub:ci .
       - name: Start it and check it answers
         run: |
-          docker run -d --name hub -p 127.0.0.1:8100:8100 -e HUB_DEV_LOGIN=1 fleet-telemetry-hub:ci
+          docker run -d --name hub -p 127.0.0.1:8100:8100 -e HUB_DEV_LOGIN=1 starglance-hub:ci
           for i in $(seq 1 30); do curl -fs http://127.0.0.1:8100/api/health && break; sleep 1; done
           curl -fs http://127.0.0.1:8100/api/mode
           curl -fs http://127.0.0.1:8100/ | grep -q '<div id="app">'

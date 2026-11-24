@@ -5,7 +5,7 @@
   import Card from "./Card.svelte";
 
   // /join/<code>: an invite. Players usually paste the link into their agent instead
-  // (`fleet_agent link <link>`), which also sets up their PC; this page is for
+  // (`starglance link <link>`), which also sets up their PC; this page is for
   // joining from a browser, e.g. someone who only watches.
   let { mode, code }: { mode: HubMode; code: string } = $props();
 
@@ -37,10 +37,10 @@
   }
 </script>
 
-<Card title={info?.org ?? mode.org} subtitle="Fleet Telemetry">
+<Card title={info?.org ?? mode.org} subtitle="Starglance">
   {#if mode.me}
     <h1>You're already a member</h1>
-    <p>You're signed in as <b>{mode.me.name}</b>. To link another PC, run <code>fleet_agent link {location.origin}</code> on it.</p>
+    <p>You're signed in as <b>{mode.me.name}</b>. To link another PC, run <code>starglance link {location.origin}</code> on it.</p>
     <p><a href="/">Go to the fleet</a></p>
   {:else if phase === "loading"}
     <p>Checking the invite…</p>
@@ -51,7 +51,7 @@
   {:else if phase === "done"}
     <h1>Welcome, {name}</h1>
     <p>
-      To share your own telemetry, link your gaming PC: run <code>fleet_agent link {location.origin}</code> there and
+      To share your own telemetry, link your gaming PC: run <code>starglance link {location.origin}</code> there and
       confirm the code it shows.
     </p>
     <p><a href="/">Go to the fleet</a></p>
@@ -60,7 +60,7 @@
     <section>
       <h3>On your gaming PC</h3>
       <p>Paste this into the agent. It sets up your account and your PC in one go:</p>
-      <p><code>fleet_agent link {link}</code></p>
+      <p><code>starglance link {link}</code></p>
     </section>
     <section>
       <h3>Or join here</h3>

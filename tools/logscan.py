@@ -21,7 +21,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / "agent"), str(ROOT / "shared")]
 
-from fleet_agent import installs  # noqa: E402
+from starglance import installs  # noqa: E402
 
 TAGS = {
     "login (handle)": r"<Legacy login response>.*Handle\[",

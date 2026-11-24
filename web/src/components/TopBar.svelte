@@ -70,7 +70,7 @@
 <header class="top topbar {alarm ? `alarm-${alarm.level}` : ''}" class:compact>
   <div class="brand">
     <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 3 29 27H3z" /><circle cx="16" cy="20" r="3" /></svg>
-    {#if !compact}<span>Fleet Telemetry</span>{/if}
+    {#if !compact}<span>Starglance</span>{/if}
   </div>
 
   <div class="who">

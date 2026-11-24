@@ -61,8 +61,8 @@
 
 <div class="page">
   <header class="hero">
-    <p class="eyebrow">Star Citizen · org fleet telemetry</p>
-    <h1 class="display">Fleet Telemetry</h1>
+    <p class="eyebrow">Star Citizen · ship and crew status</p>
+    <h1 class="display">Starglance</h1>
     <p class="lede">
       Live ship and crew status for our org, read from Star Citizen's own telemetry. Your own cockpit screen on a second
       monitor or VR overlay, and the whole fleet at a glance on one page: who's flying what, where, in which mode, with
@@ -205,7 +205,7 @@
     <div>
       <h2 class="display">Joining</h2>
       <ul>
-        <li>An admin sends an invite link. On your gaming PC: <code>fleet_agent link &lt;invite&gt;</code> makes your account (named after your in-game handle unless you pick another) and links the PC in one step.</li>
+        <li>An admin sends an invite link. On your gaming PC: <code>starglance link &lt;invite&gt;</code> makes your account (named after your in-game handle unless you pick another) and links the PC in one step.</li>
         <li>Open the fleet page from the agent, already signed in. On a phone, type a short code from a signed-in device.</li>
         <li>No passwords anywhere, and no Discord needed. Discord sign-in can be switched on as an extra.</li>
         <li>Admins: invites with use limits and expiry, suspend or remove members (with their history), make other admins.</li>
@@ -277,7 +277,7 @@
   <footer>
     <p>
       Not affiliated with Cloud Imperium Games. Star Citizen is a trademark of Cloud Imperium Rights LLC. Source:
-      <a href="https://github.com/bradqui/SCTelemetry" target="_blank" rel="noopener">github.com/bradqui/SCTelemetry</a>
+      <a href="https://github.com/bradqui/starglance" target="_blank" rel="noopener">github.com/bradqui/starglance</a>
     </p>
   </footer>
 </div>

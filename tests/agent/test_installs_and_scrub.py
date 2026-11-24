@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from fleet_agent import installs, scrub
+from starglance import installs, scrub
 
 
 def make_channel(root: Path, channel: str) -> Path:
@@ -29,7 +29,7 @@ def test_installs_under_accepts_a_channel_folder(tmp_path):
 
 
 def test_remembered_root(tmp_path, monkeypatch):
-    monkeypatch.setenv("FLEET_TELEMETRY_HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("STARGLANCE_HOME", str(tmp_path / "home"))
     root = tmp_path / "Games" / "StarCitizen"
     make_channel(root, "LIVE")
     installs.remember_root(root)

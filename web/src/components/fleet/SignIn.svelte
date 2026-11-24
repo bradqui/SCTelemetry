@@ -29,7 +29,7 @@
   }
 </script>
 
-<Card title={mode.org} subtitle="Fleet Telemetry">
+<Card title={mode.org} subtitle="Starglance">
   {#if mode.setup}
     <p class="warn">
       This hub has no admin yet. Its setup link is in the hub's log (for Docker: <code>docker compose logs hub</code>).
@@ -40,7 +40,7 @@
 
   <section>
     <h3>From your gaming PC</h3>
-    <p>If your agent is linked, run <code>fleet_agent open</code>, or in its cockpit view open <b>Fleet</b>, then <b>Open on the hub</b> in your name's menu.</p>
+    <p>If your agent is linked, run <code>starglance open</code>, or in its cockpit view open <b>Fleet</b>, then <b>Open on the hub</b> in your name's menu.</p>
   </section>
 
   <section>

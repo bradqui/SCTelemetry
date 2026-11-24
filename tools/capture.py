@@ -33,8 +33,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "agent"))
 
 import grpc  # noqa: E402
-from fleet_agent import client, installs, protoset, scrub  # noqa: E402
-from fleet_agent.gamelog import GameLogTail  # noqa: E402
+from starglance import client, installs, protoset, scrub  # noqa: E402
+from starglance.gamelog import GameLogTail  # noqa: E402
 
 STATUS_EVERY = 10.0  # seconds between progress lines
 

@@ -4,7 +4,7 @@ Free code signing provided by [SignPath.io](https://about.signpath.io), certific
 
 ## What is signed
 
-`fleet-agent.exe`, the Windows agent attached to each [release](https://github.com/bradqui/SCTelemetry/releases). Nothing else is signed with this certificate.
+`starglance.exe`, the Windows agent attached to each [release](https://github.com/bradqui/starglance/releases). Nothing else is signed with this certificate.
 
 Every signed file is built by the [Release workflow](../.github/workflows/release.yml) on GitHub-hosted runners, from a tagged commit of this public repository. The build runs the tests, builds the web UI, and packages the agent with PyInstaller. The resulting file is submitted to SignPath from that same workflow run. Each signing request is approved by hand on SignPath before the file is signed.
 
@@ -27,4 +27,4 @@ In particular, the agent connects only to the game on the same PC and to the fle
 
 ## Reporting
 
-If you think something signed with this certificate is malicious or was not built from this repository, tell us via a [GitHub security advisory](https://github.com/bradqui/SCTelemetry/security/advisories/new) or an issue. You can also report it to SignPath at support@signpath.io.
+If you think something signed with this certificate is malicious or was not built from this repository, tell us via a [GitHub security advisory](https://github.com/bradqui/starglance/security/advisories/new) or an issue. You can also report it to SignPath at support@signpath.io.

@@ -1,18 +1,18 @@
 """Command line for the agent (the tray app comes later).
 
-python -m fleet_agent run     [--open] [--game-port 2943] [--ui-port 8740] [--no-uplink]
-python -m fleet_agent run     --replay [FILES...] [--speed 1] [--open] [--uplink]
-python -m fleet_agent link    <invite link>            # join a fleet (from an admin)
-python -m fleet_agent link    https://fleet.example     # link another PC to your account
-python -m fleet_agent open                              # open the fleet page, signed in
-python -m fleet_agent unlink
-python -m fleet_agent share   [--off vitals uec ...] [--on ...]
-python -m fleet_agent installs
-python -m fleet_agent status  [--channel LIVE]
-python -m fleet_agent on      [--channel LIVE]
-python -m fleet_agent off     [--channel LIVE]
-python -m fleet_agent protoset [--channel LIVE] [--out telemetry.protoset] [--force]
-python -m fleet_agent probe   [--channel LIVE]
+python -m starglance run     [--open] [--game-port 2943] [--ui-port 8740] [--no-uplink]
+python -m starglance run     --replay [FILES...] [--speed 1] [--open] [--uplink]
+python -m starglance link    <invite link>            # join a fleet (from an admin)
+python -m starglance link    https://fleet.example     # link another PC to your account
+python -m starglance open                              # open the fleet page, signed in
+python -m starglance unlink
+python -m starglance share   [--off vitals uec ...] [--on ...]
+python -m starglance installs
+python -m starglance status  [--channel LIVE]
+python -m starglance on      [--channel LIVE]
+python -m starglance off     [--channel LIVE]
+python -m starglance protoset [--channel LIVE] [--out telemetry.protoset] [--force]
+python -m starglance probe   [--channel LIVE]
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ import logging
 import sys
 from pathlib import Path
 
-from fleet_shared import SHARE_CATEGORIES
+from starglance_shared import SHARE_CATEGORIES
 
 from . import gamecfg, installs, paths, protoset, switch, winenv
 from .installs import Install
@@ -123,10 +123,10 @@ def cmd_run(args) -> None:
         if control.uplink_wanted and not control.start_uplink():
             print(
                 "Fleet: not linked. Local view only. To join a fleet: Agent settings in the "
-                "cockpit view (the gear, top right), or fleet_agent link <invite link>."
+                "cockpit view (the gear, top right), or starglance link <invite link>."
             )
         url = f"http://127.0.0.1:{server.port}/"
-        print(f"Fleet Telemetry agent: local view at {url}")
+        print(f"Starglance agent: local view at {url}")
         print(f"{source} Ctrl+C stops.")
         if args.open:
             webbrowser.open(url)
@@ -164,7 +164,7 @@ def cmd_link(args) -> None:
         sys.exit(str(exc))
     org = f" ({settings.org})" if settings.org else ""
     print(f"Done: this PC sends to {settings.hub_url}{org} as {settings.member_name or 'you'}.")
-    print("Start the agent with: python -m fleet_agent run    (open the fleet page: open)")
+    print("Start the agent with: python -m starglance run    (open the fleet page: open)")
 
 
 def _ask_name(default: str | None) -> str:
@@ -190,7 +190,7 @@ def cmd_open(args) -> None:
     settings = load_settings()
     token = load_token(settings.hub_url) if settings.hub_url else None
     if not settings.hub_url or not token:
-        sys.exit("Not linked to a fleet. Run: python -m fleet_agent link <invite link>")
+        sys.exit("Not linked to a fleet. Run: python -m starglance link <invite link>")
     try:
         url = asyncio.run(login_link(settings.hub_url, token))
     except LinkError as exc:
@@ -308,7 +308,7 @@ def cmd_probe(args) -> None:
     if not client.wait_ready(channel, timeout=args.timeout):
         sys.exit(
             "Nothing is listening. Is the game running and loaded in, with telemetry "
-            "switched on (python -m fleet_agent status)?"
+            "switched on (python -m starglance status)?"
         )
     try:
         from .schema import TelemetrySchema
@@ -322,7 +322,7 @@ def cmd_probe(args) -> None:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="fleet_agent", description="Fleet Telemetry agent tools")
+    parser = argparse.ArgumentParser(prog="starglance", description="Starglance agent tools")
     parser.add_argument("-v", "--verbose", action="store_true")
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -375,7 +375,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> None:
     if argv is None and getattr(sys, "frozen", False) and len(sys.argv) == 1:
-        argv = ["run", "--open"]  # fleet-agent.exe double-clicked: start, show the cockpit
+        argv = ["run", "--open"]  # starglance.exe double-clicked: start, show the cockpit
     args = build_parser().parse_args(argv)
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.WARNING)
     try:

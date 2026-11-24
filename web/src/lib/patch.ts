@@ -1,4 +1,4 @@
-// Mirrors shared/fleet_shared/patch.py: objects merge key by key; anything else
+// Mirrors shared/starglance_shared/patch.py: objects merge key by key; anything else
 // (including null and arrays) replaces. Keys are never deleted.
 
 type Json = null | boolean | number | string | Json[] | { [key: string]: Json };

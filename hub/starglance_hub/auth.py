@@ -343,7 +343,7 @@ def page(status: int, title: str, text: str) -> web.Response:
     """A plain message page (sign-in errors). Titles and texts are ours, never user input."""
     html = f"""<!doctype html><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>{title} · Fleet Telemetry</title>
+<title>{title} · Starglance</title>
 <style>body{{font:15px system-ui,sans-serif;background:#0a0f16;color:#dbe6f2;display:grid;
 place-items:center;min-height:90vh;margin:0}}main{{max-width:40ch;padding:24px;
 border:1px solid #23303f;border-radius:6px;background:#101823}}h1{{font-size:1.2rem;margin:0 0 8px}}

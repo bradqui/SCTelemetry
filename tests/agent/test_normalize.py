@@ -4,10 +4,10 @@ from collections import Counter
 from pathlib import Path
 
 import pytest
-from fleet_agent.capturefile import read_frames
-from fleet_agent.events import EventDeriver
-from fleet_agent.normalize import Normalizer, model_name, raw_game_events, seat_role
-from fleet_shared import Snapshot, apply_sharing
+from starglance.capturefile import read_frames
+from starglance.events import EventDeriver
+from starglance.normalize import Normalizer, model_name, raw_game_events, seat_role
+from starglance_shared import Snapshot, apply_sharing
 
 FIXTURES = Path(__file__).parents[2] / "fixtures"
 ALL = sorted(FIXTURES.glob("*.jsonl.gz"))

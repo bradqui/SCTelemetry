@@ -214,7 +214,7 @@
         <button class="btn primary" onclick={createInvite}>Create</button>
       </div>
       {#if newInvite}
-        <p style="margin-top:10px">Send this link. Players run <code>fleet_agent link &lt;link&gt;</code>; anyone can also open it in a browser.</p>
+        <p style="margin-top:10px">Send this link. Players run <code>starglance link &lt;link&gt;</code>; anyone can also open it in a browser.</p>
         <div class="secret">
           <code>{newInvite}</code>
           <button class="btn" onclick={() => copyNow(newInvite!)}>{copied ? "Copied" : "Copy"}</button>

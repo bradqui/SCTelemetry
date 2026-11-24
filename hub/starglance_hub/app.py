@@ -25,7 +25,7 @@ from pathlib import Path
 
 import aiohttp
 from aiohttp import WSMsgType, web
-from fleet_shared import RELEASES_URL
+from starglance_shared import RELEASES_URL
 
 from . import MIN_AGENT_VERSION, __version__
 from .auth import SESSION_COOKIE, Auth, Discord, page, valid_next
@@ -393,7 +393,7 @@ class Hub:
     # -- agents: join with an invite, link to an account, open the page
 
     async def agent_join(self, request: web.Request) -> web.Response:
-        """``fleet_agent link <invite link>``: account and PC in one go, no browser."""
+        """``starglance link <invite link>``: account and PC in one go, no browser."""
         self._limited(request, "join", 10)
         body = await _body(request)
         member = self._create_from_invite(str(body.get("invite", "")), str(body.get("name", "")))
@@ -442,7 +442,7 @@ class Hub:
         )
 
     async def agent_login_link(self, request: web.Request) -> web.Response:
-        """The agent opens the fleet page already signed in (``fleet_agent open``)."""
+        """The agent opens the fleet page already signed in (``starglance open``)."""
         _agent, member = self._agent_member(request)
         token = self.db.new_login_link(member.id)
         return web.json_response({"url": f"{self.cfg.hub_url}/auth/token/{token}"})
@@ -865,7 +865,7 @@ class Hub:
         if not index.exists():
             return web.Response(
                 content_type="text/html",
-                text="<h1>Fleet Telemetry hub</h1><p>The web UI isn't built.</p>",
+                text="<h1>Starglance hub</h1><p>The web UI isn't built.</p>",
             )
         target = (self.web_dir / rel).resolve()
         if rel and target.is_file() and self.web_dir.resolve() in target.parents:

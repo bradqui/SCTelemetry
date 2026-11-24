@@ -3,9 +3,9 @@
 import random
 
 import pytest
-from fleet_agent import protoset
-from fleet_agent.schema import TelemetrySchema
 from google.protobuf import descriptor_pb2, json_format
+from starglance import protoset
+from starglance.schema import TelemetrySchema
 
 F = descriptor_pb2.FieldDescriptorProto
 

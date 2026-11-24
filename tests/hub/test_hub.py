@@ -11,12 +11,12 @@ from pathlib import Path
 import aiohttp
 from aiohttp import web
 from aiohttp.test_utils import TestServer
-from fleet_agent.capturefile import read_frames
-from fleet_agent.normalize import Normalizer
-from fleet_hub.app import Hub
-from fleet_hub.config import Config
-from fleet_hub.db import MIGRATIONS, Database
-from fleet_shared import SCHEMA_VERSION
+from starglance.capturefile import read_frames
+from starglance.normalize import Normalizer
+from starglance_hub.app import Hub
+from starglance_hub.config import Config
+from starglance_hub.db import MIGRATIONS, Database
+from starglance_shared import SCHEMA_VERSION
 
 FIXTURES = Path(__file__).parents[2] / "fixtures"
 
@@ -316,7 +316,7 @@ def test_add_a_device_and_open_from_the_agent(tmp_path):
                 again = await post(other, hub, "/api/signin/code", {"code": code})
                 assert again.status == 404, "a device code works once"
 
-            # `fleet_agent open`: a one-time link signs a browser in.
+            # `starglance open`: a one-time link signs a browser in.
             async with aiohttp.ClientSession() as agent:
                 resp = await agent.post(
                     f"{hub.cfg.hub_url}/api/agent/login-link",
@@ -655,9 +655,9 @@ def test_without_discord_there_is_no_discord_sign_in(tmp_path):
 def test_the_local_fleet_view_through_the_agent(tmp_path):
     """A linked PC's agent opens the fleet stream with its token and relays it to its
     local page; the page may only choose who's open. Without a link: "unlinked"."""
-    from fleet_agent.localserver import LocalServer
-    from fleet_agent.runtime import Pipeline
-    from fleet_agent.uplink import Uplink
+    from starglance.localserver import LocalServer
+    from starglance.runtime import Pipeline
+    from starglance.uplink import Uplink
 
     async def main():
         async with running_hub(tmp_path) as (hub, _srv), browser() as viewer:
@@ -711,7 +711,7 @@ EDGE = (
 
 
 def test_device_labels():
-    from fleet_hub.auth import device_label
+    from starglance_hub.auth import device_label
 
     assert device_label(IPHONE) == "Safari on iPhone"
     assert device_label(EDGE) == "Edge on Windows"
@@ -773,7 +773,7 @@ def test_signed_in_devices_and_signing_them_out(tmp_path):
 
 
 def test_agents_hear_the_current_version_and_old_ones_are_refused(tmp_path):
-    from fleet_hub import MIN_AGENT_VERSION, __version__
+    from starglance_hub import MIN_AGENT_VERSION, __version__
 
     async def main():
         async with running_hub(tmp_path) as (hub, _srv), browser() as viewer:
@@ -802,11 +802,11 @@ def test_agents_hear_the_current_version_and_old_ones_are_refused(tmp_path):
 def test_agent_settings_join_share_and_leave(tmp_path, monkeypatch):
     """The cockpit's Agent tab: join a fleet with an invite link, stop sharing something
     (the hub hears at once), leave (the hub forgets this PC). No restart."""
-    from fleet_agent.control import AgentControl
-    from fleet_agent.localserver import LocalServer
-    from fleet_agent.runtime import Pipeline
+    from starglance.control import AgentControl
+    from starglance.localserver import LocalServer
+    from starglance.runtime import Pipeline
 
-    monkeypatch.setenv("FLEET_TELEMETRY_HOME", str(tmp_path / "agent"))
+    monkeypatch.setenv("STARGLANCE_HOME", str(tmp_path / "agent"))
     (tmp_path / "agent").mkdir()
 
     async def main():

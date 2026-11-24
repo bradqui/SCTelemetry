@@ -1,6 +1,6 @@
 # Security
 
-Please report security problems privately, through a [GitHub security advisory](https://github.com/bradqui/SCTelemetry/security/advisories/new), not in a public issue. You'll get an answer within a few days.
+Please report security problems privately, through a [GitHub security advisory](https://github.com/bradqui/starglance/security/advisories/new), not in a public issue. You'll get an answer within a few days.
 
 Useful to include: what's affected (agent, hub or page), the version, and how to reproduce it.
 

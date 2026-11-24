@@ -1,6 +1,6 @@
 """Live fleet state (memory only) and the fan-out to viewers (spec §4, §6.2).
 
-Agents send a full snapshot, then deltas (``fleet_shared.patch``) at up to
+Agents send a full snapshot, then deltas (``starglance_shared.patch``) at up to
 10 Hz. The hub keeps each member's latest state and tells viewers:
 
 - the **roster**: a summary of every member (presence, ship, mode, location,
@@ -23,7 +23,8 @@ from collections.abc import Callable
 from typing import Any
 
 from aiohttp import web
-from fleet_shared import (
+from pydantic import ValidationError
+from starglance_shared import (
     FLEET_ALARM_HOLD_MS,
     FLEET_ALARM_OFF_MS,
     RELEASES_URL,
@@ -39,7 +40,6 @@ from fleet_shared import (
     make_patch,
     version_tuple,
 )
-from pydantic import ValidationError
 
 from .config import Config
 from .db import Database, Member, now_ms

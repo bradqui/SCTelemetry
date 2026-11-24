@@ -34,7 +34,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from fleet_shared import Aboard, Event, Injury, Location, Mission, Route, Session
+from starglance_shared import Aboard, Event, Injury, Location, Mission, Route, Session
 
 from .normalize import model_name
 

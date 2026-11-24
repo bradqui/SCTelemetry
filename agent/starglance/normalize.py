@@ -41,7 +41,7 @@ import logging
 import re
 from typing import Any
 
-from fleet_shared import (
+from starglance_shared import (
     Countermeasure,
     Environment,
     Flight,

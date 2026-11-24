@@ -16,7 +16,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 SCHEMA_VERSION = 1
 
-RELEASES_URL = "https://github.com/bradqui/SCTelemetry/releases/latest"
+RELEASES_URL = "https://github.com/bradqui/starglance/releases/latest"
 """Where agents are downloaded (the hub's update notices point here)."""
 
 
@@ -345,7 +345,7 @@ class Hello(_Model):
 
 
 class Delta(_Model):
-    """What changed in the snapshot since the last one sent (see ``fleet_shared.patch``).
+    """What changed in the snapshot since the last one sent (see ``starglance_shared.patch``).
 
     Agent -> hub only, between full snapshots. ``patch`` is a merge patch of the
     snapshot's JSON (by alias, e.g. ``ship.class``)."""

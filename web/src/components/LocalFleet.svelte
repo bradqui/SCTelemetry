@@ -44,7 +44,7 @@
         <p>{fleet.problem} Trying again…</p>
       {:else if fleet.socket === "closed"}
         <h1>Can't reach the agent</h1>
-        <p>Start it with <code>python -m fleet_agent run</code>. This page reconnects by itself.</p>
+        <p>Start it with <code>python -m starglance run</code>. This page reconnects by itself.</p>
       {:else}
         <h1>Connecting to the fleet…</h1>
       {/if}

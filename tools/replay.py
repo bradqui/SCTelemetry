@@ -19,7 +19,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / "agent"), str(ROOT / "shared")]
 
-from fleet_agent.replay import DEFAULT_PROTOSET, ReplayServer, default_fixtures  # noqa: E402
+from starglance.replay import DEFAULT_PROTOSET, ReplayServer, default_fixtures  # noqa: E402
 
 
 def main() -> None:

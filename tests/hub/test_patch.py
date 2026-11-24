@@ -1,12 +1,12 @@
-"""Merge patches between states (fleet_shared.patch)."""
+"""Merge patches between states (starglance_shared.patch)."""
 
 import json
 from pathlib import Path
 
 import pytest
-from fleet_agent.capturefile import read_frames
-from fleet_agent.normalize import Normalizer
-from fleet_shared import apply_patch, make_patch
+from starglance.capturefile import read_frames
+from starglance.normalize import Normalizer
+from starglance_shared import apply_patch, make_patch
 
 FIXTURES = Path(__file__).parents[2] / "fixtures"
 

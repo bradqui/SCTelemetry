@@ -1,6 +1,6 @@
 # Telemetry fields (from the game's own definitions)
 
-**Source:** extracted from the LIVE `StarCitizen.exe` dated 2026-11-19 (175,570,944 bytes) with `python -m fleet_agent protoset`. Package `sc.game.telemetry.v1`, files `types.proto` and `api.proto`, proto3.
+**Source:** extracted from the LIVE `StarCitizen.exe` dated 2026-11-19 (175,570,944 bytes) with `python -m starglance protoset`. Package `sc.game.telemetry.v1`, files `types.proto` and `api.proto`, proto3.
 
 The first half of this document is the **schema**: which fields exist and their types. **Observed in a real session** describes what the game actually sends. A HOTFIX build from 2026-06-12 predates telemetry and has no definitions.
 
@@ -176,7 +176,7 @@ So the normalizer infers `flight.quantum` as: `thr` major, `qdrv` lit (NAV), and
 
 ## Game.log
 
-The game's own debug log (`<channel>/Game.log`, a new file each launch; older ones in `logbackups/`). It isn't an API, but it carries what the telemetry stream doesn't. `agent/fleet_agent/gamelog.py` follows it read-only and keeps only lines it recognises. Most useful lines are on-screen notifications, written as `<UpdateNotificationItem> Notification "<text>" [n], Action: Next` (then again with `StartFade` and `Remove`; we read only `Next`). Some notification texts contain a newline, so the line continues on the next log line, which starts with a timestamp and no tag; the reader joins them.
+The game's own debug log (`<channel>/Game.log`, a new file each launch; older ones in `logbackups/`). It isn't an API, but it carries what the telemetry stream doesn't. `agent/starglance/gamelog.py` follows it read-only and keeps only lines it recognises. Most useful lines are on-screen notifications, written as `<UpdateNotificationItem> Notification "<text>" [n], Action: Next` (then again with `StartFade` and `Remove`; we read only `Next`). Some notification texts contain a newline, so the line continues on the next log line, which starts with a timestamp and no tag; the reader joins them.
 
 **What we use**
 

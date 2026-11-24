@@ -1,6 +1,10 @@
-# SC Fleet Telemetry
+# Starglance
 
-Live Star Citizen ship and crew status for your org. Each player runs a small agent on their gaming PC that reads the game's own telemetry. They get a cockpit dashboard for a second monitor or VR overlay, and the org gets a fleet view showing everyone at a glance: who's flying what (and who's aboard whose ship), in which mode, where, with which warnings. Click anyone to see their full dashboard. The fleet view is in the cockpit page itself, and on the org's hub for phones and other screens.
+**Your Star Citizen ship and crew, at a glance.**
+
+Starglance reads the game's own telemetry on your PC and turns it into a cockpit dashboard for a second monitor, a tablet or a VR overlay: flight, ship, warnings, fuel, weapons, vitals, location, contracts. On its own, that's all it does: nothing leaves your PC.
+
+Play with others? Join your org's fleet and everyone sees everyone at a glance: who's flying what (and who's aboard whose ship), in which mode, where, with which warnings, and anyone's full dashboard a click away. The fleet view is in your cockpit page, and on your org's own hub (a small self-hosted server) for phones and other screens.
 
 > **Not affiliated with Cloud Imperium Games.** Star Citizen is a trademark of Cloud Imperium Rights LLC. This project only reads what the game itself offers for this purpose: its local telemetry stream (switched on in `user.cfg`) and its `Game.log` text file. It doesn't touch game memory or Easy Anti-Cheat, never sends anything to the game, and has no world coordinates.
 
@@ -16,7 +20,7 @@ Discord is optional: members join with invite links; a hub can also offer "Sign 
 
 ## For players
 
-Download **fleet-agent.exe** from the [latest release](https://github.com/bradqui/SCTelemetry/releases/latest) and double-click it. Your cockpit view opens in the browser (`http://127.0.0.1:8740`); keep the agent's window open while you play.
+Download **starglance.exe** from the [latest release](https://github.com/bradqui/starglance/releases/latest) and double-click it. Your cockpit view opens in the browser (`http://127.0.0.1:8740`); keep the agent's window open while you play.
 
 Then open **Settings → Agent** (the sliders button, top right):
 
@@ -24,35 +28,35 @@ Then open **Settings → Agent** (the sliders button, top right):
 2. **Fleet**: paste the invite link from your org's admin and pick your display name (your in-game handle by default).
 3. **What you share**: everything is on by default; switch off anything you'd rather keep to yourself.
 
-Everything there is also on the command line (`fleet-agent.exe --help`, or `uv run python -m fleet_agent` from the source):
+Everything there is also on the command line (`starglance.exe --help`, or `uv run python -m starglance` from the source):
 
 ```
-fleet-agent on                 # switch the game's telemetry on (backs up user.cfg)
-fleet-agent link <invite>      # join with the invite link from your org's admin
-fleet-agent run --open         # cockpit view, and sends to the fleet
+starglance on                 # switch the game's telemetry on (backs up user.cfg)
+starglance link <invite>      # join with the invite link from your org's admin
+starglance run --open         # cockpit view, and sends to the fleet
 ```
 
-**Fleet** in the cockpit view's top bar shows the whole fleet in the same page, and the **Wingmates** panel (Pilot and Combat layouts, or add it in Customize) keeps everyone's ship, mode, speed and altitude next to your own dashboard. **Open on the hub** in the fleet view, or `fleet_agent open`, opens the hub's fleet page in your browser, signed in.
+**Fleet** in the cockpit view's top bar shows the whole fleet in the same page, and the **Wingmates** panel (Pilot and Combat layouts, or add it in Customize) keeps everyone's ship, mode, speed and altitude next to your own dashboard. **Open on the hub** in the fleet view, or `starglance open`, opens the hub's fleet page in your browser, signed in.
 
-**What you share** is up to you (Settings → Agent, or `fleet-agent share --off vitals uec`). Anything switched off never leaves your PC. Whoever runs your org's hub can see what you share. The agent talks to the game on your PC and to your org's hub, nothing else: see [PRIVACY.md](PRIVACY.md). `unlink` stops sending; **Your account** on the hub's fleet page can unlink PCs or delete your account and history.
+**What you share** is up to you (Settings → Agent, or `starglance share --off vitals uec`). Anything switched off never leaves your PC. Whoever runs your org's hub can see what you share. The agent talks to the game on your PC and to your org's hub, nothing else: see [PRIVACY.md](PRIVACY.md). `unlink` stops sending; **Your account** on the hub's fleet page can unlink PCs or delete your account and history.
 
 **On your phone** (or any other device): on the hub's fleet page, open **Your account → Sign in on another device**. It shows a short code; on the phone, open the hub's address, choose "I have a code" and type it. The code works once, for 10 minutes. **Signed-in devices** on the same page lists every browser signed in as you; sign out a lost phone there, or all of them but the one you're on. If the hub offers Discord, "Sign in with Discord" works on any device too.
 
-To undo the game setting: Settings → Agent → Switch off, or `fleet-agent off`. It restores `user.cfg` exactly.
+To undo the game setting: Settings → Agent → Switch off, or `starglance off`. It restores `user.cfg` exactly.
 
-**Code signing policy**: release builds of `fleet-agent.exe` are signed: free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org) (from the first release after the project is accepted). See [docs/CODE_SIGNING.md](docs/CODE_SIGNING.md) for what's signed, how it's built, and who approves it.
+**Code signing policy**: release builds of `starglance.exe` are signed: free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org) (from the first release after the project is accepted). See [docs/CODE_SIGNING.md](docs/CODE_SIGNING.md) for what's signed, how it's built, and who approves it.
 
 ## For org admins
 
-Run a hub: [deploy/README.md](deploy/README.md). Docker (a released image, `ghcr.io/bradqui/sctelemetry-hub`), a domain, a reverse proxy with https, about ten minutes. The first start logs a one-time link that makes you admin; then create invite links for your members on the fleet page.
+Run a hub: [deploy/README.md](deploy/README.md). Docker (a released image, `ghcr.io/bradqui/starglance-hub`), a domain, a reverse proxy with https, about ten minutes. The first start logs a one-time link that makes you admin; then create invite links for your members on the fleet page.
 
 ## The cockpit view
 
 Without the game, replay real recordings:
 
 ```
-uv run python -m fleet_agent run --replay --open            # the bundled recordings
-uv run python -m fleet_agent run --replay captures/x.jsonl  # or your own capture
+uv run python -m starglance run --replay --open            # the bundled recordings
+uv run python -m starglance run --replay captures/x.jsonl  # or your own capture
 ```
 
 A timeline at the bottom has every event on it (seat changes, takeoff, landing, NAV/SCM, warnings, kills, contracts). Click a marker, use **Events** to pick one, or press ← / → to jump to the previous or next event. Space plays and pauses, Shift+← / → moves 10 s, `,` / `.` step one frame while paused. `--speed 4` starts it faster.
@@ -80,8 +84,8 @@ Releases (the exe, the hub image, signing): [docs/RELEASING.md](docs/RELEASING.m
 ### Capturing telemetry
 
 ```
-uv run python -m fleet_agent installs              # finds LIVE/PTU/... and shows on/off
-uv run python -m fleet_agent probe                 # optional: is the game's server up?
+uv run python -m starglance installs              # finds LIVE/PTU/... and shows on/off
+uv run python -m starglance probe                 # optional: is the game's server up?
 uv run python tools/capture.py                     # records the session until Ctrl+C
 ```
 
@@ -97,8 +101,8 @@ Fixtures are committed and the repo is public, so scrub them: aUEC is scrubbed a
 ### Layout
 
 ```
-agent/     Windows agent (fleet_agent)
-hub/       the fleet hub (fleet_hub, Dockerfile)
+agent/     Windows agent (starglance)
+hub/       the fleet hub (starglance_hub, Dockerfile)
 deploy/    docker-compose.yml and how to run a hub
 web/       the page: cockpit view and fleet page (Svelte 5)
 shared/    the wire schema (Pydantic) and merge patches

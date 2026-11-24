@@ -25,7 +25,7 @@ from collections import deque
 from collections.abc import Callable
 
 import aiohttp
-from fleet_shared import (
+from starglance_shared import (
     RELEASES_URL,
     SCHEMA_VERSION,
     Event,
@@ -165,7 +165,7 @@ class Uplink:
                     if exc.status == 401:
                         self._set_status(
                             state="rejected",
-                            message="This PC isn't linked any more. Run: fleet_agent link",
+                            message="This PC isn't linked any more. Run: starglance link",
                         )
                         log.warning("Hub refused the token; not retrying")
                         return

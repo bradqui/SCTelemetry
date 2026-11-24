@@ -1,4 +1,4 @@
-// Mirrors shared/fleet_shared/models.py (schema v1). Keep the two in step.
+// Mirrors shared/starglance_shared/models.py (schema v1). Keep the two in step.
 
 export type Level = "off" | "nominal" | "minor" | "minor_flashing" | "major" | "major_flashing";
 export type Locomotion = "on_foot" | "eva" | "seated" | "unknown";
@@ -177,7 +177,7 @@ export interface AgentState {
   since: number;
 }
 
-// Replay mode (`fleet_agent run --replay`) only.
+// Replay mode (`starglance run --replay`) only.
 
 export interface ReplayMarker {
   pos: number;
@@ -206,7 +206,7 @@ export interface ReplayStatus {
   chapter: number;
 }
 
-// Fleet mode (the hub's page). Mirrors hub/fleet_hub/fleet.py `summarize`.
+// Fleet mode (the hub's page). Mirrors hub/starglance_hub/fleet.py `summarize`.
 
 export interface Me {
   id: string;

@@ -4,10 +4,10 @@ from concurrent import futures
 
 import grpc
 import pytest
-from fleet_agent import client, protoset
-from fleet_agent.schema import TelemetrySchema
 from google.protobuf import json_format
 from grpc_reflection.v1alpha import reflection
+from starglance import client, protoset
+from starglance.schema import TelemetrySchema
 
 from .test_protoset import fake_exe, make_files
 
@@ -55,7 +55,7 @@ def _serve(schema: TelemetrySchema, with_reflection: bool):
 
 @pytest.mark.parametrize("with_reflection", [True, False])
 def test_stream_frames(schema, tmp_path, monkeypatch, with_reflection):
-    monkeypatch.setenv("FLEET_TELEMETRY_HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("STARGLANCE_HOME", str(tmp_path / "home"))
     exe = tmp_path / "StarCitizen.exe"
     exe.write_bytes(fake_exe(make_files()))
 

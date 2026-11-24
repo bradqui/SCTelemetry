@@ -19,12 +19,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / "agent"), str(ROOT / "hub"), str(ROOT / "shared")]
 
-from fleet_agent.replay import FIXTURES_DIR, Recording  # noqa: E402
-from fleet_agent.runtime import Pipeline  # noqa: E402
-from fleet_hub.config import Config  # noqa: E402
-from fleet_hub.db import Member  # noqa: E402
-from fleet_hub.fleet import MemberLive, summarize  # noqa: E402
-from fleet_shared import Event, make_patch  # noqa: E402
+from starglance.replay import FIXTURES_DIR, Recording  # noqa: E402
+from starglance.runtime import Pipeline  # noqa: E402
+from starglance_hub.config import Config  # noqa: E402
+from starglance_hub.db import Member  # noqa: E402
+from starglance_hub.fleet import MemberLive, summarize  # noqa: E402
+from starglance_shared import Event, make_patch  # noqa: E402
 
 STEP_MS = 100
 OUT = ROOT / "web" / "showcase" / "demo-fleet.json"

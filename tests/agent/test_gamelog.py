@@ -5,8 +5,8 @@ import time
 from pathlib import Path
 
 import pytest
-from fleet_agent.capturefile import read_frames
-from fleet_agent.gamelog import (
+from starglance.capturefile import read_frames
+from starglance.gamelog import (
     ARRIVED_SHOWN_MS,
     GameLogTail,
     LineJoiner,
@@ -18,9 +18,9 @@ from fleet_agent.gamelog import (
     ship_name,
     who,
 )
-from fleet_agent.replay import Recording
-from fleet_agent.runtime import Pipeline
-from fleet_shared import Snapshot, apply_sharing, event_shared
+from starglance.replay import Recording
+from starglance.runtime import Pipeline
+from starglance_shared import Snapshot, apply_sharing, event_shared
 
 FIXTURES = Path(__file__).parents[2] / "fixtures"
 TS = "<2026-11-23T18:45:17.407Z> "

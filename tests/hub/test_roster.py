@@ -1,6 +1,6 @@
 """The roster's cross-member parts: whose ship someone on foot is aboard."""
 
-from fleet_hub.fleet import resolve_aboard
+from starglance_hub.fleet import resolve_aboard
 
 
 def row(mid, name, *, handle=None, ship=None, aboard=None):
@@ -69,7 +69,7 @@ def test_model_names_match_channel_names():
 
 
 def test_fleet_alarm_lights():
-    from fleet_shared import fleet_alarm_lights
+    from starglance_shared import fleet_alarm_lights
 
     assert fleet_alarm_lights({"hit": "major_flashing"}) == {"hit": "major"}
     assert fleet_alarm_lights({"radr": "major"}) == {"radr": "major"}
@@ -82,8 +82,8 @@ def test_fleet_alarm_lights():
 
 def test_fleet_alarm_is_held():
     """On for a second before the fleet hears it; kept until off for three (between hits)."""
-    from fleet_hub.db import Member
-    from fleet_hub.fleet import MemberLive, _fleet_alarm
+    from starglance_hub.db import Member
+    from starglance_hub.fleet import MemberLive, _fleet_alarm
 
     m = MemberLive(Member("m1", "Rook", None, "member", 1, 0))
 

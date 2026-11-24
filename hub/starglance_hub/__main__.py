@@ -1,9 +1,10 @@
-"""Run the hub: ``python -m fleet_hub`` (settings from the environment, see deploy/.env.example).
+"""Run the hub: ``python -m starglance_hub`` (settings from the environment:
+deploy/.env.example).
 
 On first start (no admin yet) it logs a one-time link that creates the admin
 account. For local testing, sign in with any name instead:
 
-    HUB_DEV_LOGIN=1 python -m fleet_hub
+    HUB_DEV_LOGIN=1 python -m starglance_hub
 
 then open http://127.0.0.1:8100/ (the first name you use becomes admin).
 """

@@ -128,6 +128,15 @@ def _worst(lights: dict) -> tuple[str | None, list[str]]:
 SEVERITY = {"minor": 1, "moderate": 2, "severe": 3}
 
 
+def _r(value: Any, digits: int = 0, *, step: float | None = None) -> float | int | None:
+    """Rounded for the roster: small jitter shouldn't cost an update."""
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return None
+    if step:
+        return round(value / step) * step
+    return round(value, digits) if digits else round(value)
+
+
 def summarize(m: MemberLive, now: int, cfg: Config) -> dict:
     """What the roster shows for one member: small, and only what changes slowly."""
     s = m.snapshot or {}
@@ -168,8 +177,15 @@ def summarize(m: MemberLive, now: int, cfg: Config) -> dict:
                 "level": (ship.get("shields") or {}).get("level"),
             },
             "quantum": flight.get("quantum"),
-            "speed": round(speed) if isinstance(speed, (int, float)) else None,
-            "h2_fuel": flight.get("h2_fuel"),
+            "speed": _r(speed),
+            # For flying together: where everyone is heading and how high. alt is None
+            # in space; agl (height over the ground) only near a surface.
+            "alt": _r(flight.get("alt"), step=10 if abs(flight.get("alt") or 0) >= 10_000 else 1),
+            "agl": _r(flight.get("radar_alt")),
+            "vsi": _r(flight.get("vsi")),
+            "heading": _r(flight.get("heading")),
+            "g": _r(flight.get("g"), 1),
+            "h2_fuel": _r(flight.get("h2_fuel"), 2),
             "alarm": level,
             "lights": lit,
         }
@@ -198,7 +214,16 @@ def summarize(m: MemberLive, now: int, cfg: Config) -> dict:
     if vit:
         severities = [i.get("severity", "") for i in vit.get("injuries") or []]
         worst = max(severities, key=lambda x: SEVERITY.get(x, 0)) if severities else None
-        out["vitals"] = {"health": vit.get("health"), "injury": worst}
+        out["vitals"] = {
+            "health": _r(vit.get("health"), 2),
+            "oxygen": _r(vit.get("oxygen"), 2),
+            "hunger": _r(vit.get("hunger"), 2),
+            "thirst": _r(vit.get("thirst"), 2),
+            "body_temp": _r(vit.get("body_temp"), 1),
+            "heart_rate": _r(vit.get("heart_rate")),
+            "injury": worst,
+            "injuries": len(severities),
+        }
     missions = s.get("missions") or []
     active = next((x for x in missions if x.get("state") == "active"), None)
     if active:

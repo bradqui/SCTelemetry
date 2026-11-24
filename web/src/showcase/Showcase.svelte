@@ -80,8 +80,8 @@
       <div>
         <h2 class="display">Try it</h2>
         <p>
-          This is the real fleet page, running on telemetry recorded in game and played on a loop. Click anyone in the
-          roster to open their live dashboard. Pick a theme below: with <b>Match the ship</b> on, each pilot shows up in
+          This is the real fleet page, running on telemetry recorded in game and played on a loop. The cards show
+          everyone's numbers at a glance; click anyone to open their live dashboard. Pick a theme below: with <b>Match the ship</b> on, each pilot shows up in
           the theme of the ship they're flying.
         </p>
       </div>
@@ -119,7 +119,7 @@
 
     <div class="frame">
       {#if fleet && mode && me}
-        <Board {mode} {me} source={fleet} {store} embedded />
+        <Board {mode} {me} source={fleet} {store} embedded defaultView="cards" />
       {:else}
         <p class="loading">{loadError || "Loading the fleet…"}</p>
       {/if}
@@ -185,6 +185,7 @@
         <li><b>Roster</b> by ship (crews together under their pilot), by server (who you can actually meet in game), or by status.</li>
         <li><b>Member detail</b>: anyone's live dashboard, the same panels as your own.</li>
         <li><b>Fleet alarms</b> in the header: anyone's master warning or a bad injury, one click to their screen.</li>
+        <li><b>Cards</b>: everyone's numbers side by side for flying together. Speed, altitude, climb rate, heading, G, fuel and quantum destination in a ship; health, oxygen, food, water and injuries on foot.</li>
         <li><b>Overview</b>: session totals, ships out with their crews, and everyone's activity as it happens.</li>
         <li>Works on phones: the roster is the page, a member opens full screen.</li>
       </ul>

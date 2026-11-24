@@ -150,6 +150,9 @@ def test_link_then_watch_a_member_live(tmp_path):
                     row = roster["members"][member_id]
                     assert row["presence"] == "live"
                     assert row["ship"]["model"] == snap["ship"]["model"]
+                    assert row["ship"]["speed"] == round(snap["ship"]["flight"]["speed"])
+                    assert {"alt", "agl", "vsi", "heading", "g"} <= row["ship"].keys()
+                    assert {"health", "oxygen", "hunger", "thirst"} <= row["vitals"].keys()
 
                     await view.send_json({"type": "focus", "member": member_id})
                     full = await until(view, lambda d: d["type"] == "member")

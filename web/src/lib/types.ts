@@ -224,12 +224,30 @@ export interface MemberSummary extends Me {
     shields: { powered: boolean | null; level: number | null };
     quantum: boolean | null;
     speed: number | null;
+    /** m; null in space. */
+    alt: number | null;
+    /** Height over the ground, near a surface. */
+    agl: number | null;
+    /** Vertical speed, m/s. */
+    vsi: number | null;
+    /** null away from planets (the game doesn't send it there). */
+    heading: number | null;
+    g: number | null;
     h2_fuel: number | null;
     alarm: "major" | "minor" | null;
     lights: string[];
   } | null;
   location: (Omit<Location, "route"> & { route: { destination: string | null; state: Route["state"] } | null }) | null;
-  vitals: { health: number | null; injury: string | null } | null;
+  vitals: {
+    health: number | null;
+    oxygen: number | null;
+    hunger: number | null;
+    thirst: number | null;
+    body_temp: number | null;
+    heart_rate: number | null;
+    injury: string | null;
+    injuries: number;
+  } | null;
   mission: { title: string | null; objective: string | null } | null;
   session: Session | null;
 }

@@ -58,7 +58,12 @@ Everyone with a linked PC, as the fleet page's roster shows them:
         "gear": "retracted",
         "hull": null,               // 0-1; the game doesn't send it yet
         "shields": {"powered": true, "level": null},
-        "speed": 212,               // m/s, rounded
+        "speed": 212,               // m/s, rounded (frozen during quantum: use "quantum")
+        "alt": 4812,                // m; null in space
+        "agl": 85,                  // m over the ground, near a surface; else null
+        "vsi": 18,                  // vertical speed, m/s
+        "heading": 274,             // degrees; null away from planets
+        "g": 2.4,
         "h2_fuel": 0.91,            // 0-1
         "alarm": "major",           // major | minor | null: the worst warning light
         "lights": ["hit"]           // which lights: pwr wpn thr shld cool qdrv radr prox hit misl
@@ -74,7 +79,9 @@ Everyone with a linked PC, as the fleet page's roster shows them:
         "shard": "pub_use1b_13165946_150",   // same shard = same server instance
         "route": {"destination": "Bounty Beacon", "state": "en_route"}
       },
-      "vitals": {"health": 1.0, "injury": null},   // injury: minor | moderate | severe
+      "vitals": {"health": 1.0, "oxygen": 1.0, "hunger": 0.64, "thirst": 0.81,   // 0-1
+                 "body_temp": 36.6, "heart_rate": 84,
+                 "injury": null, "injuries": 0},   // injury: the worst of minor | moderate | severe
       "mission": {"title": "Combat Gauntlet - Scenario #1", "objective": "Defeat Hostile Ships"},
       "session": {"kills": 3, "ships_lost": 0, "deaths": 0, "incaps": 0, "contracts": 1,
                   "failed": 0, "earned": 0, "quantum_trips": 2, "system_jumps": 0}

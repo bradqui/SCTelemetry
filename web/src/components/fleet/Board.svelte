@@ -9,6 +9,7 @@
   import type { Account, HubMode } from "../../lib/types";
   import AccountDialog from "./AccountDialog.svelte";
   import AdminDialog from "./AdminDialog.svelte";
+  import Cards from "./Cards.svelte";
   import FleetBar from "./FleetBar.svelte";
   import MemberView from "./MemberView.svelte";
   import Overview from "./Overview.svelte";
@@ -20,6 +21,7 @@
     source,
     store: givenStore,
     embedded = false,
+    defaultView = "overview",
   }: {
     mode: HubMode;
     me: Account;
@@ -29,7 +31,30 @@
     store?: PrefsStore;
     /** Inside another page: fills its box, themes only itself, leaves the address alone. */
     embedded?: boolean;
+    /** What the main area shows with nobody open, until the viewer picks. */
+    defaultView?: "overview" | "cards";
   } = $props();
+
+  // Overview (totals, ships, activity) or Cards (everyone's numbers), remembered per browser.
+  type View = "overview" | "cards";
+  function savedView(): View {
+    try {
+      const v = localStorage.getItem("ft.fleet.view");
+      if (v === "overview" || v === "cards") return v;
+    } catch {
+      /* storage unavailable */
+    }
+    return untrack(() => defaultView);
+  }
+  let view = $state<View>(savedView());
+  function setView(v: View) {
+    view = v;
+    try {
+      localStorage.setItem("ft.fleet.view", v);
+    } catch {
+      /* fine */
+    }
+  }
 
   const fleet = untrack(() => source) ?? new FleetConnection();
   const demo = untrack(() => source) !== undefined;
@@ -151,7 +176,19 @@
             onClose={() => open(null)}
           />
         {:else}
-          <Overview roster={fleet.roster} events={fleet.events} {now} onOpen={open} />
+          <div class="views" role="tablist" aria-label="Fleet view">
+            <button role="tab" aria-selected={view === "overview"} class:on={view === "overview"} onclick={() => setView("overview")}
+              >Overview</button
+            >
+            <button role="tab" aria-selected={view === "cards"} class:on={view === "cards"} onclick={() => setView("cards")}
+              >Cards</button
+            >
+          </div>
+          {#if view === "cards"}
+            <Cards {rows} meId={me.id} {myShard} {prefs} {now} onOpen={open} />
+          {:else}
+            <Overview roster={fleet.roster} events={fleet.events} {now} onOpen={open} />
+          {/if}
         {/if}
       </section>
     </div>
@@ -201,6 +238,34 @@
     min-height: 0;
     overflow-y: auto;
     overflow-x: hidden;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    align-content: start;
+  }
+  .main:has(> :global(.member)) {
+    display: block;
+  }
+  .views {
+    display: flex;
+    gap: 2px;
+    margin-bottom: var(--gap);
+  }
+  .views button {
+    border: 1px solid var(--line-2);
+    background: var(--bg-2);
+    color: var(--text-3);
+    border-radius: var(--radius-chip);
+    padding: 3px 12px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: var(--label-spacing);
+    text-transform: var(--label-case);
+    cursor: pointer;
+  }
+  .views button.on {
+    color: var(--bg);
+    background: var(--accent);
+    border-color: var(--accent);
   }
   @media (max-width: 1100px) {
     .body {

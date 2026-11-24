@@ -88,6 +88,7 @@
     {compact}
     replay={live.replay}
     caution={prefs.caution}
+    uplink={live.uplink}
     onToggleCompact={toggleCompact}
     onCustomize={() => (customizing = !customizing)}
   />

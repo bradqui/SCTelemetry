@@ -208,3 +208,24 @@ export function eventPanel(kind: string): string | null {
   if (kind.startsWith("contract") || kind.startsWith("objective") || kind === "reward") return "mission";
   return null;
 }
+
+/** Warning light names, as the header and roster spell them out. */
+export const LIGHT_NAMES: Record<string, string> = {
+  pwr: "Power",
+  wpn: "Weapons",
+  thr: "Thrusters",
+  shld: "Shields",
+  cool: "Cooling",
+  qdrv: "Quantum drive",
+  radr: "Radar",
+  prox: "Proximity",
+  hit: "Taking hits",
+  misl: "Missile lock",
+};
+
+export const ROLE_NAMES: Record<string, string> = {
+  pilot: "Pilot",
+  copilot: "Co-pilot",
+  gunner: "Gunner",
+  crew: "Crew",
+};

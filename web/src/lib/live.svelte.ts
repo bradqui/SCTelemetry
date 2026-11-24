@@ -1,4 +1,4 @@
-import type { AgentState, ReplayIndex, ReplayStatus, Snapshot, TelemetryEvent } from "./types";
+import type { AgentState, ReplayIndex, ReplayStatus, Snapshot, TelemetryEvent, UplinkStatus } from "./types";
 
 const MAX_EVENTS = 60;
 
@@ -14,6 +14,9 @@ export class LiveConnection {
 
   /** Trend history the agent sent on connect: [t, speed, alt, g][]. */
   trendSeed = $state.raw<[number, number | null, number | null, number | null][]>([]);
+
+  /** The agent's link to the fleet hub (null: not linked or not sending). */
+  uplink = $state.raw<UplinkStatus | null>(null);
 
   replay = $state(false);
   replayIndex = $state.raw<ReplayIndex | null>(null);
@@ -108,6 +111,9 @@ export class LiveConnection {
         // Keep showing the last snapshot until the next one (a frame away) so nothing flickers.
         this.events = [];
         this.resets++;
+        break;
+      case "uplink":
+        this.uplink = msg as unknown as UplinkStatus;
         break;
       case "replay_index":
         this.replayIndex = msg as unknown as ReplayIndex;

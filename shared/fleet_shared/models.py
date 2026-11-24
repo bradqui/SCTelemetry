@@ -21,7 +21,6 @@ SHARE_CATEGORIES = ("status", "ship", "weapons", "vitals", "uec", "location", "m
 
 location: zone, jurisdiction, server, star system, quantum destination (no coordinates).
 mission: current contracts and objectives. combat: kills, ships lost, session counts."""
-"""What a member can switch off. Everything is shared by default (spec §11.6)."""
 
 Level = Literal["off", "nominal", "minor", "minor_flashing", "major", "major_flashing"]
 """Warning light state, from the game's annunciator enum."""
@@ -311,6 +310,18 @@ class Hello(_Model):
     channel: str | None = None
     game_build: str | None = None
     share: list[str] = Field(default_factory=lambda: list(SHARE_CATEGORIES))
+
+
+class Delta(_Model):
+    """What changed in the snapshot since the last one sent (see ``fleet_shared.patch``).
+
+    Agent -> hub only, between full snapshots. ``patch`` is a merge patch of the
+    snapshot's JSON (by alias, e.g. ``ship.class``)."""
+
+    type: Literal["delta"] = "delta"
+    v: int = SCHEMA_VERSION
+    t: int
+    patch: dict
 
 
 class Heartbeat(_Model):

@@ -1,7 +1,10 @@
 """Command line for the agent (the tray app comes later).
 
-python -m fleet_agent run     [--open] [--game-port 2943] [--ui-port 8740]
-python -m fleet_agent run     --replay [FILES...] [--speed 1] [--open]
+python -m fleet_agent run     [--open] [--game-port 2943] [--ui-port 8740] [--no-uplink]
+python -m fleet_agent run     --replay [FILES...] [--speed 1] [--open] [--uplink]
+python -m fleet_agent link    [--hub https://fleet.example]
+python -m fleet_agent unlink
+python -m fleet_agent share   [--off vitals uec ...] [--on ...]
 python -m fleet_agent installs
 python -m fleet_agent status  [--channel LIVE]
 python -m fleet_agent on      [--channel LIVE]
@@ -17,6 +20,8 @@ import contextlib
 import logging
 import sys
 from pathlib import Path
+
+from fleet_shared import SHARE_CATEGORIES
 
 from . import gamecfg, installs, paths, protoset, switch, winenv
 from .installs import Install
@@ -75,6 +80,7 @@ def cmd_run(args) -> None:
 
     async def run() -> None:
         tail = None
+        uplink = None
         pipeline = Pipeline()
         server = LocalServer(pipeline, port=args.ui_port, playhead=playhead)
         await server.start()
@@ -103,6 +109,10 @@ def cmd_run(args) -> None:
         reader.start()
         if tail is not None:
             tail.start()
+        # Live: send to the fleet when linked. Replay: only when asked (it isn't real play).
+        want_uplink = args.uplink if playhead is not None else not args.no_uplink
+        if want_uplink:
+            uplink = _start_uplink(args, pipeline, install=None if playhead else _find(args))
         url = f"http://127.0.0.1:{server.port}/"
         print(f"Fleet Telemetry agent: local view at {url}")
         print(f"{source} Ctrl+C stops.")
@@ -114,10 +124,90 @@ def cmd_run(args) -> None:
             reader.stop()
             if tail is not None:
                 tail.stop()
+            if uplink is not None:
+                await uplink.stop()
             await server.stop()
 
     with contextlib.suppress(KeyboardInterrupt):
         asyncio.run(run())
+
+
+def _start_uplink(args, pipeline, install: Install | None):
+    from .fleetlink import load_settings, load_token
+    from .uplink import Uplink
+
+    settings = load_settings()
+    hub = (args.hub or settings.hub_url).rstrip("/")
+    token = load_token(hub)
+    if not token:
+        print(f"Fleet: not linked to {hub} (run: python -m fleet_agent link). Local view only.")
+        return None
+    shared = settings.shared
+    off = sorted(set(SHARE_CATEGORIES) - shared)
+    print(f"Fleet: sending to {hub}" + (f" (not sharing: {', '.join(off)})" if off else ""))
+
+    def status(s: dict) -> None:
+        pipeline._notify("uplink", s)
+        if s.get("state") in ("connected", "rejected"):
+            who = f" as {s['member']}" if s.get("member") else ""
+            print(f"Fleet: {s['state']}{who}. {s.get('message') or ''}".rstrip())
+
+    uplink = Uplink(
+        pipeline, hub, token, shared, channel=install.channel if install else None, on_status=status
+    )
+    uplink.start()
+    return uplink
+
+
+def cmd_link(args) -> None:
+    import asyncio
+
+    from .fleetlink import LinkError, link, load_settings
+
+    hub = (args.hub or load_settings().hub_url).rstrip("/")
+    print(f"Linking this PC to {hub}. A browser window opens: sign in with Discord and confirm.")
+    try:
+        settings = asyncio.run(link(hub, open_browser=not args.no_browser))
+    except LinkError as exc:
+        sys.exit(str(exc))
+    print(f"Done: linked as {settings.member_name or 'you'}. Start the agent with: run")
+
+
+def cmd_unlink(args) -> None:
+    from .fleetlink import unlink
+
+    settings = unlink()
+    print(f"Done: this PC no longer sends to {settings.hub_url}.")
+    print("To remove it from the fleet's list too, revoke it on the hub's page (your PCs).")
+
+
+def cmd_share(args) -> None:
+    from .fleetlink import load_settings, save_settings
+
+    settings = load_settings()
+    changes = [(c, False) for c in args.off or []] + [(c, True) for c in args.on or []]
+    for name, value in changes:
+        if name not in SHARE_CATEGORIES:
+            sys.exit(f"Unknown category {name!r}. Categories: {', '.join(SHARE_CATEGORIES)}")
+        settings.share[name] = value
+    if changes:
+        save_settings(settings)
+        print("Saved. Restart the agent for it to take effect.")
+    print(f"Sharing with {settings.hub_url}:")
+    for c in SHARE_CATEGORIES:
+        print(f"  [{'on ' if settings.share[c] else 'off'}] {c:<9} {SHARE_HELP[c]}")
+
+
+SHARE_HELP = {
+    "status": "in game, on foot or seated, your seat",
+    "ship": "ship, mode, warning lights, fuel, flight data",
+    "weapons": "guns ready, countermeasures",
+    "vitals": "health, oxygen, injuries",
+    "uec": "aUEC balance and contract rewards",
+    "location": "zone, jurisdiction, server, quantum destination (no coordinates)",
+    "mission": "current contracts and objectives",
+    "combat": "kills, ships lost, session counts",
+}
 
 
 def cmd_installs(args) -> None:
@@ -239,6 +329,18 @@ def build_parser() -> argparse.ArgumentParser:
         help="No game: replay recordings with a timeline in the page (default: all fixtures)",
     )
     p.add_argument("--speed", type=float, default=1.0, help="Replay speed (default 1)")
+    p.add_argument("--hub", help="Hub address (default: the one you linked to)")
+    p.add_argument("--no-uplink", action="store_true", help="Don't send to the fleet hub")
+    p.add_argument(
+        "--uplink", action="store_true", help="With --replay: send the replay to the hub too"
+    )
+    p = add("link", cmd_link, "Link this PC to the fleet hub (signs in with Discord)")
+    p.add_argument("--hub", help="Hub address (default: the org's hub)")
+    p.add_argument("--no-browser", action="store_true", help="Just print the address")
+    add("unlink", cmd_unlink, "Stop sending to the fleet hub and forget the token")
+    p = add("share", cmd_share, "Show or change what you share with the fleet")
+    p.add_argument("--off", nargs="+", metavar="CATEGORY", help="Stop sharing these")
+    p.add_argument("--on", nargs="+", metavar="CATEGORY", help="Share these again")
     add("installs", cmd_installs, "List Star Citizen installs and whether telemetry is on")
     add("status", cmd_status, "Show telemetry settings for a channel")
     add("on", cmd_on, "Switch telemetry on (edits user.cfg)").add_argument(

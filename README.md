@@ -2,14 +2,14 @@
 
 Live Star Citizen ship and crew status for our org: shown on each member's second monitor or VR overlay, on phones as a PWA, and in Discord through ButlerBot.
 
-**Status:** Phase 1 (agent, local only) built. The agent reads the game, normalizes it, and serves a live local cockpit view. Real field reference: [docs/FIELDS.md](docs/FIELDS.md). Next is Phase 2: the hub and fleet board.
+**Status:** Phase 1 (agent, local only) built, Phase 2 (hub and fleet board) built and tested locally, not yet deployed. The agent reads the game, normalizes it, serves a live local cockpit view, and sends to the hub once linked. Real field reference: [docs/FIELDS.md](docs/FIELDS.md). Deploying the hub: [deploy/README.md](deploy/README.md).
 
 The full build spec is in [docs/SC_FLEET_TELEMETRY_SPEC.md](docs/SC_FLEET_TELEMETRY_SPEC.md).
 
 ## How it fits together
 
 - **Agent** (Windows, per member): reads the game's local telemetry gRPC stream (`127.0.0.1:2942`) plus a few lines of its `Game.log` (quantum route and arrival), normalizes them, serves a local cockpit view, and pushes the shared fields outbound to the hub.
-- **Hub** (FastAPI + SQLite, one Docker container behind Virtualmin's Apache): ingests agent data, serves the fleet PWA, and streams events to the cog over an internal WebSocket.
+- **Hub** (aiohttp + SQLite, one Docker container behind Virtualmin's Apache): Discord sign-in, links agents, ingests their data, serves the fleet page, and streams events to the cog over an internal WebSocket.
 - **Web** (PWA): fleet board and member detail; the same bundle is the agent's local view.
 - **Cog** (`telemetry`, Red-DiscordBot): `!fleet`, `!ready`, ops, and alerts in ButlerBot.
 
@@ -58,6 +58,28 @@ Add `?compact=1` to the URL, or press **Compact**, for a narrow view that fits a
 
 To test the agent's gRPC path against a fake game instead: `uv run python tools/replay.py` (port 2943) and `uv run python -m fleet_agent run --game-port 2943 --open`.
 
+## Joining the fleet
+
+Link this PC once (a browser opens: sign in with Discord, check the code, confirm):
+
+```
+uv run python -m fleet_agent link
+```
+
+From then on `run` also sends your telemetry to the fleet (`--no-uplink` to stay local). The page at the hub shows everyone: a roster on the left (group it by ship, server or status) and the member you click on the right, with the same panels as your own view.
+
+What you share:
+
+```
+uv run python -m fleet_agent share                  # list
+uv run python -m fleet_agent share --off vitals uec # stop sharing these
+uv run python -m fleet_agent share --on vitals      # share again
+```
+
+Everything is shared by default; anything switched off never leaves your PC. `unlink` stops sending and forgets the token; unlink a PC from the hub's page (your name → Your PCs) to revoke it there too.
+
+To try the fleet without Discord or the game: see "Trying it without Discord" in [deploy/README.md](deploy/README.md).
+
 ## Capturing telemetry
 
 On the gaming PC:
@@ -89,8 +111,9 @@ To undo the setup: `uv run python -m fleet_agent off --channel LIVE`. It restore
 
 ```
 agent/     Windows agent (fleet_agent package)
-hub/       FastAPI service (planned)
-web/       dashboard UI (Svelte 5); later also the fleet PWA
+hub/       the fleet hub (fleet_hub package, Dockerfile)
+deploy/    docker-compose.yml and server setup
+web/       the page: cockpit view (agent) and fleet board (hub)
 cog/       Red cog: telemetry/ (planned)
 shared/    Pydantic wire-schema models
 tools/     capture, summarize, make_fixture, replay

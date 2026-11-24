@@ -5,6 +5,7 @@ from .models import (
     SCHEMA_VERSION,
     SHARE_CATEGORIES,
     Countermeasure,
+    Delta,
     Environment,
     Event,
     EventKind,
@@ -27,11 +28,13 @@ from .models import (
     apply_sharing,
     event_shared,
 )
+from .patch import apply_patch, make_patch
 
 __all__ = [
     "SCHEMA_VERSION",
     "SHARE_CATEGORIES",
     "Countermeasure",
+    "Delta",
     "Environment",
     "Event",
     "EventKind",
@@ -54,4 +57,6 @@ __all__ = [
     "Weapons",
     "apply_sharing",
     "event_shared",
+    "apply_patch",
+    "make_patch",
 ]

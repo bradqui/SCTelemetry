@@ -52,3 +52,18 @@ jobs:
       - run: npm install --no-audit --no-fund
       - run: npm run check
       - run: npm run build
+
+  # The hub's image (deploy/docker-compose.yml builds the same thing on the server).
+  hub-image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -f hub/Dockerfile -t fleet-telemetry-hub:ci .
+      - name: Start it and check it answers
+        run: |
+          docker run -d --name hub -p 127.0.0.1:8100:8100 -e HUB_DEV_LOGIN=1 -e HUB_INTERNAL_SECRET=ci fleet-telemetry-hub:ci
+          for i in $(seq 1 30); do curl -fs http://127.0.0.1:8100/api/health && break; sleep 1; done
+          curl -fs http://127.0.0.1:8100/api/mode
+          curl -fs http://127.0.0.1:8100/ | grep -q '<div id="app">'
+          docker logs hub

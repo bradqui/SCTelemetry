@@ -1,0 +1,31 @@
+# The fleet hub on the server (spec §3.1, decision 2). See deploy/README.md.
+#
+#   cp .env.example .env   # then fill it in
+#   docker compose up -d --build
+#
+# Both ports are published on 127.0.0.1 only:
+#   8100  the site; Apache proxies https://fleet.<domain>/ to it
+#   8101  the bot-only API; ButlerBot (host networking) calls it directly. Never proxy it.
+
+services:
+  hub:
+    build:
+      context: ..
+      dockerfile: hub/Dockerfile
+    image: fleet-telemetry-hub:latest
+    container_name: fleet-hub
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "127.0.0.1:8100:8100"
+      - "127.0.0.1:8101:8101"
+    volumes:
+      - hub-data:/data
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  hub-data:

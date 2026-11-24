@@ -193,3 +193,66 @@ export interface ReplayStatus {
   loop: boolean;
   chapter: number;
 }
+
+// Fleet mode (the hub's page). Mirrors hub/fleet_hub/fleet.py `summarize`.
+
+export interface Me {
+  id: string;
+  name: string;
+  avatar: string | null;
+}
+
+export type Presence = "live" | "idle" | "stale" | "offline";
+
+/** One roster row: what the board shows for a member at a glance. */
+export interface MemberSummary extends Me {
+  presence: Presence;
+  /** Only when stale or offline. */
+  last_seen: number | null;
+  channel: string | null;
+  locomotion: Status["locomotion"] | null;
+  role: SeatRole | null;
+  ship: {
+    id: string;
+    model: string;
+    manufacturer: string | null;
+    master_mode: "NAV" | "SCM" | null;
+    powered: boolean | null;
+    landed: boolean | null;
+    gear: Deployment | null;
+    hull: number | null;
+    shields: { powered: boolean | null; level: number | null };
+    quantum: boolean | null;
+    speed: number | null;
+    h2_fuel: number | null;
+    alarm: "major" | "minor" | null;
+    lights: string[];
+  } | null;
+  location: (Omit<Location, "route"> & { route: { destination: string | null; state: Route["state"] } | null }) | null;
+  vitals: { health: number | null; injury: string | null } | null;
+  mission: { title: string | null; objective: string | null } | null;
+  session: Session | null;
+}
+
+export interface FleetEvent {
+  member: string;
+  t: number;
+  kind: string;
+  data: Record<string, unknown>;
+}
+
+export interface HubMode {
+  mode: "fleet";
+  hub_version: string;
+  me: Me | null;
+  login: string;
+  discord: boolean;
+  dev_login: boolean;
+}
+
+export interface UplinkStatus {
+  state: "connecting" | "connected" | "offline" | "rejected";
+  hub: string;
+  member: string | null;
+  message?: string | null;
+}

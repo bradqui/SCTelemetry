@@ -148,11 +148,11 @@ Exact sub-field names inside `{...}` are not fully documented. **Phase 0 must ca
 ┌──────────── Brad's web server (Virtualmin + Docker) ─────────────────┐
 │ Apache (Virtualmin, Let's Encrypt, fleet.<domain>)                   │
 │   └─ ProxyPass + WebSocket upgrade ─▶ 127.0.0.1:<port>               │
-│ Hub container (FastAPI, SQLite on a volume)                          │
+│ Hub container (aiohttp, SQLite on a volume)                          │
 │   ├─ public:   ingest WS /ws/agent, viewer WS /ws/view, REST /api/*, │
 │   │            PWA static assets                                     │
 │   ├─ internal: REST /internal/*, event WS /internal/events           │
-│   │            (Docker network only, shared-secret header)           │
+│   │            (own port on 127.0.0.1, shared-secret header)         │
 │   └─ live state (in-memory) + history DB (SQLite)                    │
 │ ButlerBot container (Red) ── telemetry cog ──▶ hub internal API      │
 │                              (subscribes to /internal/events)        │
@@ -169,7 +169,7 @@ Key principles:
 | Component | Stack |
 |---|---|
 | Agent | Python 3.12, `grpcio`, `protobuf`, `websockets` or `httpx`, `keyring` (Windows Credential Manager), `pystray` for tray icon, small local HTTP server (`aiohttp` or FastAPI) serving the same web UI bundle. Packaged with **PyInstaller** into a single `.exe` via GitHub Actions. |
-| Hub | Python 3.12, FastAPI + uvicorn, SQLAlchemy 2 on **SQLite** (file on a Docker volume), Discord OAuth2. No Redis: events go to the cog over the hub's internal WebSocket. |
+| Hub | Python 3.12, **aiohttp** (as the agent's local server) and the standard library's `sqlite3` on **SQLite** (file on a Docker volume), Discord OAuth2. No Redis: events go to the cog over the hub's internal WebSocket. (Decision 14: not FastAPI/SQLAlchemy.) |
 | Web UI | **Svelte 5 + Vite + TypeScript**, hand-written CSS with design tokens (no UI kit), built to static files. Svelte's compiled, fine-grained reactivity keeps 17 Hz local updates cheap and the bundle small for phones. Same bundle served by hub (fleet mode) and agent (local mode). |
 | Cog | Red-DiscordBot cog on **Python 3.11** (ButlerBot's runtime), `aiohttp` (already a Red dependency) for the hub's internal REST and event WebSocket. Declare any extra deps in `info.json` `requirements`. |
 | Infra | `docker-compose.yml` with **one service: the hub**, plus a volume for the SQLite file. The hub publishes two ports on `127.0.0.1` only: the public app (proxied by Apache) and the internal API (never proxied). ButlerBot uses host networking, so the cog reaches the internal port at `127.0.0.1` directly; no shared Docker network. HTTPS is terminated by the Virtualmin-managed Apache vhost (Let's Encrypt) with a proxy path to the hub, WebSocket upgrade enabled. |
@@ -179,14 +179,14 @@ Single language (Python) across agent, hub, and cog so `shared/` models can be r
 ### 3.2 Repo layout (monorepo)
 ```
 /agent        Windows agent (gRPC client, normalizer, uplink, local UI, cfg writer)
-/hub          FastAPI service
+/hub          the hub (fleet_hub package, Dockerfile)
+/deploy       docker-compose.yml, .env.example, server setup steps
 /web          PWA source (builds to /web/dist)
 /cog          Red cog: telemetry/
 /shared       Pydantic models for the wire schema (§4), version constants
 /tools        replay.py (fake game server from captured JSONL), capture.py
 /fixtures     captured frames (JSONL), scrubbed of aUEC
 /docs         this spec, ops notes
-docker-compose.yml
 .github/workflows/  agent exe build + release on v* tags; tests on push
 ```
 
@@ -224,7 +224,9 @@ WebSocket at `wss://<host>/ws/agent`, JSON messages, `Authorization: Bearer <age
 
 Agent-side derived events (computed from snapshot diffs): ship change, warning on/off per annunciator, hull crossing 75/50/25%, fuel crossing 25/10%, landed/takeoff, game start/exit.
 
-Hub → viewers (`/ws/view`): fleet state keyed by Discord user ID, plus the event stream. Each viewer subscribes to what it shows: a **summary** of every member (roster fields) at ≤2 Hz, and the **full** state of the member it has open at up to 10 Hz. Deltas after an initial full state, as on the uplink. Measured on the combat fixture: full snapshot ≈1.7 KB, a 250 ms delta ≈130 B (160 B at the 90th percentile).
+Hub → agent: `{"type":"welcome","member":{...}}` on connect; `{"type":"resync"}` asks for a full snapshot (the hub restarted, or a delta didn't apply); `{"type":"error","code":"version"|"revoked"|...,"message":...}`. `version` and `revoked` are final: the agent stops retrying. Close codes: 4001 revoked, 4002 protocol error. Agents may send up to 40 messages/s and 64 KB per message; over that, messages are dropped.
+
+Hub → viewers (`/ws/view`): `hello` (who you are), `roster` (every linked member's summary, keyed by Discord user ID), `history` (recent fleet events), then `roster_delta`, `event`, and for the member the page has open (`{"type":"focus","member":id}`), `member` (full state) and `member_delta`. Fleet state keyed by Discord user ID, plus the event stream. Each viewer subscribes to what it shows: a **summary** of every member (roster fields) at ≤2 Hz, and the **full** state of the member it has open at up to 10 Hz. Deltas after an initial full state, as on the uplink. Measured on the combat fixture: full snapshot ≈1.7 KB, a 250 ms delta ≈130 B (160 B at the 90th percentile).
 
 Transport is WebSocket over TLS throughout. UDP was considered and rejected (decision 13).
 
@@ -369,4 +371,5 @@ Cog holds a reconnecting WebSocket to the hub's `/internal/events` and uses the 
 11. **One org per hub (2026-11-23):** a hub serves one org: the configured Discord server plus member role. No standing sub-fleets: an op has ad-hoc **wings** set up by the ops lead from the web page, and **crews** are found automatically (members reporting the same ship). Tables carry an `org_id` anyway so multi-org hosting stays possible.
 12. **Linking without the bot (2026-11-23):** agents link through browser sign-in with Discord (§5.1). ButlerBot is a side feature; nothing in the hub depends on it.
 13. **Rates and transport (2026-11-23):** WebSocket over TLS for agent→hub and hub→viewer. UDP rejected: browsers can't use it, the Apache proxy can't carry it, we'd rebuild encryption and auth, and status data doesn't need it. Instead the uplink sends deltas at up to 10 Hz (≈1.5 KB/s per member) and viewers subscribe to summaries for the board and full rate for the member they have open. Fleet board vs cockpit Wingmates panel is a per-user layout choice (the panel lives in Customize); the board is built first because the panel uses the same feed.
+14. **Hub stack (2026-11-23):** aiohttp and `sqlite3` instead of FastAPI, uvicorn and SQLAlchemy: one web framework across agent and hub (no new dependencies), a handful of tables with single-statement queries, and a smaller image. Live state stays in memory; SQLite holds members, sessions, linked PCs (token hashes only), link codes and the 30-day event log.
 9. **Hull/shield bars (2026-11-23):** LIVE doesn't send hull health or shield levels (see FIELDS.md). The fleet board keeps hull and shield bars in the design anyway, alongside shield power and warning lights. Final call near the end of the build.

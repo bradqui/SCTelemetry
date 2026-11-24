@@ -3,6 +3,7 @@
 - ``/``      the built web UI (web/dist), in local mode
 - ``/ws``    WebSocket: state, then every snapshot (~17/s) and event as they happen
 - ``/api/state``  the latest of everything, as JSON
+- ``/api/mode``   ``{"mode": "local"}``: the same page is served by the hub in fleet mode
 
 In replay mode (``run --replay``) the page also gets the recording's timeline
 (chapters and every event on it) and may send replay controls over ``/ws``:
@@ -65,6 +66,8 @@ class _Client:
             self.messages.append(json.dumps({"type": "reset"}))
         elif kind == "replay":
             self.messages.append(json.dumps({"type": "replay", **payload}))  # type: ignore[dict-item]
+        elif kind == "uplink":
+            self.messages.append(json.dumps({"type": "uplink", **payload}))  # type: ignore[dict-item]
         self.wake.set()
 
     async def pump(self) -> None:
@@ -108,6 +111,7 @@ class LocalServer:
             [
                 web.get("/ws", self._ws),
                 web.get("/api/state", self._api_state),
+                web.get("/api/mode", self._api_mode),
                 web.get("/{tail:.*}", self._static),
             ]
         )
@@ -122,6 +126,9 @@ class LocalServer:
         return await handler(request)
 
     # -- routes
+
+    async def _api_mode(self, _request: web.Request) -> web.Response:
+        return web.json_response({"mode": "local", "agent_version": __version__})
 
     async def _api_state(self, _request: web.Request) -> web.Response:
         body = {

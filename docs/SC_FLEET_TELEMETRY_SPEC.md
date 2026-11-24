@@ -359,7 +359,7 @@ Cog holds a reconnecting WebSocket to the hub's `/internal/events` and uses the 
 - [ ] Unsigned exe: distribute only via our GitHub releases; publish SHA-256.
 
 ## 11. Decisions (2026-11-22)
-1. **Repo:** `bradqui/SCTelemetry`, private for now (may go public later). Hub hostname: `fleet.fridaynightclub.xyz` (a setting, `HUB_URL`, not hard-coded). Discord OAuth redirect: `https://<host>/auth/callback`.
+1. **Repo:** `bradqui/SCTelemetry`, public since 2026-11-23 (history checked first: no player names, addresses or secrets). Hub hostname: `fleet.fridaynightclub.xyz` (a setting, `HUB_URL`, not hard-coded). Discord OAuth redirect: `https://<host>/auth/callback`.
 2. **Hosting:** Brad's public web server (Webmin/Virtualmin), hub in Docker on a `127.0.0.1` port. HTTPS via a Virtualmin subdomain (Let's Encrypt) with an Apache proxy path to the hub, WebSocket upgrade on. No separate proxy container. Ports (checked free 2026-11-23): **8100** public app (proxied), **8101** internal API (never proxied), both on `127.0.0.1`. Apache 2.4.58 with `proxy_http` and `proxy_wstunnel` enabled, so `ProxyPass ... upgrade=websocket` works.
 3. **Database:** SQLite. **No Redis** — the cog gets events from the hub's internal WebSocket. Deployment is one container plus the SQLite volume.
 4. **Discord:** server is configurable (Friday Night Club to start); access is a configurable org member role; admin commands and ops require server admin. Alerts channel is configurable: `#lab` while testing, later `#star-citizen`.

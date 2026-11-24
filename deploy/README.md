@@ -33,11 +33,9 @@ Later, to put Cloudflare's proxy in front (orange cloud): SSL/TLS mode **Full (s
 
 ## 3. Get the code onto the server
 
-The repo is private, so the server needs read access. Either:
-
-- a **deploy key**: `ssh-keygen -t ed25519 -f ~/.ssh/sctelemetry_deploy -N ""`, add the `.pub` file in GitHub (repo → Settings → Deploy keys, read-only), then
-  `GIT_SSH_COMMAND="ssh -i ~/.ssh/sctelemetry_deploy" git clone git@github.com:bradqui/SCTelemetry.git`
-- or `gh auth login` on the server and `gh repo clone bradqui/SCTelemetry`.
+```bash
+git clone https://github.com/bradqui/SCTelemetry.git
+```
 
 ## 4. Configure and start
 

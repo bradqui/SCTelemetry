@@ -15,6 +15,8 @@ build/
 dist/
 *.spec.bak
 web/dist/
+web/dist-showcase/
+web/showcase/demo-fleet.json
 node_modules/
 
 # Local data / secrets

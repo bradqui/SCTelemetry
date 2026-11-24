@@ -6,6 +6,7 @@
     org,
     me,
     rows,
+    demo = false,
     socket,
     onOpen,
     onAccount,
@@ -16,6 +17,8 @@
     org: string;
     me: Account;
     rows: MemberSummary[];
+    /** The showcase: no account to manage. */
+    demo?: boolean;
     socket: "connecting" | "open" | "closed";
     onOpen: (id: string) => void;
     onAccount: () => void;
@@ -91,12 +94,12 @@
       </button>
       {#if menu}
         <div class="menu" role="menu">
-          <button role="menuitem" onclick={() => ((menu = false), onAccount())}>Your account</button>
+          {#if !demo}<button role="menuitem" onclick={() => ((menu = false), onAccount())}>Your account</button>{/if}
           <button role="menuitem" onclick={() => ((menu = false), onCustomize())}>Theme and layout</button>
-          {#if me.role === "admin"}
+          {#if me.role === "admin" && !demo}
             <button role="menuitem" onclick={() => ((menu = false), onAdmin())}>Admin</button>
           {/if}
-          <button role="menuitem" onclick={() => ((menu = false), onSignOut())}>Sign out</button>
+          {#if !demo}<button role="menuitem" onclick={() => ((menu = false), onSignOut())}>Sign out</button>{/if}
         </div>
       {/if}
     </div>

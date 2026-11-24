@@ -223,100 +223,156 @@ button {
 }
 
 /* ---------------------------------------------------------------- brand details
-   lib/themes.ts sets data-deco on <html> (or on one member's panel on the fleet page).
-   Doubled classes keep these above the components' own styles. */
+   lib/themes.ts sets data-deco on the themed element: <html>, or one member's panel
+   on the fleet page. @scope stops each theme's details at a nested themed element,
+   so a panel in another brand's theme only gets its own. Tripled classes keep these
+   above the components' own styles. */
 
-/* Aegis: targeting brackets always on, cut corners */
-[data-deco~="brackets"] .panel-frame.panel-frame::before,
-[data-deco~="brackets"] .panel-frame.panel-frame::after {
-  opacity: 1;
-  border-color: var(--accent);
+@scope ([data-deco~="brackets"]) to ([data-deco]) {
+  /* Aegis: targeting brackets always on */
+  .panel-frame.panel-frame.panel-frame::before,
+  .panel-frame.panel-frame.panel-frame::after {
+    opacity: 1;
+    border-color: var(--accent);
+  }
 }
-[data-deco~="notch"] .panel-frame.panel-frame,
-[data-deco~="notch"] .topbar.topbar {
-  clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px));
+@scope ([data-deco~="notch"]) to ([data-deco]) {
+  /* Aegis: cut corners */
+  .panel-frame.panel-frame.panel-frame,
+  .topbar.topbar.topbar {
+    clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px));
+  }
+}
+@scope ([data-deco~="hazard"]) to ([data-deco]) {
+  /* Drake: hazard stripes along the top */
+  .panel-frame.panel-frame.panel-frame,
+  .topbar.topbar.topbar {
+    background:
+      repeating-linear-gradient(-45deg, var(--stripe) 0 7px, var(--stripe-2) 7px 14px) top / 100% 5px no-repeat,
+      linear-gradient(180deg, var(--panel-2), var(--panel));
+    padding-top: 13px;
+  }
+}
+@scope ([data-deco~="bars"]) to ([data-deco]) {
+  /* Argo: panels sit in a metal frame, like the bars across Argo canopies */
+  .dash-grid.dash-grid.dash-grid {
+    background: var(--accent-2);
+    padding: 7px;
+    border-radius: 2px;
+  }
+  .panel-frame.panel-frame.panel-frame {
+    border-color: transparent;
+  }
+}
+@scope ([data-deco~="rule"]) to ([data-deco]) {
+  /* RSI: an accent rule tops each panel */
+  .panel-frame.panel-frame.panel-frame {
+    border-top: 2px solid var(--accent);
+  }
+}
+@scope ([data-deco~="circle"]) to ([data-deco]) {
+  /* Anvil: ring markers */
+  .panel-frame .panel-title.panel-title.panel-title::before {
+    width: 9px;
+    height: 9px;
+    border: 2px solid var(--accent);
+    border-radius: 50%;
+    background: none;
+    box-shadow: none;
+  }
+}
+@scope ([data-deco~="airy"]) to ([data-deco]) {
+  /* Origin, Crusader: no hard lines, soft shadows */
+  .panel-frame.panel-frame.panel-frame,
+  .topbar.topbar.topbar {
+    border-color: transparent;
+    box-shadow: 0 1px 2px var(--shadow), 0 10px 26px -14px var(--shadow);
+  }
+}
+@scope ([data-deco~="tab"]) to ([data-deco]) {
+  /* MISC: titles on tabs, like labelled hull modules */
+  .panel-frame .panel-title.panel-title.panel-title {
+    background: var(--accent);
+    color: var(--bg);
+    padding: 2px 9px 2px 11px;
+    margin-left: -11px;
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  }
+  .panel-frame .panel-title.panel-title.panel-title::before {
+    display: none;
+  }
+}
+@scope ([data-deco~="speed"]) to ([data-deco]) {
+  /* Mirai: speed stripes, slanted chips */
+  .panel-frame.panel-frame.panel-frame {
+    background:
+      linear-gradient(105deg, transparent 0 18%, var(--accent) 18% 62%, transparent 62% 70%, var(--accent-2) 70% 84%, transparent 84%) top right / 46% 5px no-repeat,
+      linear-gradient(180deg, var(--panel-2), var(--panel));
+  }
+  .chip.chip.chip {
+    transform: skewX(-12deg);
+  }
+}
+@scope ([data-deco~="hairline"]) to ([data-deco]) {
+  /* Kruger: a red hairline across the top, the old livery */
+  .topbar.topbar.topbar {
+    box-shadow: inset 0 2px 0 var(--accent-2);
+  }
+}
+@scope ([data-deco~="glyph"]) to ([data-deco]) {
+  /* Esperia: a double rule after each title */
+  .panel-frame .panel-title.panel-title.panel-title::after {
+    content: "";
+    width: 56px;
+    height: 4px;
+    border-top: 1px solid var(--accent);
+    border-bottom: 1px solid var(--accent);
+    opacity: 0.5;
+  }
+}
+@scope ([data-deco~="glow"]) to ([data-deco]) {
+  /* Aopoa, Gatac: a soft glow */
+  .panel-frame.panel-frame.panel-frame {
+    box-shadow: 0 0 22px -10px var(--accent), inset 0 0 0 1px color-mix(in srgb, var(--accent) 14%, transparent);
+  }
+}
+@scope ([data-deco~="facet"]) to ([data-deco]) {
+  /* Gatac: faceted corners */
+  .panel-frame.panel-frame.panel-frame {
+    clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+  }
+}
+@scope ([data-deco~="stitch"]) to ([data-deco]) {
+  /* Banu: stitched, patched borders that differ panel to panel */
+  .panel-frame.panel-frame.panel-frame {
+    outline: 1px dashed var(--line-2);
+    outline-offset: -5px;
+  }
+  .dash-grid > :nth-child(3n + 2) .panel-frame.panel-frame.panel-frame {
+    border-style: double;
+    border-width: 3px;
+  }
+}
+@scope ([data-deco~="stripe"]) to ([data-deco]) {
+  /* Greycat: a safety band */
+  .panel-frame.panel-frame.panel-frame {
+    border-top: 4px solid var(--stripe);
+  }
+}
+@scope ([data-deco~="rivets"]) to ([data-deco]) {
+  /* Tumbril: riveted plates */
+  .panel-frame.panel-frame.panel-frame {
+    background:
+      radial-gradient(circle, var(--line-2) 2px, transparent 2.5px) 4px 4px / 8px 8px no-repeat,
+      radial-gradient(circle, var(--line-2) 2px, transparent 2.5px) calc(100% - 4px) 4px / 8px 8px no-repeat,
+      radial-gradient(circle, var(--line-2) 2px, transparent 2.5px) 4px calc(100% - 4px) / 8px 8px no-repeat,
+      radial-gradient(circle, var(--line-2) 2px, transparent 2.5px) calc(100% - 4px) calc(100% - 4px) / 8px 8px no-repeat,
+      linear-gradient(180deg, var(--panel-2), var(--panel));
+  }
 }
 
-/* Drake: hazard stripes along the top */
-[data-deco~="hazard"] .panel-frame.panel-frame,
-[data-deco~="hazard"] .topbar.topbar {
-  background:
-    repeating-linear-gradient(-45deg, var(--stripe) 0 7px, var(--stripe-2) 7px 14px) top / 100% 5px no-repeat,
-    linear-gradient(180deg, var(--panel-2), var(--panel));
-  padding-top: 13px;
-}
-
-/* Argo: panels sit in a metal frame, like the bars across Argo canopies */
-[data-deco~="bars"] .dash-grid.dash-grid {
-  background: var(--accent-2);
-  padding: 7px;
-  border-radius: 2px;
-}
-[data-deco~="bars"] .panel-frame.panel-frame {
-  border-color: transparent;
-}
-
-/* RSI: an accent rule tops each panel */
-[data-deco~="rule"] .panel-frame.panel-frame {
-  border-top: 2px solid var(--accent);
-}
-
-/* Anvil: ring markers */
-[data-deco~="circle"] .panel-frame .panel-title.panel-title::before {
-  width: 9px;
-  height: 9px;
-  border: 2px solid var(--accent);
-  border-radius: 50%;
-  background: none;
-  box-shadow: none;
-}
-
-/* Origin, Crusader: no hard lines, soft shadows */
-[data-deco~="airy"] .panel-frame.panel-frame,
-[data-deco~="airy"] .topbar.topbar {
-  border-color: transparent;
-  box-shadow: 0 1px 2px var(--shadow), 0 10px 26px -14px var(--shadow);
-}
-
-/* MISC: titles on tabs, like labelled hull modules */
-[data-deco~="tab"] .panel-frame .panel-title.panel-title {
-  background: var(--accent);
-  color: var(--bg);
-  padding: 2px 9px 2px 11px;
-  margin-left: -11px;
-  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
-}
-[data-deco~="tab"] .panel-frame .panel-title.panel-title::before {
-  display: none;
-}
-
-/* Mirai: speed stripes, slanted chips */
-[data-deco~="speed"] .panel-frame.panel-frame {
-  background:
-    linear-gradient(105deg, transparent 0 18%, var(--accent) 18% 62%, transparent 62% 70%, var(--accent-2) 70% 84%, transparent 84%) top right / 46% 5px no-repeat,
-    linear-gradient(180deg, var(--panel-2), var(--panel));
-}
-[data-deco~="speed"] .chip.chip {
-  transform: skewX(-12deg);
-}
-
-/* Kruger: a red hairline across the top, the old livery */
-[data-deco~="hairline"] .topbar.topbar {
-  box-shadow: inset 0 2px 0 var(--accent-2);
-}
-
-/* Esperia: a double rule after each title */
-[data-deco~="glyph"] .panel-frame .panel-title.panel-title::after {
-  content: "";
-  width: 56px;
-  height: 4px;
-  border-top: 1px solid var(--accent);
-  border-bottom: 1px solid var(--accent);
-  opacity: 0.5;
-}
-
-/* Aopoa: a faint hexagon lattice behind everything */
-[data-deco~="hex"] #app::before {
+/* Aopoa: a faint hexagon lattice behind the whole page */
+html[data-deco~="hex"] #app::before {
   content: "";
   position: fixed;
   inset: 0;
@@ -326,39 +382,4 @@ button {
   background: var(--accent);
   -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='48' viewBox='0 0 28 48'%3E%3Cpath d='M14 0 28 8v16L14 32 0 24V8zM14 32l14 8v16M14 32 0 40v16' fill='none' stroke='black' stroke-width='1.2'/%3E%3C/svg%3E") repeat;
   mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='48' viewBox='0 0 28 48'%3E%3Cpath d='M14 0 28 8v16L14 32 0 24V8zM14 32l14 8v16M14 32 0 40v16' fill='none' stroke='black' stroke-width='1.2'/%3E%3C/svg%3E") repeat;
-}
-
-/* Aopoa, Gatac: a soft glow */
-[data-deco~="glow"] .panel-frame.panel-frame {
-  box-shadow: 0 0 22px -10px var(--accent), inset 0 0 0 1px color-mix(in srgb, var(--accent) 14%, transparent);
-}
-
-/* Gatac: faceted corners */
-[data-deco~="facet"] .panel-frame.panel-frame {
-  clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
-}
-
-/* Banu: stitched, patched borders that differ panel to panel */
-[data-deco~="stitch"] .panel-frame.panel-frame {
-  outline: 1px dashed var(--line-2);
-  outline-offset: -5px;
-}
-[data-deco~="stitch"] .dash-grid > :nth-child(3n + 2) .panel-frame.panel-frame {
-  border-style: double;
-  border-width: 3px;
-}
-
-/* Greycat: a safety band */
-[data-deco~="stripe"] .panel-frame.panel-frame {
-  border-top: 4px solid var(--stripe);
-}
-
-/* Tumbril: riveted plates */
-[data-deco~="rivets"] .panel-frame.panel-frame {
-  background:
-    radial-gradient(circle, var(--line-2) 2px, transparent 2.5px) 4px 4px / 8px 8px no-repeat,
-    radial-gradient(circle, var(--line-2) 2px, transparent 2.5px) calc(100% - 4px) 4px / 8px 8px no-repeat,
-    radial-gradient(circle, var(--line-2) 2px, transparent 2.5px) 4px calc(100% - 4px) / 8px 8px no-repeat,
-    radial-gradient(circle, var(--line-2) 2px, transparent 2.5px) calc(100% - 4px) calc(100% - 4px) / 8px 8px no-repeat,
-    linear-gradient(180deg, var(--panel-2), var(--panel));
 }

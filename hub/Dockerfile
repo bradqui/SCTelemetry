@@ -31,10 +31,12 @@ COPY --from=web /web/dist/ web/
 
 # The hub runs as this user; the entrypoint starts as root only to hand it /data (a
 # host folder mounted there is usually root's), then drops to it.
-RUN groupadd --system --gid 10001 hub && useradd --system --uid 10001 --gid hub hub     && mkdir -p /data && chown hub:hub /data
+RUN groupadd --system --gid 10001 hub && useradd --system --uid 10001 --gid hub hub \
+    && mkdir -p /data && chown hub:hub /data
 COPY hub/entrypoint.sh /usr/local/bin/starglance-entrypoint
-RUN sed -i 's/
-$//' /usr/local/bin/starglance-entrypoint && chmod 755 /usr/local/bin/starglance-entrypoint
+# (Line endings: a Windows checkout may have given the script CRLFs, which sh can't run.)
+RUN sed -i 's/\r$//' /usr/local/bin/starglance-entrypoint \
+    && chmod 755 /usr/local/bin/starglance-entrypoint
 VOLUME /data
 EXPOSE 8100
 

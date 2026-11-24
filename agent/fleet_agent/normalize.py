@@ -11,6 +11,9 @@ in any patch. Quirks handled here:
 - ``hydrogen_fuel`` reads 0 whenever the engines are off, and for a moment after
   the vehicle appears: reported as None (unknown) then, not as empty.
 - altitude is FLT_MAX in space -> None.
+- heading is a compass bearing over the planet below. With no planet (altitude
+  FLT_MAX) the game keeps sending the last value, frozen, however hard you turn:
+  reported as None there.
 - ``quantum_fuel`` is always 0 -> None until a non-zero value is ever seen.
 - no master mode field: NAV when the quantum drive light is lit, SCM when it's
   off, None when the ship is unpowered.
@@ -21,8 +24,12 @@ in any patch. Quirks handled here:
   is bit-identical with G == 0 for ``QUANTUM_FREEZE_MS`` and the heading moved.
   Once in a jump, it lasts until G reads anything but 0: mid-jump the speed can
   step (e.g. to exactly 0) and the heading can hold still for 15 s or more.
-  Works in space and in atmosphere; checked against every jump in a 44-minute
-  session (including multi-leg routes) and two dead stops in space.
+  Far from any planet the heading never moves (see above), so a jump there
+  can't be told from a stop by the instruments alone. Game.log fills the gap:
+  when a quantum route is plotted (``route_active``, set by the pipeline) and the
+  quantum drive is lit (NAV), frozen instruments count without the heading.
+  Every jump in a 44-minute session (including multi-leg routes) fell inside a
+  plotted route with NAV on; both dead stops in deep space were outside one.
 """
 
 from __future__ import annotations
@@ -197,6 +204,8 @@ class Normalizer:
         self._vehicle_id: str | None = None
         self._master_mode: str | None = None
         self._qt_fuel_seen = False
+        self.route_active = False
+        """A quantum route is plotted (from Game.log); see the module docstring."""
         self._qt_reset()
         self._warned: set[str] = set()
 
@@ -307,8 +316,11 @@ class Normalizer:
 
         speed = _num(inst.get("speed"))
         alt = _num(inst.get("altitude"))
+        raw_alt = inst.get("altitude")
+        deep_space = isinstance(raw_alt, (int, float)) and abs(raw_alt) > FLT_MAX_ISH
+        nav = powered is not False and lights.get("qdrv") not in (None, "off")
         quantum = self._quantum(
-            inst.get("speed"), _get(inst, "g_meter", "current"), inst.get("heading"), t
+            inst.get("speed"), _get(inst, "g_meter", "current"), inst.get("heading"), t, nav
         )
 
         shields_powered = power.get("shield_generators")
@@ -339,7 +351,7 @@ class Normalizer:
                 alt=alt,
                 radar_alt=_num(inst.get("radar_altitude")),
                 vsi=_num(inst.get("vertical_speed_indicator")),
-                heading=_num(inst.get("heading")),
+                heading=None if deep_space else _num(inst.get("heading")),
                 g=_num(_get(inst, "g_meter", "current")),
                 g_max=_num(_get(inst, "g_meter", "max")),
                 atmo_density=_num(inst.get("atmospheric_density")),
@@ -361,7 +373,7 @@ class Normalizer:
         self._qt_turned = False  # heading moved while frozen
         self._qt_on = False
 
-    def _quantum(self, speed: Any, g: Any, heading: Any, t: int) -> bool | None:
+    def _quantum(self, speed: Any, g: Any, heading: Any, t: int, nav: bool = False) -> bool | None:
         """Raw values on purpose: "frozen" means bit-identical, not merely close."""
         if not isinstance(speed, (int, float)) or isinstance(speed, bool):
             self._qt_reset()
@@ -376,7 +388,8 @@ class Normalizer:
             self._qt_since = t
         if heading != last[1]:
             self._qt_turned = True
-        self._qt_on = self._qt_turned and t - self._qt_since >= QUANTUM_FREEZE_MS
+        moving = self._qt_turned or (self.route_active and nav)
+        self._qt_on = moving and t - self._qt_since >= QUANTUM_FREEZE_MS
         return self._qt_on
 
     def _infer_mode(self, qdrv: str | None, powered: bool | None) -> str | None:

@@ -282,6 +282,11 @@ class RouteTracker:
             return [Event(t=t, kind="quantum_blocked", data={"destination": self.destination})]
         return []
 
+    @property
+    def active(self) -> bool:
+        """A route is plotted and not yet arrived: a jump may be under way."""
+        return self.state in ("plotted", "en_route")
+
     def route(self, t: int, quantum: bool | None) -> Route | None:
         if self.state is None:
             return None

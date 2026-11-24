@@ -206,6 +206,7 @@ class Recording:
                     li += 1
                 rec.positions.append(pos)
                 rec.payloads.append(payload)
+                normalizer.route_active = logstate.route.active
                 snap = normalizer.feed(raw, int(pos * 1000))
                 ship_id = snap.ship.id if snap.ship else None
                 for e in deriver.feed(snap, raw_game_events(raw)):

@@ -121,6 +121,7 @@ Capture: walking a station and hab, an Origin M80 flight (power cycle, takeoff, 
 
 **Flight**
 - `altitude` and `radar_altitude` are `3.4028235e38` (FLT_MAX) in space, so they should be treated as null.
+- `heading` is a compass bearing over the planet below. **With no planet (altitude FLT_MAX) it freezes**: the game keeps sending the last value however you turn. A whole dogfight read 268.0939° for 6.5 minutes. The normalizer reports it as null there, and the dashboard says "No heading in deep space".
 - `atmospheric_density` is about 1.2 at the surface and about 0 in space.
 - `speed` peaked at 1111 m/s. Quantum travel did **not** show up in `speed`.
 - `g_meter.current` reached 23 g.
@@ -155,8 +156,9 @@ There is no quantum travel field, and `speed` does not show the jump. What happe
 - `altitude` keeps updating: it leaped 23 km → 45 km → FLT_MAX in a second on the way out and fell from 11 km on arrival while `speed` read 0.
 - `thr` often goes MAJOR_ON and `ifcs_g_safe`/`ifcs_esp` go inactive for parts of the jump, but not consistently.
 - A ship stopped dead in space also has a frozen `speed` and G of 0, but its heading is frozen too.
+- Far from any planet the heading never moves at all (see Flight), so there a jump and a stop look the same. Every jump had the quantum drive light (`qdrv`) lit and fell between a Game.log "route plotted" and "arrived" line; both stops in deep space were outside a route.
 
-So the normalizer infers `flight.quantum`: speed bit-identical with G exactly 0 for 1 s while the heading moves; it then lasts until G reads anything but 0. In the 44-minute session it found all three routes (one 68 s jump; two routes that were split into two legs around an obstruction) and neither of two dead stops in space. Short legs (~7 s) are only recognised near their end. One more 7 s freeze at 1026 m/s, right after an "obstructed" notice, was also flagged; we can't tell from the data what it was.
+So the normalizer infers `flight.quantum`: speed bit-identical with G exactly 0 for 1 s while the heading moves, or, when Game.log shows a route plotted and `qdrv` is lit, without the heading; it then lasts until G reads anything but 0. With the route, the short legs are caught 1.5 s in instead of near their end. In the 44-minute session it found all three routes (one 68 s jump; two routes that were split into two legs around an obstruction) and neither of two dead stops in space. Short legs (~7 s) are only recognised near their end. One more 7 s freeze at 1026 m/s, right after an "obstructed" notice, was also flagged; we can't tell from the data what it was.
 
 **Game.log**: see the Game.log section below for the route, arrival and obstruction lines. No line marks the start of a quantum jump.
 

@@ -261,3 +261,45 @@ def test_privacy_filter_removes_unshared():
     assert filtered.weapons is None and filtered.vitals is None and filtered.uec is None
     body = filtered.model_dump_json(by_alias=True)
     assert '"vitals":null' in body and '"heart_rate"' not in body
+
+
+def test_heading_is_unknown_in_deep_space():
+    """Away from planets (altitude FLT_MAX) the game repeats a stale heading."""
+    snaps, _ = run("combat")
+    ships = [s.ship.flight for s in snaps if s.ship]
+    assert ships and all(f.alt is None for f in ships), "the fight is in deep space"
+    assert all(f.heading is None for f in ships)
+    near, _ = run("sit-power-takeoff-gear")
+    assert any(s.ship and s.ship.flight.heading is not None for s in near)
+
+
+def _deep_space_stop(qdrv: str):
+    """A frame in deep space with the instruments frozen: speed 0, G 0, heading still."""
+    import copy
+
+    template = next(
+        raw for _, raw in read_frames(FIXTURES / "combat.jsonl.gz") if raw.get("vehicle")
+    )
+    raw = copy.deepcopy(template)
+    state = raw["vehicle"]["state"]
+    inst = state["flight"]["instruments"]
+    inst["speed"], inst["g_meter"]["current"], inst["heading"] = 0.0, 0.0, 268.0939
+    state["annunciators"]["qdrv"] = f"ANNUNCIATOR_STATE_{qdrv}"
+    return raw
+
+
+@pytest.mark.parametrize(
+    "route, qdrv, expected",
+    [
+        (False, "NOMINAL", False),  # stopped in NAV, no route plotted
+        (True, "OFF", False),  # route plotted but in SCM: can't be jumping
+        (True, "NOMINAL", True),  # route plotted, drive lit, instruments frozen
+    ],
+)
+def test_deep_space_quantum_needs_a_route(route, qdrv, expected):
+    norm = Normalizer()
+    norm.route_active = route
+    raw = _deep_space_stop(qdrv)
+    snaps = [norm.feed(raw, t) for t in range(0, 3000, 50)]
+    assert snaps[-1].ship.flight.quantum is expected
+    assert not snaps[0].ship.flight.quantum, "needs to stay frozen for a second first"

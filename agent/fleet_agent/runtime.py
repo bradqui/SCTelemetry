@@ -111,6 +111,7 @@ class Pipeline:
         if not self.state.streaming:
             self.set_state(streaming=True, message="Receiving telemetry")
             self._emit(Event(t=t, kind="game_start"))
+        self._normalizer.route_active = self._log_active and self._log.route.active
         snap = self._with_log(self._normalizer.feed(raw, t), t)
         for event in self._deriver.feed(snap, raw_game_events(raw)):
             if event.kind in ("spawn", "respawn"):

@@ -1,6 +1,10 @@
 <script lang="ts">
   // A scrolling compass tape centred on the heading.
-  let { heading, compact = false }: { heading: number | null; compact?: boolean } = $props();
+  let {
+    heading,
+    compact = false,
+    note = "No heading",
+  }: { heading: number | null; compact?: boolean; note?: string } = $props();
 
   const PX = $derived(compact ? 3.5 : 5); // pixels per degree
   const SPAN = 130; // degrees drawn each side: wider than any panel
@@ -32,7 +36,7 @@
 
 <div class="tape" class:none={h == null} class:compact>
   {#if h == null}
-    <span class="nodata">No heading</span>
+    <span class="nodata" title="The game only reports heading near a planet">{note}</span>
   {:else}
     {#each ticks as t (t.d)}
       <span class="tick {t.kind}" class:card={t.deg in CARDINAL} style:transform="translateX({t.off}px)">
@@ -58,10 +62,19 @@
   .none {
     display: grid;
     place-items: center;
+    /* a dimmed, empty tape */
+    background: repeating-linear-gradient(90deg, var(--line) 0 1px, transparent 1px 25px) bottom / 100% 8px no-repeat;
   }
   .nodata {
     color: var(--text-3);
-    font-size: 0.85rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 2px 8px;
+    border: 1px solid var(--line-2);
+    border-radius: 2px;
+    background: var(--panel);
   }
   .tick {
     position: absolute;

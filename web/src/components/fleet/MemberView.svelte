@@ -6,6 +6,7 @@
   import type { MemberSummary, Snapshot, TelemetryEvent } from "../../lib/types";
   import Dashboard from "../Dashboard.svelte";
   import LocationChips from "../LocationChips.svelte";
+  import { applyTheme, DEFAULT_THEME, THEME_BY_ID, themeForShip } from "../../lib/themes";
 
   let {
     member,
@@ -30,6 +31,14 @@
   } = $props();
 
   const ship = $derived(snap?.ship ?? null);
+  // Their panel wears their ship's maker (when you match ships), else your default theme.
+  let el: HTMLDivElement;
+  const paneTheme = $derived(
+    (prefs.matchShip ? themeForShip(ship?.class) : null) ?? THEME_BY_ID[prefs.theme] ?? THEME_BY_ID[DEFAULT_THEME],
+  );
+  $effect(() => {
+    if (el) applyTheme(el, paneTheme, prefs.scheme);
+  });
   const ctx = $derived<PanelCtx | null>(
     snap ? { snap, ship, events, trends, prefs, compact: false, now, who: isMe ? undefined : member.name } : null,
   );
@@ -48,14 +57,14 @@
   );
 </script>
 
-<div class="member">
+<div class="member" bind:this={el}>
   <header>
     <button class="back" onclick={onClose} aria-label="Back to the fleet" title="Back to the fleet">
       <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3 5 8l5 5" /></svg>
     </button>
     {#if member.avatar}<img src={member.avatar} alt="" />{/if}
     <div class="who">
-      <b>{member.name}{#if isMe}<em>you</em>{/if}</b>
+      <b class="display">{member.name}{#if isMe}<em>you</em>{/if}</b>
       <small class="p-{member.presence}">{where}</small>
     </div>
     {#if loc}<LocationChips {loc} sameServer={same} />{/if}
@@ -86,6 +95,11 @@
 
 <style>
   .member {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    border-radius: var(--radius);
+    padding: 6px;
     display: grid;
     gap: var(--gap);
     align-content: start;
@@ -107,7 +121,7 @@
     width: 26px;
     height: 26px;
     border: 1px solid var(--line-2);
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
     background: var(--bg-2);
     cursor: pointer;
     flex: none;
@@ -125,7 +139,7 @@
   img {
     width: 28px;
     height: 28px;
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
     flex: none;
   }
   .who {
@@ -146,7 +160,7 @@
     text-transform: uppercase;
     color: var(--accent);
     border: 1px solid currentColor;
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
     padding: 0 4px;
     margin-left: 7px;
     vertical-align: 2px;
@@ -172,7 +186,7 @@
     letter-spacing: 0.12em;
     font-size: 0.82rem;
     padding: 3px 9px;
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
     border: 1px solid currentColor;
     flex: none;
   }

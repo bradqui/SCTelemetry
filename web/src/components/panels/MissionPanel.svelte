@@ -30,7 +30,7 @@
       {#if main.shared}<span class="badge shared">Shared</span>{/if}
       {#each main.tags as tag (tag)}<span class="tag">{tag}</span>{/each}
     </div>
-    <span class="title">{main.title ?? "Objective"}</span>
+    <span class="title display">{main.title ?? "Objective"}</span>
     {#if main.objective}
       <div class="objective" class:done={main.objective_done}>
         <svg viewBox="0 0 16 16" aria-hidden="true">
@@ -65,9 +65,9 @@
     padding: 8px 10px;
     border: 1px solid var(--line);
     border-left: 3px solid var(--c);
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
     background: color-mix(in srgb, var(--c) 7%, var(--bg-2));
-    --c: #f5c26b;
+    --c: var(--warn);
   }
   .main.complete {
     --c: var(--good);
@@ -90,7 +90,7 @@
     letter-spacing: 0.1em;
     text-transform: uppercase;
     padding: 1px 6px;
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
   }
   .badge {
     color: var(--bg);
@@ -157,7 +157,7 @@
     color: var(--text-3);
   }
   .others .dot {
-    color: #f5c26b;
+    color: var(--warn);
   }
   .others .complete .dot {
     color: var(--good);
@@ -170,7 +170,7 @@
     gap: 3px;
     padding: 8px 10px;
     border: 1px dashed var(--line-2);
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
   }
   .none .title {
     color: var(--text-2);

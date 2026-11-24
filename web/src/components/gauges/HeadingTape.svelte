@@ -73,7 +73,7 @@
     text-transform: uppercase;
     padding: 2px 8px;
     border: 1px solid var(--line-2);
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
     background: var(--panel);
   }
   .tick {
@@ -120,7 +120,7 @@
     font-weight: 800;
     font-size: 0.9rem;
     padding: 0 8px;
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
     color: var(--bg);
     background: var(--accent);
     box-shadow: 0 0 var(--glow, 14px) color-mix(in srgb, var(--accent) 55%, transparent);

@@ -94,13 +94,13 @@
     background: var(--bg-2);
     border: 1px solid var(--line);
     padding: 0 4px;
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
     overflow-wrap: anywhere;
   }
   .body :global(.btn) {
     border: 1px solid var(--line-2);
     background: var(--bg-2);
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
     padding: 4px 10px;
     font-size: 0.8rem;
     cursor: pointer;
@@ -123,7 +123,7 @@
   .body :global(select) {
     padding: 5px 8px;
     border: 1px solid var(--line-2);
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
     background: var(--bg-2);
     color: var(--text);
     font: inherit;
@@ -146,7 +146,7 @@
     gap: 9px;
     padding: 6px 9px;
     border: 1px solid var(--line);
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
     background: var(--bg-2);
     font-size: 0.85rem;
   }
@@ -168,7 +168,7 @@
     align-items: center;
     padding: 8px 10px;
     border: 1px solid var(--accent);
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
     background: color-mix(in srgb, var(--accent) 8%, var(--bg-2));
   }
   .body :global(.secret code) {

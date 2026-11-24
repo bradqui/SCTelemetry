@@ -50,7 +50,7 @@
     <div class="stats">
       {#each stats as s (s.label)}
         <div class="stat {s.tone}">
-          <span class="n num">{s.value}</span>
+          <span class="n num display">{s.value}</span>
           <span class="label">{s.label}</span>
         </div>
       {/each}
@@ -112,7 +112,7 @@
     gap: 6px;
     --flight: var(--accent);
     --combat: var(--bad);
-    --mission: #f5c26b;
+    --mission: var(--warn);
     --location: var(--nav);
     --you: var(--good);
   }
@@ -128,7 +128,7 @@
     padding: 3px 4px;
     border: 1px solid var(--line);
     background: var(--bg-2);
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
   }
   .stat .n {
     font-size: 1.05rem;
@@ -151,7 +151,7 @@
     align-items: center;
     gap: 10px;
     padding: 7px 10px;
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
     border: 1px solid color-mix(in srgb, var(--c) 45%, transparent);
     background: linear-gradient(90deg, color-mix(in srgb, var(--c) 16%, var(--bg-2)), var(--bg-2));
     box-shadow: 0 0 var(--glow, 0px) color-mix(in srgb, var(--c) 30%, transparent);
@@ -174,7 +174,7 @@
     flex: none;
     color: var(--c);
     border: 1px solid var(--c);
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
     background: color-mix(in srgb, var(--c) 14%, transparent);
   }
   .what {
@@ -204,7 +204,7 @@
     align-items: center;
     gap: 4px;
     padding: 2px 7px;
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
     border: 1px solid var(--line-2);
     background: var(--bg-2);
     color: var(--text-3);
@@ -277,7 +277,7 @@
     white-space: nowrap;
   }
   li.bad .text {
-    color: #ffd0d5;
+    color: color-mix(in srgb, var(--bad) 35%, var(--text));
   }
   time {
     color: var(--text-3);

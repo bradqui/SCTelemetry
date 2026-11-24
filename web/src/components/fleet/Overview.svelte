@@ -64,7 +64,7 @@
   <section class="tiles">
     {#each tiles as t (t.label)}
       <div class="tile {t.tone}">
-        <span class="n num">{t.value}</span>
+        <span class="n num display">{t.value}</span>
         <span class="label">{t.label}</span>
       </div>
     {/each}
@@ -130,7 +130,7 @@
     gap: 2px;
     padding: 8px 12px;
     border: 1px solid var(--line);
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
     background: linear-gradient(180deg, var(--panel-2), var(--panel));
   }
   .tile .n {
@@ -161,7 +161,7 @@
     text-align: left;
     padding: 6px 8px;
     border: 1px solid var(--line);
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
     background: var(--bg-2);
     cursor: pointer;
   }
@@ -191,7 +191,7 @@
     display: inline-grid;
     place-items: center;
     height: 20px;
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
     border: 1px solid currentColor;
     font-family: var(--mono);
     font-size: 0.62rem;
@@ -239,7 +239,7 @@
     border: 1px solid var(--line-2);
     background: var(--bg-2);
     color: var(--text-3);
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
     font-size: 0.62rem;
     font-weight: 700;
     letter-spacing: 0.08em;
@@ -277,7 +277,7 @@
     --rail: var(--bad);
   }
   li.cat-mission {
-    --rail: #f5c26b;
+    --rail: var(--warn);
   }
   li.cat-location {
     --rail: var(--nav);

@@ -78,7 +78,7 @@
     align-items: center;
     gap: 7px;
     padding: 2px 7px;
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
     background: var(--bg-2);
     font-size: 0.78rem;
     color: var(--text-2);
@@ -125,7 +125,7 @@
     display: grid;
     justify-items: center;
     padding: 3px 6px;
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
     border: 1px solid var(--line);
     background: var(--bg-2);
   }

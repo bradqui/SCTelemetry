@@ -162,7 +162,7 @@
     display: grid;
     gap: 1px;
     padding: 5px 8px;
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
     background: color-mix(in srgb, var(--bg-2) 70%, transparent);
     border: 1px solid var(--line);
     min-width: 0;
@@ -271,7 +271,7 @@
     padding: 4px 8px;
     border: 1px solid var(--line);
     border-left: 3px solid var(--nav);
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
     background: color-mix(in srgb, var(--nav) 7%, var(--bg-2));
     min-width: 0;
   }

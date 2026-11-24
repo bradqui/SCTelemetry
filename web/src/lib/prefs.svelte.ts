@@ -1,15 +1,13 @@
 import { COMPACT_PRESETS, PRESETS, repairLayout, type Layout } from "./panels";
-
-export const ACCENTS = {
-  ice: { name: "Ice", color: "#46d3ff" },
-  azure: { name: "Azure", color: "#6b8cff" },
-  orchid: { name: "Orchid", color: "#e070ff" },
-  silver: { name: "Silver", color: "#cfd8e3" },
-} as const;
-export type AccentId = keyof typeof ACCENTS;
+import { DEFAULT_THEME, THEME_BY_ID, type Scheme } from "./themes";
 
 export interface Prefs {
-  accent: AccentId;
+  /** Dark or light; the manufacturer theme supplies everything else. */
+  scheme: Scheme;
+  /** Manufacturer theme when you're not in a vehicle (or when matching is off). */
+  theme: string;
+  /** Switch to the manufacturer of the vehicle you're in. */
+  matchShip: boolean;
   /** Scanlines, glow and sweep animations. */
   effects: boolean;
   speedUnit: "ms" | "kmh";
@@ -25,7 +23,9 @@ const KEY = "ft.prefs.v1";
 
 export function defaultPrefs(): Prefs {
   return {
-    accent: "ice",
+    scheme: "dark",
+    theme: DEFAULT_THEME,
+    matchShip: true,
     effects: true,
     speedUnit: "ms",
     autoHide: true,
@@ -41,7 +41,9 @@ function load(): Prefs {
     const raw = JSON.parse(localStorage.getItem(KEY) ?? "null");
     if (!raw || typeof raw !== "object") return d;
     return {
-      accent: raw.accent in ACCENTS ? raw.accent : d.accent,
+      scheme: raw.scheme === "light" ? "light" : "dark",
+      theme: typeof raw.theme === "string" && raw.theme in THEME_BY_ID ? raw.theme : d.theme,
+      matchShip: typeof raw.matchShip === "boolean" ? raw.matchShip : d.matchShip,
       effects: typeof raw.effects === "boolean" ? raw.effects : d.effects,
       speedUnit: raw.speedUnit === "kmh" ? "kmh" : "ms",
       autoHide: typeof raw.autoHide === "boolean" ? raw.autoHide : d.autoHide,

@@ -101,7 +101,7 @@
     align-items: center;
     gap: 6px;
     padding: 3px 6px;
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
     border: 1px solid var(--line);
     background: var(--bg-2);
     color: var(--text-3);

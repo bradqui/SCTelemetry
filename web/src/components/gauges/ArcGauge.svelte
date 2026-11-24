@@ -81,7 +81,7 @@
     {@const [rx, ry] = pt(peakAngle + 3.5, R + 15)}
     <path class="peak" d="M{px} {py} L{qx} {qy} L{rx} {ry} Z"><title>Peak in the last 3 minutes</title></path>
   {/if}
-  <text class="big num" x={CX} y={CY + 8}>{display}</text>
+  <text class="big num display" x={CX} y={CY + 8}>{display}</text>
   <text class="unit" x={CX} y={CY + 27}>{unit}</text>
   {#if caption}<text class="caption" x={CX} y={CY + 58}>{caption}</text>{/if}
   {#if innerLabel}<text class="innerlabel" x={CX} y={CY + 73}>{innerLabel}</text>{/if}

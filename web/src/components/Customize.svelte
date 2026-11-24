@@ -1,7 +1,8 @@
 <script lang="ts">
   import { fly } from "svelte/transition";
   import { COMPACT_PRESETS, PANELS, PRESETS, SPANS, type Layout, type Span } from "../lib/panels";
-  import { ACCENTS, type AccentId, type PrefsStore } from "../lib/prefs.svelte";
+  import type { PrefsStore } from "../lib/prefs.svelte";
+  import { palette, THEMES } from "../lib/themes";
 
   let { store, compact, onClose }: { store: PrefsStore; compact: boolean; onClose: () => void } = $props();
 
@@ -29,10 +30,47 @@
   <header>
     <div>
       <h2>Customize</h2>
-      <p>{compact ? "Compact view" : "Full view"} · saved in this browser · only this PC can open this page</p>
+      <p>{compact ? "Compact view" : "Full view"} · saved in this browser</p>
     </div>
     <button class="done" onclick={onClose}>Done</button>
   </header>
+
+  <section>
+    <h3>Theme</h3>
+    <div class="units">
+      <span class="label">Scheme</span>
+      <div class="seg">
+        <button class:on={prefs.scheme === "dark"} onclick={() => (prefs.scheme = "dark")} aria-pressed={prefs.scheme === "dark"}
+          >Dark</button
+        >
+        <button class:on={prefs.scheme === "light"} onclick={() => (prefs.scheme = "light")} aria-pressed={prefs.scheme === "light"}
+          >Light</button
+        >
+      </div>
+    </div>
+    <label class="toggle">
+      <input type="checkbox" bind:checked={prefs.matchShip} />
+      <span><b>Match the ship I'm in</b><small>Take on the maker of whatever you board; back to your default when you get out</small></span>
+    </label>
+    <span class="label">{prefs.matchShip ? "On foot, use" : "Theme"}</span>
+    <div class="themes" role="radiogroup" aria-label="Default theme">
+      {#each THEMES as t (t.id)}
+        {@const p = palette(t, prefs.scheme)}
+        <button
+          class="theme"
+          class:on={prefs.theme === t.id}
+          onclick={() => (prefs.theme = t.id)}
+          role="radio"
+          aria-checked={prefs.theme === t.id}
+          title={t.name}
+        >
+          <span class="sw" style:background="linear-gradient(135deg, {p.panel} 0 50%, {p.accent} 50%)"></span>
+          <b>{t.short}</b>
+          <small>{t.tagline}</small>
+        </button>
+      {/each}
+    </div>
+  </section>
 
   <section>
     <h3>Layouts</h3>
@@ -85,20 +123,6 @@
 
   <section>
     <h3>Look</h3>
-    <div class="swatches" role="radiogroup" aria-label="Accent colour">
-      {#each Object.entries(ACCENTS) as [id, a] (id)}
-        <button
-          class="swatch"
-          class:on={prefs.accent === id}
-          style:--sw={a.color}
-          onclick={() => (prefs.accent = id as AccentId)}
-          role="radio"
-          aria-checked={prefs.accent === id}
-        >
-          <span></span>{a.name}
-        </button>
-      {/each}
-    </div>
     <label class="toggle">
       <input type="checkbox" bind:checked={prefs.effects} />
       <span><b>HUD effects</b><small>Glow, scanlines and animations</small></span>
@@ -290,31 +314,47 @@
     opacity: 0.35;
     cursor: default;
   }
-  .swatches {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-bottom: 14px;
+  .themes {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 4px;
+    margin: 6px 0 4px;
   }
-  .swatch {
-    display: inline-flex;
+  .theme {
+    display: grid;
+    grid-template-columns: 20px minmax(0, 1fr);
+    column-gap: 8px;
     align-items: center;
-    gap: 7px;
-    padding: 5px 11px 5px 6px;
-    border-radius: 999px;
+    text-align: left;
+    padding: 5px 8px;
     border: 1px solid var(--line-2);
+    border-radius: var(--radius-sm);
     background: var(--bg-2);
+    cursor: pointer;
+  }
+  .theme:hover {
+    border-color: var(--text-3);
+  }
+  .theme.on {
+    border-color: var(--accent);
+    box-shadow: inset 0 0 0 1px var(--accent);
+  }
+  .theme .sw {
+    grid-row: span 2;
+    width: 20px;
+    height: 20px;
+    border-radius: 3px;
+    border: 1px solid var(--line-2);
+  }
+  .theme b {
     font-size: 0.8rem;
   }
-  .swatch span {
-    width: 16px;
-    height: 16px;
-    border-radius: 50%;
-    background: var(--sw);
-    box-shadow: 0 0 8px var(--sw);
-  }
-  .swatch.on {
-    border-color: var(--sw);
+  .theme small {
+    font-size: 0.66rem;
+    color: var(--text-3);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .toggle {
     margin-bottom: 12px;

@@ -1,7 +1,9 @@
 <script lang="ts">
   import { onMount, untrack } from "svelte";
   import { FleetConnection } from "../../lib/fleet.svelte";
-  import { ACCENTS, PrefsStore } from "../../lib/prefs.svelte";
+  import { PrefsStore } from "../../lib/prefs.svelte";
+  import { applyTheme, DEFAULT_THEME, forcedTheme, THEME_BY_ID } from "../../lib/themes";
+  import Customize from "../Customize.svelte";
   import { Trends } from "../../lib/trends.svelte";
   import type { Account, HubMode } from "../../lib/types";
   import AccountDialog from "./AccountDialog.svelte";
@@ -20,6 +22,7 @@
   let now = $state(Date.now());
   // ?account or ?admin opens that dialog on load (links from docs, screenshots).
   const q = new URLSearchParams(location.search);
+  let customizing = $state(q.has("customize"));
   let dialog = $state<"account" | "admin" | null>(
     q.has("admin") && untrack(() => me.role) === "admin" ? "admin" : q.has("account") ? "account" : null,
   );
@@ -57,11 +60,12 @@
     const snap = fleet.focusSnap;
     untrack(() => trends.push(snap));
   });
+  // The fleet page wears your default theme; an open member's panel can wear their ship's.
   $effect(() => {
-    const color = ACCENTS[prefs.accent].color;
-    document.documentElement.style.setProperty("--accent", color);
-    document.documentElement.style.setProperty("--accent-dim", `${color}33`);
-    document.documentElement.classList.toggle("fx", prefs.effects);
+    const root = document.documentElement;
+    const forced = forcedTheme();
+    applyTheme(root, forced.theme ?? THEME_BY_ID[prefs.theme] ?? THEME_BY_ID[DEFAULT_THEME], forced.scheme ?? prefs.scheme);
+    root.classList.toggle("fx", prefs.effects);
   });
   $effect(() => {
     if (fleet.signedOut) location.reload(); // back to the sign-in page
@@ -87,6 +91,7 @@
     onOpen={open}
     onAccount={() => (dialog = "account")}
     onAdmin={() => (dialog = "admin")}
+    onCustomize={() => (customizing = true)}
     onSignOut={signOut}
   />
   <div class="body">
@@ -112,6 +117,10 @@
     </section>
   </div>
 </main>
+
+{#if customizing}
+  <Customize {store} compact={false} onClose={() => (customizing = false)} />
+{/if}
 
 {#if dialog === "account"}
   <AccountDialog {me} discord={mode.discord} onClose={() => (dialog = null)} />

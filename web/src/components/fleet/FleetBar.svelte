@@ -10,6 +10,7 @@
     onOpen,
     onAccount,
     onAdmin,
+    onCustomize,
     onSignOut,
   }: {
     org: string;
@@ -19,6 +20,7 @@
     onOpen: (id: string) => void;
     onAccount: () => void;
     onAdmin: () => void;
+    onCustomize: () => void;
     onSignOut: () => void;
   } = $props();
 
@@ -55,10 +57,10 @@
   let menu = $state(false);
 </script>
 
-<header class="top {worst ? `alarm-${worst}` : ''}">
+<header class="top topbar {worst ? `alarm-${worst}` : ''}">
   <div class="brand">
     <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 3 29 27H3z" /><circle cx="16" cy="20" r="3" /></svg>
-    <span>{org}</span>
+    <span class="display">{org}</span>
   </div>
 
   <div class="counts" aria-label="Fleet status">
@@ -90,6 +92,7 @@
       {#if menu}
         <div class="menu" role="menu">
           <button role="menuitem" onclick={() => ((menu = false), onAccount())}>Your account</button>
+          <button role="menuitem" onclick={() => ((menu = false), onCustomize())}>Theme and layout</button>
           {#if me.role === "admin"}
             <button role="menuitem" onclick={() => ((menu = false), onAdmin())}>Admin</button>
           {/if}
@@ -153,7 +156,7 @@
     align-items: center;
     height: 22px;
     border: 1px solid var(--line-2);
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
     overflow: hidden;
   }
   .kv > b,
@@ -198,7 +201,7 @@
     letter-spacing: 0.16em;
     text-transform: uppercase;
     padding: 2px 7px;
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
   }
   .tag.bad {
     background: var(--bad);
@@ -212,7 +215,7 @@
   .who {
     border: 1px solid currentColor;
     background: none;
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
     padding: 2px 7px;
     font-size: 0.74rem;
     cursor: pointer;
@@ -225,7 +228,7 @@
     margin-right: 6px;
   }
   .who.bad {
-    color: #ffd6da;
+    color: color-mix(in srgb, var(--bad) 35%, var(--text));
     border-color: var(--bad);
   }
   .who.warn {
@@ -265,7 +268,7 @@
     gap: 7px;
     border: 1px solid var(--line-2);
     background: var(--bg-2);
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
     padding: 3px 9px;
     font-size: 0.8rem;
     color: var(--text-2);
@@ -274,7 +277,7 @@
   .toggle img {
     width: 18px;
     height: 18px;
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
   }
   .toggle:hover {
     color: var(--text);
@@ -289,7 +292,7 @@
     min-width: 140px;
     border: 1px solid var(--line-2);
     background: var(--panel-2);
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
   }
   .menu button {
     border: 0;

@@ -2,7 +2,8 @@
   import { onMount, untrack } from "svelte";
   import type { PanelCtx } from "./lib/context";
   import { LiveConnection } from "./lib/live.svelte";
-  import { ACCENTS, PrefsStore } from "./lib/prefs.svelte";
+  import { PrefsStore } from "./lib/prefs.svelte";
+  import { applyTheme, DEFAULT_THEME, forcedTheme, THEME_BY_ID, themeForShip } from "./lib/themes";
   import { Trends } from "./lib/trends.svelte";
   import Customize from "./components/Customize.svelte";
   import Dashboard from "./components/Dashboard.svelte";
@@ -64,11 +65,17 @@
     JSON.stringify(store.value); // track every preference
     store.save();
   });
+  // The theme: the maker of the ship you're in (when matching is on), else your default.
+  const forced = forcedTheme();
+  const theme = $derived(
+    forced.theme ??
+      (prefs.matchShip ? themeForShip(live.snapshot?.ship?.class) : null) ??
+      THEME_BY_ID[prefs.theme] ??
+      THEME_BY_ID[DEFAULT_THEME],
+  );
   $effect(() => {
     const root = document.documentElement;
-    const color = ACCENTS[prefs.accent].color;
-    root.style.setProperty("--accent", color);
-    root.style.setProperty("--accent-dim", `${color}33`);
+    applyTheme(root, theme, forced.scheme ?? prefs.scheme);
     root.classList.toggle("fx", prefs.effects);
   });
 

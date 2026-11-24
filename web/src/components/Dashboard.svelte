@@ -90,7 +90,7 @@
   }
 </script>
 
-<div class="dash" class:editing class:compact={ctx.compact}>
+<div class="dash dash-grid" class:editing class:compact={ctx.compact}>
   {#each visible as slot (slot.id)}
     {@const info = PANELS[slot.id]}
     {@const Panel = COMPONENTS[slot.id]}

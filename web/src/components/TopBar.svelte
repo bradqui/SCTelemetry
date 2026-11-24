@@ -67,7 +67,7 @@
   });
 </script>
 
-<header class="top {alarm ? `alarm-${alarm.level}` : ''}" class:compact>
+<header class="top topbar {alarm ? `alarm-${alarm.level}` : ''}" class:compact>
   <div class="brand">
     <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 3 29 27H3z" /><circle cx="16" cy="20" r="3" /></svg>
     {#if !compact}<span>Fleet Telemetry</span>{/if}
@@ -75,7 +75,7 @@
 
   <div class="who">
     {#if ship}
-      <span class="ship">{ship.model}</span>
+      <span class="ship display">{ship.model}</span>
       {#if !compact && ship.manufacturer}<span class="maker">{ship.manufacturer}</span>{/if}
       {#if status?.role}<span class="seat">{ROLE[status.role] ?? status.role}</span>{/if}
     {:else if status?.locomotion === "seated"}
@@ -135,7 +135,7 @@
     align-items: center;
     gap: 12px;
     padding: 5px 12px;
-    border: 1px solid var(--line);
+    border: var(--border-w) solid var(--line);
     border-radius: var(--radius);
     background: color-mix(in srgb, var(--panel) 85%, transparent);
     backdrop-filter: blur(8px);
@@ -209,16 +209,16 @@
     letter-spacing: 0.12em;
     font-size: 0.85rem;
     padding: 5px 11px;
-    border-radius: 8px;
+    border-radius: var(--radius-chip);
     border: 1px solid currentColor;
   }
   .mode.scm {
     color: var(--scm);
-    background: #46d3ff18;
+    background: color-mix(in srgb, var(--scm) 10%, transparent);
   }
   .mode.nav {
     color: var(--nav);
-    background: #a78bfa18;
+    background: color-mix(in srgb, var(--nav) 10%, transparent);
   }
   .mode.off {
     color: var(--text-3);
@@ -248,7 +248,7 @@
     text-transform: uppercase;
     padding: 2px 7px;
     border: 1px solid currentColor;
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
     color: var(--text-3);
   }
   .fleet.connected {
@@ -275,7 +275,7 @@
   .toggle {
     border: 1px solid var(--line-2);
     background: var(--bg-2);
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
     padding: 5px 10px;
     font-size: 0.8rem;
     color: var(--text-2);
@@ -336,7 +336,7 @@
     letter-spacing: 0.16em;
     text-transform: uppercase;
     padding: 2px 7px;
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
   }
   .what {
     white-space: nowrap;
@@ -351,7 +351,7 @@
     color: var(--bg);
   }
   .alarm.warning {
-    color: #ffd6da;
+    color: color-mix(in srgb, var(--bad) 35%, var(--text));
   }
   .alarm.warning .tag {
     background: var(--bad);
@@ -373,7 +373,7 @@
   }
   .mode.qt {
     color: var(--nav);
-    background: #a78bfa28;
+    background: color-mix(in srgb, var(--nav) 16%, transparent);
     animation: pulse 1.2s ease-in-out infinite;
   }
   @media (max-width: 640px) {

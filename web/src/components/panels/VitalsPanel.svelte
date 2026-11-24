@@ -63,7 +63,7 @@
     align-items: center;
     gap: 5px;
     padding: 2px 6px;
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
     font-size: 0.72rem;
     font-weight: 650;
     border: 1px solid var(--c);
@@ -71,7 +71,7 @@
     --c: var(--warn);
   }
   .inj.moderate {
-    --c: #ff8a3d;
+    --c: color-mix(in srgb, var(--warn) 50%, var(--bad));
   }
   .inj.severe {
     --c: var(--bad);
@@ -105,7 +105,7 @@
     padding: 4px 7px;
     border: 1px solid var(--line);
     background: var(--bg-2);
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
     min-width: 0;
   }
   .val {

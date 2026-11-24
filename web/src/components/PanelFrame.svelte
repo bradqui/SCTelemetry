@@ -41,9 +41,9 @@
   });
 </script>
 
-<section class="frame" class:bare class:editing bind:this={el} aria-label={title}>
+<section class="frame panel-frame" class:bare class:editing bind:this={el} aria-label={title}>
   <header>
-    <span class="label">{title}</span>
+    <span class="label panel-title">{title}</span>
     {#if editing}
       <div class="tools">
         <button class="tool" onclick={() => onMove?.(-1)} title="Move earlier" aria-label="Move {title} earlier">‹</button>
@@ -70,7 +70,7 @@
     position: relative;
     height: 100%;
     background: linear-gradient(180deg, var(--panel-2), var(--panel));
-    border: 1px solid var(--line);
+    border: var(--border-w) solid var(--line);
     border-radius: var(--radius);
     padding: 8px 11px 10px;
     min-width: 0;
@@ -153,7 +153,7 @@
   .tool {
     height: 22px;
     min-width: 22px;
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
     border: 1px solid var(--line-2);
     background: var(--bg-2);
     color: var(--text-2);

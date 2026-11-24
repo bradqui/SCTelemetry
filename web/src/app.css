@@ -1,4 +1,5 @@
-/* Fleet Telemetry — cockpit theme. Dark only: it sits next to a game. */
+/* Fleet Telemetry. The tokens below are the RSI dark theme; lib/themes.ts sets the
+   manufacturer themes (colours, typefaces, corners, labels, details) over them. */
 :root {
   --bg: #070b10;
   --bg-2: #0b1118;
@@ -11,6 +12,7 @@
   --text-3: #66798d;
 
   --accent: #46d3ff;
+  --accent-2: #a78bfa;
   --accent-dim: #46d3ff33;
   --good: #3ddc97;
   --good-dim: #3ddc9726;
@@ -21,11 +23,26 @@
   --nav: #a78bfa;
   --scm: #46d3ff;
 
+  --stripe: var(--accent);
+  --stripe-2: var(--bg);
+  --shadow: rgb(0 0 0 / 0.5);
+
   --radius: 6px;
+  /* tiles: warning lights, readouts, buttons (never a pill) */
   --radius-sm: 3px;
+  /* chips and badges (may be a pill) */
+  --radius-chip: 3px;
+  --border-w: 1px;
   --gap: 8px;
   --font: "Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, "Inter", Roboto, sans-serif;
+  --font-display: var(--font);
   --mono: "Cascadia Mono", "JetBrains Mono", ui-monospace, "SF Mono", Consolas, monospace;
+  --display-weight: 700;
+  --display-style: normal;
+  --display-spacing: 0;
+  --label-case: uppercase;
+  --label-spacing: 0.12em;
+  --label-style: normal;
 
   --glow: 0px;
   --brackets: 0;
@@ -71,7 +88,7 @@ html,
 body {
   margin: 0;
   min-height: 100%;
-  background: radial-gradient(1200px 600px at 70% -10%, #0e2233 0%, transparent 60%), var(--bg);
+  background: radial-gradient(1200px 600px at 70% -10%, color-mix(in srgb, var(--accent) 9%, var(--bg)) 0%, transparent 60%), var(--bg);
   background-attachment: fixed;
   color: var(--text);
   font-family: var(--font);
@@ -91,9 +108,19 @@ body {
 .label {
   font-size: 0.62rem;
   font-weight: 600;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  letter-spacing: var(--label-spacing);
+  text-transform: var(--label-case);
+  font-style: var(--label-style);
   color: var(--text-3);
+}
+
+/* The brand's display face: ship names, big numbers, titles. (Doubled class: wins over
+   a component's own font rules.) */
+html .display.display {
+  font-family: var(--font-display);
+  font-weight: var(--display-weight);
+  font-style: var(--display-style);
+  letter-spacing: var(--display-spacing);
 }
 
 .panel {
@@ -114,14 +141,15 @@ body {
   align-items: center;
   gap: 5px;
   padding: 3px 7px;
-  border-radius: 2px;
+  border-radius: var(--radius-chip);
   border: 1px solid var(--line-2);
   background: var(--bg-2);
   color: var(--text-3);
   font-size: 0.68rem;
   font-weight: 700;
   letter-spacing: 0.07em;
-  text-transform: uppercase;
+  text-transform: var(--label-case);
+  font-style: var(--label-style);
   white-space: nowrap;
 }
 
@@ -133,7 +161,7 @@ body {
 
 .chip.on {
   color: var(--good);
-  border-color: #3ddc9755;
+  border-color: color-mix(in srgb, var(--good) 33%, transparent);
   background: var(--good-dim);
 }
 
@@ -143,13 +171,13 @@ body {
 
 .chip.warn {
   color: var(--warn);
-  border-color: #ffb02055;
+  border-color: color-mix(in srgb, var(--warn) 33%, transparent);
   background: var(--warn-dim);
 }
 
 .chip.bad {
   color: var(--bad);
-  border-color: #ff4d5e55;
+  border-color: color-mix(in srgb, var(--bad) 33%, transparent);
   background: var(--bad-dim);
 }
 
@@ -192,4 +220,145 @@ body {
 button {
   font: inherit;
   color: inherit;
+}
+
+/* ---------------------------------------------------------------- brand details
+   lib/themes.ts sets data-deco on <html> (or on one member's panel on the fleet page).
+   Doubled classes keep these above the components' own styles. */
+
+/* Aegis: targeting brackets always on, cut corners */
+[data-deco~="brackets"] .panel-frame.panel-frame::before,
+[data-deco~="brackets"] .panel-frame.panel-frame::after {
+  opacity: 1;
+  border-color: var(--accent);
+}
+[data-deco~="notch"] .panel-frame.panel-frame,
+[data-deco~="notch"] .topbar.topbar {
+  clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px));
+}
+
+/* Drake: hazard stripes along the top */
+[data-deco~="hazard"] .panel-frame.panel-frame,
+[data-deco~="hazard"] .topbar.topbar {
+  background:
+    repeating-linear-gradient(-45deg, var(--stripe) 0 7px, var(--stripe-2) 7px 14px) top / 100% 5px no-repeat,
+    linear-gradient(180deg, var(--panel-2), var(--panel));
+  padding-top: 13px;
+}
+
+/* Argo: panels sit in a metal frame, like the bars across Argo canopies */
+[data-deco~="bars"] .dash-grid.dash-grid {
+  background: var(--accent-2);
+  padding: 7px;
+  border-radius: 2px;
+}
+[data-deco~="bars"] .panel-frame.panel-frame {
+  border-color: transparent;
+}
+
+/* RSI: an accent rule tops each panel */
+[data-deco~="rule"] .panel-frame.panel-frame {
+  border-top: 2px solid var(--accent);
+}
+
+/* Anvil: ring markers */
+[data-deco~="circle"] .panel-frame .panel-title.panel-title::before {
+  width: 9px;
+  height: 9px;
+  border: 2px solid var(--accent);
+  border-radius: 50%;
+  background: none;
+  box-shadow: none;
+}
+
+/* Origin, Crusader: no hard lines, soft shadows */
+[data-deco~="airy"] .panel-frame.panel-frame,
+[data-deco~="airy"] .topbar.topbar {
+  border-color: transparent;
+  box-shadow: 0 1px 2px var(--shadow), 0 10px 26px -14px var(--shadow);
+}
+
+/* MISC: titles on tabs, like labelled hull modules */
+[data-deco~="tab"] .panel-frame .panel-title.panel-title {
+  background: var(--accent);
+  color: var(--bg);
+  padding: 2px 9px 2px 11px;
+  margin-left: -11px;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+[data-deco~="tab"] .panel-frame .panel-title.panel-title::before {
+  display: none;
+}
+
+/* Mirai: speed stripes, slanted chips */
+[data-deco~="speed"] .panel-frame.panel-frame {
+  background:
+    linear-gradient(105deg, transparent 0 18%, var(--accent) 18% 62%, transparent 62% 70%, var(--accent-2) 70% 84%, transparent 84%) top right / 46% 5px no-repeat,
+    linear-gradient(180deg, var(--panel-2), var(--panel));
+}
+[data-deco~="speed"] .chip.chip {
+  transform: skewX(-12deg);
+}
+
+/* Kruger: a red hairline across the top, the old livery */
+[data-deco~="hairline"] .topbar.topbar {
+  box-shadow: inset 0 2px 0 var(--accent-2);
+}
+
+/* Esperia: a double rule after each title */
+[data-deco~="glyph"] .panel-frame .panel-title.panel-title::after {
+  content: "";
+  width: 56px;
+  height: 4px;
+  border-top: 1px solid var(--accent);
+  border-bottom: 1px solid var(--accent);
+  opacity: 0.5;
+}
+
+/* Aopoa: a faint hexagon lattice behind everything */
+[data-deco~="hex"] #app::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.07;
+  background: var(--accent);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='48' viewBox='0 0 28 48'%3E%3Cpath d='M14 0 28 8v16L14 32 0 24V8zM14 32l14 8v16M14 32 0 40v16' fill='none' stroke='black' stroke-width='1.2'/%3E%3C/svg%3E") repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='48' viewBox='0 0 28 48'%3E%3Cpath d='M14 0 28 8v16L14 32 0 24V8zM14 32l14 8v16M14 32 0 40v16' fill='none' stroke='black' stroke-width='1.2'/%3E%3C/svg%3E") repeat;
+}
+
+/* Aopoa, Gatac: a soft glow */
+[data-deco~="glow"] .panel-frame.panel-frame {
+  box-shadow: 0 0 22px -10px var(--accent), inset 0 0 0 1px color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+/* Gatac: faceted corners */
+[data-deco~="facet"] .panel-frame.panel-frame {
+  clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+}
+
+/* Banu: stitched, patched borders that differ panel to panel */
+[data-deco~="stitch"] .panel-frame.panel-frame {
+  outline: 1px dashed var(--line-2);
+  outline-offset: -5px;
+}
+[data-deco~="stitch"] .dash-grid > :nth-child(3n + 2) .panel-frame.panel-frame {
+  border-style: double;
+  border-width: 3px;
+}
+
+/* Greycat: a safety band */
+[data-deco~="stripe"] .panel-frame.panel-frame {
+  border-top: 4px solid var(--stripe);
+}
+
+/* Tumbril: riveted plates */
+[data-deco~="rivets"] .panel-frame.panel-frame {
+  background:
+    radial-gradient(circle, var(--line-2) 2px, transparent 2.5px) 4px 4px / 8px 8px no-repeat,
+    radial-gradient(circle, var(--line-2) 2px, transparent 2.5px) calc(100% - 4px) 4px / 8px 8px no-repeat,
+    radial-gradient(circle, var(--line-2) 2px, transparent 2.5px) 4px calc(100% - 4px) / 8px 8px no-repeat,
+    radial-gradient(circle, var(--line-2) 2px, transparent 2.5px) calc(100% - 4px) calc(100% - 4px) / 8px 8px no-repeat,
+    linear-gradient(180deg, var(--panel-2), var(--panel));
 }

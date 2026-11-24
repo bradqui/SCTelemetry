@@ -74,16 +74,16 @@
     transition: width 0.25s linear;
   }
   .good .fill {
-    background: linear-gradient(90deg, #1fae73, var(--good));
+    background: linear-gradient(90deg, color-mix(in srgb, var(--good) 70%, var(--bg)), var(--good));
   }
   .warn .fill {
-    background: linear-gradient(90deg, #c98407, var(--warn));
+    background: linear-gradient(90deg, color-mix(in srgb, var(--warn) 70%, var(--bg)), var(--warn));
   }
   .bad .fill {
-    background: linear-gradient(90deg, #c22c3b, var(--bad));
+    background: linear-gradient(90deg, color-mix(in srgb, var(--bad) 70%, var(--bg)), var(--bad));
   }
   .accent .fill {
-    background: linear-gradient(90deg, #1b8fbf, var(--accent));
+    background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 70%, var(--bg)), var(--accent));
   }
   .muted .fill {
     background: var(--line-2);

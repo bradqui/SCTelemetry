@@ -148,7 +148,7 @@
   .seg {
     display: flex;
     border: 1px solid var(--line-2);
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
     overflow: hidden;
   }
   .seg button {
@@ -285,7 +285,7 @@
     place-items: center;
     height: 18px;
     padding: 0 4px;
-    border-radius: 2px;
+    border-radius: var(--radius-chip);
     border: 1px solid currentColor;
     font-size: 0.58rem;
     font-weight: 800;

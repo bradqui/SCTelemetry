@@ -58,7 +58,7 @@
     height: 20px;
     box-sizing: border-box;
     line-height: 1;
-    border-radius: 2px;
+    border-radius: var(--radius-chip);
     flex: none;
   }
   .z {

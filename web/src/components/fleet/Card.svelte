@@ -9,7 +9,7 @@
   <section class="card">
     <div class="brand">
       <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 3 29 27H3z" /><circle cx="16" cy="20" r="3" /></svg>
-      <span>{title}</span>
+      <span class="display">{title}</span>
       {#if subtitle}<small>{subtitle}</small>{/if}
     </div>
     {@render children()}
@@ -80,7 +80,7 @@
   .card :global(.warn) {
     color: var(--warn);
     border: 1px solid var(--warn);
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
     padding: 6px 9px;
     margin-top: 12px;
   }
@@ -94,7 +94,7 @@
     background: var(--bg-2);
     border: 1px solid var(--line);
     padding: 0 4px;
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
     overflow-wrap: anywhere;
   }
   .card :global(.row) {
@@ -106,7 +106,7 @@
     min-width: 0;
     padding: 7px 9px;
     border: 1px solid var(--line-2);
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
     background: var(--bg-2);
     color: var(--text);
     font: inherit;
@@ -115,7 +115,7 @@
   .card :global(.btn) {
     border: 1px solid var(--line-2);
     background: var(--bg-2);
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
     padding: 0 14px;
     cursor: pointer;
     font-size: 0.85rem;
@@ -134,7 +134,7 @@
     display: block;
     text-align: center;
     padding: 9px;
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
     background: #5865f2;
     color: #fff;
     font-weight: 700;

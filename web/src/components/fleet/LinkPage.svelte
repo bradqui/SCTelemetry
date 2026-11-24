@@ -71,7 +71,7 @@
     padding: 10px;
     margin: 4px 0 10px;
     border: 1px solid var(--line-2);
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
     background: var(--bg-2);
     color: var(--accent);
   }

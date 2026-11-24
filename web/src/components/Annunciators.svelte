@@ -39,7 +39,7 @@
     place-items: center;
     gap: 1px;
     padding: 5px 2px 4px;
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
     border: 1px solid var(--line);
     background: var(--bg-2);
     color: var(--text-3);
@@ -73,22 +73,22 @@
   }
   .nominal {
     color: var(--good);
-    border-color: #3ddc9740;
-    background: #3ddc9712;
+    border-color: color-mix(in srgb, var(--good) 25%, transparent);
+    background: color-mix(in srgb, var(--good) 7%, transparent);
   }
   .minor,
   .minor_flashing {
-    color: #1b1300;
+    color: var(--bg);
     background: var(--warn);
     border-color: var(--warn);
-    box-shadow: 0 0 18px #ffb02055;
+    box-shadow: 0 0 18px color-mix(in srgb, var(--warn) 33%, transparent);
   }
   .major,
   .major_flashing {
     color: #fff;
     background: var(--bad);
     border-color: var(--bad);
-    box-shadow: 0 0 22px #ff4d5e66;
+    box-shadow: 0 0 22px color-mix(in srgb, var(--bad) 40%, transparent);
   }
   .minor_flashing,
   .major_flashing {

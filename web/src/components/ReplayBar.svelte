@@ -396,7 +396,7 @@
     width: 4px;
     height: 16px;
     margin-left: -2px;
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
     background: var(--accent);
     box-shadow: 0 0 0 1.5px var(--bg);
     pointer-events: none;
@@ -416,7 +416,7 @@
     width: 3px;
     height: 26px;
     margin-left: -1.5px;
-    border-radius: 2px;
+    border-radius: var(--radius-sm);
     background: var(--text);
     box-shadow: 0 0 10px var(--accent);
     pointer-events: none;

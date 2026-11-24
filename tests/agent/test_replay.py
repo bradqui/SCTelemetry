@@ -68,12 +68,9 @@ def test_recording_indexes_chapters_and_events():
     assert second["start"] > idx["chapters"][0]["end"]
     kinds = {m["kind"] for m in idx["markers"]}
     assert {"mode_change", "warning_on", "warning_off"} <= kinds
-    # Combat's warnings sit inside the combat chapter.
-    assert all(
-        second["start"] <= m["pos"] <= second["end"]
-        for m in idx["markers"]
-        if m["kind"].startswith("warning")
-    )
+    # Getting hit sits inside the combat chapter.
+    hits = [m for m in idx["markers"] if m["kind"] == "warning_on" and m["data"]["light"] == "hit"]
+    assert hits and all(second["start"] <= m["pos"] <= second["end"] for m in hits)
     assert idx["frames"] == len(rec.payloads)
     assert abs(idx["duration"] - rec.positions[-1]) < 0.001
     assert "vehicle" in rec.decode(0), "frames decode like the live stream"

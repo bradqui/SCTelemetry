@@ -88,18 +88,33 @@ def test_quantum_travel_altitude_in_space_is_none():
     assert any(a is not None for a in alts)
 
 
+def _legs(snaps) -> list[tuple[float, float]]:
+    """(start, end) seconds of each stretch with quantum on."""
+    t0, legs, start = snaps[0].t, [], None
+    for s in snaps:
+        q = bool(s.ship and s.ship.flight.quantum)
+        if q and start is None:
+            start = (s.t - t0) / 1000
+        elif not q and start is not None:
+            legs.append((start, (s.t - t0) / 1000))
+            start = None
+    return legs
+
+
 def test_quantum_travel_is_inferred():
-    """Speed and G freeze for the whole jump while the heading still drifts."""
+    """A four-leg route: the thruster light is MAJOR through each leg, and the ship
+    realigns between them (thrusters back, fuel burning) while the frozen speed
+    reading would have made it look like one long jump."""
     snaps, events = run("quantum-travel")
-    t0 = snaps[0].t
-    on = [(s.t - t0) / 1000 for s in snaps if s.ship and s.ship.flight.quantum]
-    assert on, "the jump is detected"
-    # In this slice the jump starts ~18 s in and ends when speed returns at ~87 s.
-    assert 15 < on[0] < 20 and 84 < on[-1] < 88
-    assert kinds(events).count("quantum_start") == 1
-    assert kinds(events).count("quantum_end") == 1
-    # Sitting still at 23 km before the jump (speed 0) is not quantum travel.
-    assert not any(s.ship.flight.quantum for s in snaps if s.ship and (s.t - t0) / 1000 < 15)
+    legs = _legs(snaps)
+    assert len(legs) == 4, legs
+    thruster_light = [(17.2, 18.1), (33.9, 35.1), (44.3, 45.9), (61.8, 86.7)]  # seconds
+    for (start, end), (lo, hi) in zip(legs, thruster_light, strict=True):
+        assert lo <= start <= lo + 0.5 and hi - 0.2 <= end <= hi + 0.2, (start, end)
+    assert kinds(events).count("quantum_start") == 4
+    assert kinds(events).count("quantum_end") == 4
+    # Thrusters locked through the jumps (NAV) is not a warning.
+    assert not any(e.data.get("light") == "thr" for e in events if e.kind == "warning_on")
 
 
 @pytest.mark.parametrize("path", [p for p in ALL if "quantum" not in p.name], ids=lambda p: p.name)
@@ -273,7 +288,7 @@ def test_heading_is_unknown_in_deep_space():
     assert any(s.ship and s.ship.flight.heading is not None for s in near)
 
 
-def _deep_space_stop(qdrv: str):
+def _deep_space_stop(qdrv: str, thr: str | None = "NOMINAL"):
     """A frame in deep space with the instruments frozen: speed 0, G 0, heading still."""
     import copy
 
@@ -285,21 +300,69 @@ def _deep_space_stop(qdrv: str):
     inst = state["flight"]["instruments"]
     inst["speed"], inst["g_meter"]["current"], inst["heading"] = 0.0, 0.0, 268.0939
     state["annunciators"]["qdrv"] = f"ANNUNCIATOR_STATE_{qdrv}"
+    if thr is None:
+        del state["annunciators"]["thr"]
+    else:
+        state["annunciators"]["thr"] = f"ANNUNCIATOR_STATE_{thr}"
     return raw
 
 
 @pytest.mark.parametrize(
-    "route, qdrv, expected",
+    "route, qdrv, thr, expected",
     [
-        (False, "NOMINAL", False),  # stopped in NAV, no route plotted
-        (True, "OFF", False),  # route plotted but in SCM: can't be jumping
-        (True, "NOMINAL", True),  # route plotted, drive lit, instruments frozen
+        # Sitting still with a route plotted and the drive spooled: the thrusters
+        # aren't locked, so not a jump however long it lasts.
+        (True, "NOMINAL", "NOMINAL", False),
+        (False, "NOMINAL", "MAJOR_ON", True),  # locked, lit, frozen: jumping
+        (True, "OFF", "MAJOR_ON", False),  # SCM: can't be jumping
+        # A ship that doesn't report the thruster light: the Game.log route rule.
+        (False, "NOMINAL", None, False),
+        (True, "OFF", None, False),
+        (True, "NOMINAL", None, True),
     ],
 )
-def test_deep_space_quantum_needs_a_route(route, qdrv, expected):
+def test_deep_space_quantum(route, qdrv, thr, expected):
     norm = Normalizer()
     norm.route_active = route
-    raw = _deep_space_stop(qdrv)
+    raw = _deep_space_stop(qdrv, thr)
     snaps = [norm.feed(raw, t) for t in range(0, 3000, 50)]
     assert snaps[-1].ship.flight.quantum is expected
-    assert not snaps[0].ship.flight.quantum, "needs to stay frozen for a second first"
+    assert not snaps[0].ship.flight.quantum, "needs to stay frozen for a moment first"
+
+
+def test_quantum_ends_when_the_speed_keeps_changing():
+    """After a leg the thrusters can stay locked while the ship falls: speed changes
+    every frame then. One step mid-jump is normal and doesn't end it."""
+    norm = Normalizer()
+    raw = _deep_space_stop("NOMINAL", "MAJOR_ON")
+    inst = raw["vehicle"]["state"]["flight"]["instruments"]
+    snaps = [norm.feed(raw, t) for t in range(0, 1000, 50)]
+    assert snaps[-1].ship.flight.quantum
+    inst["speed"] = 0.5  # one step
+    assert norm.feed(raw, 1000).ship.flight.quantum
+    assert norm.feed(raw, 1050).ship.flight.quantum
+    for i in range(6):  # falling
+        inst["speed"] = 1.0 + i
+        last = norm.feed(raw, 1100 + 50 * i)
+    assert not last.ship.flight.quantum
+
+
+def test_steady_lights_come_through():
+    """The game sends steady lights as MINOR_ON / MAJOR_ON."""
+    norm = Normalizer()
+    raw = _deep_space_stop("NOMINAL", "MINOR_ON")
+    raw["vehicle"]["state"]["annunciators"]["radr"] = "ANNUNCIATOR_STATE_MAJOR_ON"
+    lights = norm.feed(raw, 0).ship.lights
+    assert lights["thr"] == "minor" and lights["radr"] == "major"
+
+
+def test_cool_light_follows_the_coolers():
+    """COOL is OFF in every frame the game sends; the coolers' power says more."""
+    norm = Normalizer()
+    raw = _deep_space_stop("NOMINAL")
+    state = raw["vehicle"]["state"]
+    state["annunciators"]["cool"] = "ANNUNCIATOR_STATE_OFF"
+    state.setdefault("power", {}).update(powerplants=True, coolers=True)
+    assert norm.feed(raw, 0).ship.lights["cool"] == "nominal"
+    state["power"]["coolers"] = False
+    assert norm.feed(raw, 50).ship.lights["cool"] == "off"

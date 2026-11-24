@@ -186,7 +186,8 @@ def test_multiline_notifications_are_joined():
     assert j.feed(f'{TS}[Notice] <UpdateNotificationItem> Notification "Restricted Area') is None
     joined = j.feed(f"{TS}For your safety, you've been relocated.: \" [9], Action: Next [Team]")
     ev = parse_line(joined)
-    assert ev.kind == "restricted" and ev.data["on"] is True
+    # Sent after the game has moved you out: not in a restricted area any more.
+    assert ev.kind == "restricted" and ev.data["on"] is False
     assert j.feed("plain line") == "plain line"
 
 
@@ -391,8 +392,8 @@ def test_replay_carries_logged_lines():
     assert any(parse_line(x).kind == "route" for x in context)
     assert "quantum_route" not in kinds
     arrived = next(m for m in rec.markers if m.kind == "quantum_arrived")
-    end = next(m for m in rec.markers if m.kind == "quantum_end")
-    assert abs(arrived.pos - end.pos) < 2, "the log's arrival matches the telemetry's drop-out"
+    end = [m for m in rec.markers if m.kind == "quantum_end"][-1]
+    assert abs(arrived.pos - end.pos) < 2, "the log's arrival matches the last leg's end"
 
 
 def test_combat_replay_has_kills_and_the_contract():

@@ -117,7 +117,10 @@ Capture: walking a station and hab, an Origin M80 flight (power cycle, takeoff, 
 - Values seen: `NOMINAL`, `OFF`, `MINOR_ON`, `MAJOR_ON` and `MAJOR_FLASHING`.
 - `hit` goes `MAJOR_FLASHING` for 1–10 s each time the ship is hit, so it serves as the "taking fire" signal.
 - `shld` briefly goes `MAJOR_ON` when shields come up, then `MINOR_ON` or `NOMINAL`.
-- `prox`, `radr`, `thr` and `wpn` also change.
+- `prox`, `radr`, `thr` and `wpn` also change. `prox` is the proximity warning (minor, then major, near objects). `radr` read `MAJOR_ON` for exactly the two minutes hostiles were about (a "Defeat Hostile Ships" objective). `thr` reads `MAJOR_ON` through every quantum jump (see Quantum travel), and for 0.1 s at power-up.
+- **`cool` is `OFF` in every frame** (42,781 frames over two sessions), coolers powered or not. The normalizer shows it from `power.coolers` instead.
+- `misl` stayed `NOMINAL` through a fight with missiles fired, and nothing else in the stream mentions missiles (no racks in `weapons[]`, no counts, no Game.log lines).
+- The steady states are sent as `MINOR_ON`/`MAJOR_ON` and become `minor`/`major` in the snapshot. Until 2026-11-24 the normalizer dropped them, so only `MAJOR_FLASHING` (hit) ever reached the page.
 
 **Flight**
 - `altitude` and `radar_altitude` are `3.4028235e38` (FLT_MAX) in space, so they should be treated as null.
@@ -152,13 +155,12 @@ Capture: walking a station and hab, an Origin M80 flight (power cycle, takeoff, 
 
 **Quantum travel**
 There is no quantum travel field, and `speed` does not show the jump. What happens instead:
-- During a jump the flight instruments **freeze**: `speed` repeats one exact value (0, 0.056, 21.7, whatever it was when the drive engaged; mid-jump it can step once, e.g. to exactly 0) and `g_meter.current` reads exactly 0. The heading still drifts slightly.
-- `altitude` keeps updating: it leaped 23 km → 45 km → FLT_MAX in a second on the way out and fell from 11 km on arrival while `speed` read 0.
-- `thr` often goes MAJOR_ON and `ifcs_g_safe`/`ifcs_esp` go inactive for parts of the jump, but not consistently.
-- A ship stopped dead in space also has a frozen `speed` and G of 0, but its heading is frozen too.
-- Far from any planet the heading never moves at all (see Flight), so there a jump and a stop look the same. Every jump had the quantum drive light (`qdrv`) lit and fell between a Game.log "route plotted" and "arrived" line; both stops in deep space were outside a route.
+- During a jump the flight instruments **freeze**: `speed` repeats one exact value (0, 0.056, 21.7, 1026, whatever it was when the drive engaged; mid-jump it can step once, e.g. to exactly 0) and `g_meter.current` reads exactly 0. The frozen reading can outlast the jump by seconds (a 1.3 s leg kept reading 1026 m/s for 6 s more while the ship burned hydrogen realigning).
+- Near a planet `altitude` keeps updating: it leaped 23 km → 45 km → FLT_MAX in a second on the way out and fell from 80 km to 12 km on arrival while `speed` read 0.0003. In deep space everything is frozen: speed, G, heading, fuel.
+- **`thr` reads `MAJOR_ON` for exactly the jump**, leg by leg, back to `NOMINAL` at arrival (within 0.4 s of Game.log's "Arrived at Final Destination"). `ifcs_g_safe`/`ifcs_esp` go inactive with it. Two sessions, every leg (from 0.9 s to 31 s long). It never came on while sitting still with a route plotted and the drive spooled (minutes of it, nudging in between). After some legs it stays `MAJOR_ON` for up to 11 s while the ship falls with its thrusters locked; speed then changes every frame. A few 1–2 s periods with no route or no movement are probably short or aborted jumps.
+- A ship stopped dead in space also has a frozen `speed` and G of 0, with or without a route plotted.
 
-So the normalizer infers `flight.quantum`: speed bit-identical with G exactly 0 for 1 s while the heading moves, or, when Game.log shows a route plotted and `qdrv` is lit, without the heading; it then lasts until G reads anything but 0. With the route, the short legs are caught 1.5 s in instead of near their end. In the 44-minute session it found all three routes (one 68 s jump; two routes that were split into two legs around an obstruction) and neither of two dead stops in space. Short legs (~7 s) are only recognised near their end. One more 7 s freeze at 1026 m/s, right after an "obstructed" notice, was also flagged; we can't tell from the data what it was.
+So the normalizer infers `flight.quantum` as: `thr` major, `qdrv` lit (NAV), and speed bit-identical with G exactly 0 for 0.3 s. It ends when `thr` clears, G reads anything but 0, or the speed changes on 4 frames in a row. Each leg of a multi-leg route is its own jump. A ship that doesn't send `thr` falls back to the older rule: frozen for 1 s while the heading moves, or, with a Game.log route plotted and `qdrv` lit, without the heading. Before 2026-11-24 that older rule was all there was, and it called every stop with a route plotted a jump.
 
 **Game.log**: see the Game.log section below for the route, arrival and obstruction lines. No line marks the start of a quantum jump.
 
@@ -203,7 +205,8 @@ The game's own debug log (`<channel>/Game.log`, a new file each launch; older on
 | Player deaths (old) | `<Actor Death> CActor::Kill: '<victim>' ... killed by '<killer>' using '<weapon>' ... damage type '<type>'` | Parsed in case it returns. |
 | Jump drive (old) | `<Jump Drive State Changed> Now <State> \| ... \| <system> \|` | Through a jump point to another star system (not quantum travel). States: Idle, Tuning, EntryChecks, RequestingJump, WaitingForOpen, Entering, Transiting, Exiting. Parsed in case it returns. |
 
-Left out on purpose: comms and party channel joins/leaves (`New Member Joined`, `You have joined channel ...`).
+Left out so far: comms and party channel joins/leaves (`New Member Joined`, `You have joined channel ...`). Boarding a ship joins its channel, named `'<Manufacturer Model> : <owner handle>'`, also for other players' ships: in one session the join came 16 s and 28 s before sitting down, and "You have left the channel ..." a minute after walking off. "Left" is often missing, and one 25-minute session with an M80 had no channel lines at all.
+- `Restricted Area` + `For your safety, you've been relocated.` comes after the game has moved you out, so it ends a restricted area rather than starting one.
 
 **How it has changed** (717 backed-up logs, 69 builds, January 2023 to November 2026):
 

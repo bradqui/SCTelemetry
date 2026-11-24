@@ -70,7 +70,8 @@ def main() -> None:
                 notes += 1
             dst.write(json.dumps(rec, separators=(",", ":")) + "\n")
     size_kb = out.stat().st_size / 1000
-    print(f"{out.relative_to(ROOT)}: {frames} frames, {notes} notes, {size_kb:.0f} kB")
+    shown = out.relative_to(ROOT) if out.is_relative_to(ROOT) else out
+    print(f"{shown}: {frames} frames, {notes} notes, {size_kb:.0f} kB")
 
 
 if __name__ == "__main__":

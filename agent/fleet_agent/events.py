@@ -4,16 +4,20 @@ The game's own seat events are unreliable (ENTER_SEAT arrived 3 of 6 times in
 the first capture), so seat events come from state changes. The game's other
 events (spawn, downed, dead, respawn) are passed through.
 
-Warning lights: a light going minor/major is ``warning_on``; ``warning_off``
-only once it has stayed calm for ``WARNING_OFF_HOLD_MS``. Otherwise a ``hit``
-light flashing through a fight would be dozens of events.
+Warning lights: a light that stays minor/major for ``WARNING_ON_HOLD_MS`` is
+``warning_on`` (shields flash MAJOR for a moment every time they come up);
+``warning_off`` only once it has stayed calm for ``WARNING_OFF_HOLD_MS``.
+Otherwise a ``hit`` light flashing through a fight would be dozens of events.
+The thruster light in NAV is the quantum drive locking the thrusters, not a
+fault (see ``expected_light``).
 """
 
 from __future__ import annotations
 
-from fleet_shared import Event, Snapshot
+from fleet_shared import Event, Snapshot, expected_light
 
 WARNING_OFF_HOLD_MS = 5000
+WARNING_ON_HOLD_MS = 600
 HULL_THRESHOLDS = (0.75, 0.50, 0.25)
 FUEL_THRESHOLDS = (0.25, 0.10)
 ACTIVE_LEVELS = {"minor", "minor_flashing", "major", "major_flashing"}
@@ -31,6 +35,7 @@ class EventDeriver:
         self.last_ship_id: str | None = None
         self.warnings_on: set[str] = set()
         self.calm_since: dict[str, int] = {}
+        self.lit_since: dict[str, int] = {}
 
     def feed(self, snap: Snapshot, game_events: list[str] | None = None) -> list[Event]:
         out: list[Event] = []
@@ -79,13 +84,25 @@ class EventDeriver:
         if ship is None:
             self.warnings_on.clear()
             self.calm_since.clear()
+            self.lit_since.clear()
         else:
-            active = {k for k, lvl in ship.lights.items() if lvl in ACTIVE_LEVELS}
+            active = {
+                k
+                for k, lvl in ship.lights.items()
+                if lvl in ACTIVE_LEVELS and not expected_light(k, ship.master_mode)
+            }
+            for light in list(self.lit_since):
+                if light not in active:
+                    del self.lit_since[light]
             for light in sorted(active - self.warnings_on):
                 # A ship we just sat in arrives with its lights already set: not news.
-                if same_ship:
+                if not same_ship:
+                    self.warnings_on.add(light)
+                    continue
+                since = self.lit_since.setdefault(light, t)
+                if t - since >= WARNING_ON_HOLD_MS:
                     emit("warning_on", light=light, level=ship.lights[light])
-                self.warnings_on.add(light)
+                    self.warnings_on.add(light)
             for light in sorted(self.warnings_on):
                 if light in active:
                     self.calm_since.pop(light, None)

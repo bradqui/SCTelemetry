@@ -100,7 +100,8 @@ const EVENT_TEXT: Record<string, (d: Record<string, unknown>) => string> = {
   injury: (d) => `${titleCase(String(d.severity))} injury: ${d.part} (tier ${d.tier})`,
   healed: () => "Healed at a medical bed",
   incapacitated: () => "Incapacitated",
-  hangar_ready: () => "Hangar ready",
+  // The game's own words: the same notification comes for arriving and for leaving.
+  hangar_ready: () => "Hangar request completed",
   hangar_queue: () => "Waiting for a hangar",
   blueprint: (d) => `Blueprint: ${d.name}`,
 };

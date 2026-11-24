@@ -56,9 +56,10 @@
 
   const alarm = $derived.by(() => {
     if (!caution || !ship) return null;
+    // THR in NAV is the quantum drive locking the thrusters, not a fault (expected_light).
     const lit = (prefix: string) =>
       Object.entries(ship.lights)
-        .filter(([, l]) => l?.startsWith(prefix))
+        .filter(([k, l]) => l?.startsWith(prefix) && !(k === "thr" && ship.master_mode === "NAV"))
         .map(([k]) => LIGHT_NAMES[k] ?? k.toUpperCase());
     const major = lit("major");
     if (major.length) return { level: "warning", text: major.join(" · ") };

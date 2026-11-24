@@ -31,6 +31,7 @@ from fleet_shared import (
     Snapshot,
     apply_patch,
     event_shared,
+    expected_light,
     make_patch,
 )
 from pydantic import ValidationError
@@ -117,11 +118,14 @@ def enforce_sharing(state: dict, share: set[str]) -> dict:
 # ---------------------------------------------------------------- roster summary
 
 
-def _worst(lights: dict) -> tuple[str | None, list[str]]:
-    major = [k for k, v in lights.items() if isinstance(v, str) and v.startswith("major")]
+def _worst(lights: dict, master_mode: str | None = None) -> tuple[str | None, list[str]]:
+    lit = {
+        k: v for k, v in lights.items() if isinstance(v, str) and not expected_light(k, master_mode)
+    }
+    major = [k for k, v in lit.items() if v.startswith("major")]
     if major:
         return "major", major
-    minor = [k for k, v in lights.items() if isinstance(v, str) and v.startswith("minor")]
+    minor = [k for k, v in lit.items() if v.startswith("minor")]
     return ("minor", minor) if minor else (None, [])
 
 
@@ -161,7 +165,7 @@ def summarize(m: MemberLive, now: int, cfg: Config) -> dict:
     ship = s.get("ship")
     if ship:
         flight = ship.get("flight") or {}
-        level, lit = _worst(ship.get("lights") or {})
+        level, lit = _worst(ship.get("lights") or {}, ship.get("master_mode"))
         speed = flight.get("speed")
         out["ship"] = {
             "id": ship.get("id"),

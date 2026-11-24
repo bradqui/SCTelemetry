@@ -143,6 +143,9 @@ def parse_notification(text: str) -> LogEvent | None:
         return LogEvent("comms", {"up": True})
     if head.startswith("Leaving Restricted Area"):
         return LogEvent("restricted", {"on": False})
+    if head.startswith("Restricted Area") and "relocated" in head:
+        # "Restricted Area For your safety, you've been relocated.": already moved out.
+        return LogEvent("restricted", {"on": False})
     if head.startswith("Restricted Area") or head.startswith("Entering Restricted Area"):
         return LogEvent("restricted", {"on": True, "note": rest or None})
     if head.startswith("Entering Private Property"):

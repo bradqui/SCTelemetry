@@ -18,18 +18,21 @@ in any patch. Quirks handled here:
 - no master mode field: NAV when the quantum drive light is lit, SCM when it's
   off, None when the ship is unpowered.
 - no quantum travel field. During a jump the flight instruments freeze: ``speed``
-  repeats the exact same value (0, 0.05, 21.7, whatever it was) and G reads
-  exactly 0, while the heading still drifts. A ship stopped in space also has a
-  frozen speed and zero G, but its heading is frozen too. So: quantum when speed
-  is bit-identical with G == 0 for ``QUANTUM_FREEZE_MS`` and the heading moved.
-  Once in a jump, it lasts until G reads anything but 0: mid-jump the speed can
-  step (e.g. to exactly 0) and the heading can hold still for 15 s or more.
-  Far from any planet the heading never moves (see above), so a jump there
-  can't be told from a stop by the instruments alone. Game.log fills the gap:
-  when a quantum route is plotted (``route_active``, set by the pipeline) and the
-  quantum drive is lit (NAV), frozen instruments count without the heading.
-  Every jump in a 44-minute session (including multi-leg routes) fell inside a
-  plotted route with NAV on; both dead stops in deep space were outside one.
+  repeats the exact same value (0, 0.05, 21.7, 1026, whatever it was) and G
+  reads exactly 0. So does a ship sitting still in space, and the frozen reading
+  can outlast the jump by seconds. What tells them apart is the thruster light
+  (``thr``): the quantum drive locks the thrusters, and the light reads MAJOR for
+  exactly the jump, leg by leg, back to normal on arrival (two sessions, every
+  jump; never while sitting spooled with a route plotted). It also stays MAJOR
+  for a few seconds after some legs while the ship falls with its thrusters
+  locked; the speed changes every frame then. So: quantum while ``thr`` is MAJOR,
+  the drive is lit (NAV), and speed is bit-identical with G == 0 for
+  ``QUANTUM_LOCK_MS``; it ends when the light clears, G reads anything but 0, or
+  the speed keeps changing (a single mid-jump step is normal).
+  Without the thruster light (a ship that doesn't report it), the older rule:
+  frozen for ``QUANTUM_FREEZE_MS`` and the heading moved, or, far from planets
+  where the heading never moves, a quantum route plotted (``route_active``, set
+  by the pipeline from Game.log) with the drive lit.
 """
 
 from __future__ import annotations
@@ -55,7 +58,11 @@ log = logging.getLogger(__name__)
 
 LOCOMOTION_HOLD_MS = 400
 QUANTUM_FREEZE_MS = 1000
-"""How long the instruments must stay frozen before it counts as a quantum jump."""
+"""Without the thruster light: how long the instruments must stay frozen to count as a jump."""
+QUANTUM_LOCK_MS = 300
+"""Thrusters locked and instruments frozen this long: a jump (legs can be under a second)."""
+QUANTUM_MOVING_FRAMES = 4
+"""Consecutive frames with a new speed that end a jump (a single step mid-jump doesn't)."""
 FUEL_SETTLE_MS = 2000
 FLT_MAX_ISH = 1e30
 
@@ -149,6 +156,16 @@ def _enum(value: Any, prefix: str) -> str | None:
 
 
 LEVELS = {"off", "nominal", "minor", "minor_flashing", "major", "major_flashing"}
+
+
+def _level(value: Any) -> str | None:
+    """``ANNUNCIATOR_STATE_MAJOR_ON`` -> ``major`` (the steady state is sent as ``*_ON``)."""
+    name = _enum(value, "ANNUNCIATOR_STATE_")
+    if name and name.endswith("_on"):
+        name = name[: -len("_on")]
+    return _choice(name, LEVELS)
+
+
 DEPLOYMENTS = {"retracted", "deploying", "deployed", "retracting"}
 VEHICLE_TYPES = {"spaceship", "ground", "gravlev", "boat"}
 LOCOMOTIONS = {"on_foot", "eva", "seated"}
@@ -292,11 +309,10 @@ class Normalizer:
             for theirs, ours in POWER_KEYS.items()
             if (v := _bool(_get(vs, "power", theirs))) is not None
         }
-        lights = {
-            k: lvl
-            for k in LIGHT_KEYS
-            if (lvl := _choice(_enum(_get(vs, "annunciators", k), "ANNUNCIATOR_STATE_"), LEVELS))
-        }
+        lights = {k: lvl for k in LIGHT_KEYS if (lvl := _level(_get(vs, "annunciators", k)))}
+        # The game sends COOL as OFF in every frame, coolers running or not: show their power.
+        if lights.get("cool") == "off" and power.get("coolers") and power.get("powerplants"):
+            lights["cool"] = "nominal"
         powered = power.get("powerplants")
 
         flight = vs.get("flight") or {}
@@ -319,8 +335,14 @@ class Normalizer:
         raw_alt = inst.get("altitude")
         deep_space = isinstance(raw_alt, (int, float)) and abs(raw_alt) > FLT_MAX_ISH
         nav = powered is not False and lights.get("qdrv") not in (None, "off")
+        thr = lights.get("thr")
         quantum = self._quantum(
-            inst.get("speed"), _get(inst, "g_meter", "current"), inst.get("heading"), t, nav
+            inst.get("speed"),
+            _get(inst, "g_meter", "current"),
+            inst.get("heading"),
+            t,
+            nav,
+            locked=None if thr is None else thr == "major",
         )
 
         shields_powered = power.get("shield_generators")
@@ -372,13 +394,25 @@ class Normalizer:
         self._qt_since: int | None = None  # when the speed froze
         self._qt_turned = False  # heading moved while frozen
         self._qt_on = False
+        self._qt_moving = 0  # consecutive frames with a new speed, mid-jump
 
-    def _quantum(self, speed: Any, g: Any, heading: Any, t: int, nav: bool = False) -> bool | None:
-        """Raw values on purpose: "frozen" means bit-identical, not merely close."""
+    def _quantum(
+        self,
+        speed: Any,
+        g: Any,
+        heading: Any,
+        t: int,
+        nav: bool = False,
+        locked: bool | None = None,
+    ) -> bool | None:
+        """Raw values on purpose: "frozen" means bit-identical, not merely close.
+        ``locked``: the thruster light is MAJOR; None when the ship doesn't report it."""
         if not isinstance(speed, (int, float)) or isinstance(speed, bool):
             self._qt_reset()
             return None
         last, self._qt_last = self._qt_last, (speed, heading)
+        if locked is not None:
+            return self._quantum_locked(speed, g, t, nav, locked, last)
         if self._qt_on and g == 0:
             return True
         if last is None or speed != last[0] or g != 0:
@@ -390,6 +424,30 @@ class Normalizer:
             self._qt_turned = True
         moving = self._qt_turned or (self.route_active and nav)
         self._qt_on = moving and t - self._qt_since >= QUANTUM_FREEZE_MS
+        return self._qt_on
+
+    def _quantum_locked(
+        self, speed: float, g: Any, t: int, nav: bool, locked: bool, last: tuple | None
+    ) -> bool:
+        """The thruster-light rule (module docstring): locked, lit, and frozen."""
+        changed = last is None or speed != last[0]
+        if not (locked and nav) or g != 0:
+            self._qt_since, self._qt_on, self._qt_moving = None, False, 0
+            return False
+        if self._qt_on:
+            # A single step mid-jump is normal; a speed that keeps changing is the ship
+            # falling with its thrusters still locked after the leg.
+            self._qt_moving = self._qt_moving + 1 if changed else 0
+            if self._qt_moving < QUANTUM_MOVING_FRAMES:
+                return True
+            self._qt_since, self._qt_on, self._qt_moving = None, False, 0
+            return False
+        if changed:
+            self._qt_since = None
+            return False
+        if self._qt_since is None:
+            self._qt_since = t
+        self._qt_on = t - self._qt_since >= QUANTUM_LOCK_MS
         return self._qt_on
 
     def _infer_mode(self, qdrv: str | None, powered: bool | None) -> str | None:

@@ -86,6 +86,11 @@ def main() -> None:
                 notes.append((t - t0, rec["note"]))
                 timeline.append((t - t0, "NOTE", rec["note"]))
                 continue
+            if "log" in rec:  # a Game.log line the capture kept
+                timeline.append((t - t0, "LOG", rec["log"][-160:]))
+                continue
+            if "frame" not in rec:
+                continue
             frames += 1
             if last_t is not None and t - last_t > 1000:
                 gaps.append((last_t - t0, t - last_t))

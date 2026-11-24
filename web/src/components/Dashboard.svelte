@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Component } from "svelte";
-  import { flip } from "svelte/animate";
+  import { cubicOut } from "svelte/easing";
   import type { PanelCtx } from "../lib/context";
   import { eventPanel, eventTone } from "../lib/format";
   import { PANELS, type Layout, type PanelId, type Span } from "../lib/panels";
@@ -36,9 +36,29 @@
     events: EventsPanel,
   };
 
-  const visible = $derived(
-    layout.filter((s) => !s.hidden && (editing || !(PANELS[s.id].ship && !ctx.ship && ctx.prefs.autoHide))),
-  );
+  // The same array until the set of panels really changes. A new one every frame (ctx.ship
+  // is a new object each snapshot) made Svelte re-measure and restart the slide animation
+  // 17 times a second, so a 220 ms move crept on for seconds after sitting down.
+  let shown: Layout = [];
+  const visible = $derived.by(() => {
+    const inShip = !!ctx.ship;
+    const next = layout.filter((s) => !s.hidden && (editing || !(PANELS[s.id].ship && !inShip && ctx.prefs.autoHide)));
+    if (next.length === shown.length && next.every((s, i) => s === shown[i])) return shown;
+    shown = next;
+    return next;
+  });
+
+  /** Slide panels to their new places; no scaling (it stretches the text mid-move). */
+  function slide(_node: Element, { from, to }: { from: DOMRect; to: DOMRect }) {
+    const dx = from.left - to.left;
+    const dy = from.top - to.top;
+    if (!dx && !dy) return { duration: 0 };
+    return {
+      duration: 220,
+      easing: cubicOut,
+      css: (_t: number, u: number) => `transform: translate(${u * dx}px, ${u * dy}px)`,
+    };
+  }
 
   // Flash the panel an event is about.
   let pulses = $state<Partial<Record<PanelId, { n: number; tone: string }>>>({});
@@ -97,7 +117,7 @@
     <div
       class="cell s{slot.span}"
       class:dragging={dragging === slot.id}
-      animate:flip={{ duration: 220 }}
+      animate:slide
       draggable={editing}
       ondragstart={(e) => {
         dragging = slot.id;

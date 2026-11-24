@@ -27,6 +27,7 @@ from .models import (
     Weapons,
     apply_sharing,
     event_shared,
+    expected_light,
 )
 from .patch import apply_patch, make_patch
 
@@ -56,6 +57,7 @@ __all__ = [
     "Vitals",
     "Weapons",
     "apply_sharing",
+    "expected_light",
     "event_shared",
     "apply_patch",
     "make_patch",

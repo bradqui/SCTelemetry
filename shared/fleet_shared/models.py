@@ -331,6 +331,13 @@ class Heartbeat(_Model):
     in_game: bool
 
 
+def expected_light(light: str, master_mode: str | None) -> bool:
+    """A lit warning light that isn't a fault: in NAV the quantum drive locks the
+    thrusters (THR reads MAJOR through every jump). Alarms and warning events skip it;
+    the lights themselves still show what the game shows."""
+    return light == "thr" and master_mode == "NAV"
+
+
 # ---------------------------------------------------------------- privacy
 
 

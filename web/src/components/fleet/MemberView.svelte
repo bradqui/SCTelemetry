@@ -59,8 +59,9 @@
 
 <div class="member" bind:this={el}>
   <header>
-    <button class="back" onclick={onClose} aria-label="Back to the fleet" title="Back to the fleet">
+    <button class="back" onclick={onClose} title="Back to the fleet (Esc)">
       <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3 5 8l5 5" /></svg>
+      <span>Fleet</span>
     </button>
     {#if member.avatar}<img src={member.avatar} alt="" />{/if}
     <div class="who">
@@ -116,10 +117,16 @@
     min-width: 0;
   }
   .back {
-    display: grid;
-    place-items: center;
-    width: 26px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
     height: 26px;
+    padding: 0 9px 0 5px;
+    font-size: 0.74rem;
+    font-weight: 700;
+    letter-spacing: var(--label-spacing);
+    text-transform: var(--label-case);
+    color: var(--text-2);
     border: 1px solid var(--line-2);
     border-radius: var(--radius-sm);
     background: var(--bg-2);
@@ -133,8 +140,10 @@
     stroke: currentColor;
     stroke-width: 2;
   }
-  .back:hover {
+  .back:hover,
+  .back:focus-visible {
     border-color: var(--accent);
+    color: var(--text);
   }
   img {
     width: 28px;
@@ -223,10 +232,5 @@
     margin: 0 auto;
     color: var(--text-2);
     max-width: 46ch;
-  }
-  @media (min-width: 761px) {
-    .back {
-      display: none;
-    }
   }
 </style>

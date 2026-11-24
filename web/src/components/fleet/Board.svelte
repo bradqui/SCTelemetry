@@ -90,6 +90,15 @@
     fleet.open(id);
   }
 
+  // Back to the fleet: Esc (unless a dialog or the Customize drawer has it), or clicking
+  // the open member in the roster again.
+  function onKey(e: KeyboardEvent) {
+    if (e.key === "Escape" && fleet.focus && !customizing && !dialog) open(null);
+  }
+  function toggle(id: string) {
+    open(id === fleet.focus ? null : id);
+  }
+
   onMount(() => {
     const stop = fleet.start();
     const onPop = () => fleet.open(fromHash());
@@ -144,6 +153,8 @@
   }
 </script>
 
+<svelte:window onkeydown={onKey} />
+
 <div class="board" class:embedded bind:this={root} style:--brackets={embedded ? (prefs.effects ? 1 : 0) : null}>
   <main class:detail={!!member}>
     <FleetBar
@@ -160,7 +171,7 @@
     />
     <div class="body">
       <aside>
-        <Roster {rows} focus={fleet.focus} {myShard} {now} onOpen={open} />
+        <Roster {rows} focus={fleet.focus} {myShard} {now} onOpen={toggle} />
       </aside>
       <section class="main">
         {#if member}

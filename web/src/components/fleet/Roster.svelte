@@ -20,7 +20,7 @@
   function initialGroup(): GroupBy {
     try {
       const g = localStorage.getItem("ft.fleet.group");
-      if (g === "ship" || g === "server" || g === "status") return g;
+      if (g === "ship" || g === "server" || g === "status" || g === "name") return g;
     } catch {
       /* storage unavailable */
     }
@@ -69,7 +69,7 @@
   <div class="head">
     <span class="label">Roster</span>
     <div class="seg" role="radiogroup" aria-label="Group by">
-      {#each [["ship", "Ship"], ["server", "Server"], ["status", "Status"]] as [id, text] (id)}
+      {#each [["ship", "Ship"], ["server", "Server"], ["status", "Status"], ["name", "A–Z"]] as [id, text] (id)}
         <button role="radio" aria-checked={by === id} class:on={by === id} onclick={() => (by = id as GroupBy)}
           >{text}</button
         >

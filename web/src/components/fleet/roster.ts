@@ -1,7 +1,7 @@
 import { shardLabel } from "../../lib/format";
 import type { MemberSummary } from "../../lib/types";
 
-export type GroupBy = "ship" | "server" | "status";
+export type GroupBy = "ship" | "server" | "status" | "name";
 
 export interface Group {
   key: string;
@@ -77,6 +77,11 @@ export function groupRoster(rows: MemberSummary[], by: GroupBy, myShard: string 
   const offline = rows.filter((m) => !online(m)).sort(byName);
   const out: Group[] = [];
 
+  if (by === "name") {
+    // Static: everyone A to Z, offline included, so nobody moves when they board or log off.
+    const all = [...rows].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
+    return all.length ? [{ key: "all", title: "Everyone", sub: `${live.length} online`, members: all }] : [];
+  }
   if (by === "ship") {
     const groups = crews(live).sort(
       (a, b) => b.length - a.length || crewTitle(a).localeCompare(crewTitle(b)),

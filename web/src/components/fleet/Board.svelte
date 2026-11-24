@@ -216,7 +216,7 @@
             >
           </div>
           {#if view === "cards"}
-            <Cards {rows} meId={me.id} {myShard} {prefs} {now} onOpen={open} />
+            <Cards {rows} meId={me.id} {myShard} {prefs} {now} onOpen={open} orderKey={fleetHub ?? location.host} />
           {:else}
             <Overview roster={fleet.roster} events={fleet.events} {now} onOpen={open} />
           {/if}

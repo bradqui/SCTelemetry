@@ -45,6 +45,8 @@ class Status(_Model):
     """Seat name without the entity id, e.g. ``RSI_Constellation_Mk5_CoPilot_SeatDashboard``."""
     role: SeatRole | None = None
     """From the seat name, falling back to the game's crew role (it calls co-pilots PILOT)."""
+    handle: str | None = None
+    """Your in-game handle (Game.log login line): how other members' ship channels name you."""
 
 
 class Shields(_Model):
@@ -168,6 +170,18 @@ class Route(_Model):
     """ms since epoch the state began."""
 
 
+class Aboard(_Model):
+    """The ship you're aboard, seated or not, from its comms channel: boarding a ship
+    joins "<Manufacturer Model> : <owner handle>". Leaving isn't always logged, so this
+    also ends on another ship's channel, a server change, death or a new game."""
+
+    ship: str
+    """E.g. "RSI Constellation Taurus" (the game's name, not the class)."""
+    owner: str
+    """The owner's in-game handle."""
+    since: int
+
+
 class Location(_Model):
     """Where you are in game terms, from Game.log notices. No coordinates."""
 
@@ -185,6 +199,7 @@ class Location(_Model):
     system: str | None = None
     """Star system, when the game names it (jump drive lines)."""
     route: Route | None = None
+    aboard: Aboard | None = None
 
 
 class Mission(_Model):
@@ -281,6 +296,8 @@ EventKind = Literal[
     "incapacitated",
     "hangar_ready",
     "hangar_queue",
+    "boarded",
+    "disembarked",
     "blueprint",
     "takeoff",
     "landed",
@@ -385,6 +402,8 @@ EVENT_CATEGORY: dict[str, str] = {
             "restricted_leave",
             "private_enter",
             "private_leave",
+            "boarded",
+            "disembarked",
         ],
         "location",
     ),

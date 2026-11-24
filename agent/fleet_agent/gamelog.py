@@ -5,10 +5,13 @@ API: CIG adds, rewords and removes lines between patches (docs/FIELDS.md has the
 history from four years of logs). So every parser here is optional, an
 unrecognised line is ignored, and nothing breaks if a line type disappears.
 
-What we read (comms and party channel chatter deliberately left out):
+What we read (party channel chatter deliberately left out):
 
 - location: armistice zones, jurisdiction, monitored space (and comm arrays
   down), restricted areas, private property, the server (shard)
+- the ship you're aboard, seated or on foot: boarding a ship joins its comms
+  channel, "<Manufacturer Model> : <owner handle>" (leaving is logged only
+  sometimes)
 - quantum travel (within a star system): route plotted with destination,
   arrival, obstruction, party calibration
 - jump drive (through a jump point to another star system), older format only
@@ -31,7 +34,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from fleet_shared import Event, Injury, Location, Mission, Route, Session
+from fleet_shared import Aboard, Event, Injury, Location, Mission, Route, Session
 
 from .normalize import model_name
 
@@ -63,6 +66,7 @@ _ACTOR_DEATH = re.compile(
 _JUMP_DRIVE = re.compile(r"<Jump Drive State Changed> Now (\w+) \|[^|]*\|[^|]*\| (\w+) \|")
 _INJURY = re.compile(r"^(Minor|Moderate|Severe) Injury Detected - (.+?) - Tier (\d)")
 _TAGS = re.compile(r"<EM\d>(.*?)</EM\d>")
+_CHANNEL = re.compile(r"^You have (joined|left the) channel '(.+) : ([^']+)'")
 
 _INTERESTING = (
     "<UpdateNotificationItem>",
@@ -121,6 +125,12 @@ def parse_line(line: str) -> LogEvent | None:
 def parse_notification(text: str) -> LogEvent | None:
     """The text of an on-screen notification (the game appends ": " to most)."""
     t = " ".join(text.replace("\xa0", " ").split())  # joined lines, odd spaces
+    if m := _CHANNEL.match(t):  # before the ":" split: the channel name has one
+        joined, name, owner = m.groups()
+        return LogEvent(
+            "channel_join" if joined == "joined" else "channel_left",
+            {"ship": channel_ship(name), "owner": owner.strip()},
+        )
     head, _, rest = t.partition(":")
     rest = rest.strip().rstrip(":").strip()
     head = head.strip()
@@ -239,6 +249,15 @@ def ship_name(cls: str) -> tuple[str, str | None]:
     )
 
 
+def channel_ship(name: str) -> str:
+    """A ship channel's name: 'RSI Constellation Taurus' as is; an untranslated one
+    ('@vehicle_NameRSI_Perseus') -> 'RSI Perseus'."""
+    name = name.strip()
+    if name.startswith("@vehicle_Name"):
+        name = name[len("@vehicle_Name") :].replace("_", " ")
+    return name
+
+
 def who(name: str) -> str:
     """Killer names: NPC classes become a plain description, players stay as they are.
 
@@ -313,6 +332,7 @@ class LogState:
         """A new game launch (new Game.log)."""
         self.route.reset()
         self.loc: dict = {}
+        self.aboard: Aboard | None = None
         self.missions: list[Mission] = []
         self.injuries: dict[str, Injury] = {}
         self.session = Session()
@@ -333,9 +353,26 @@ class LogState:
             self.handle = d["handle"]
             return []
         if k == "shard":
-            changed = self.loc.get("shard") != d["shard"]
+            before = self.loc.get("shard")
+            changed = before != d["shard"]
             self.loc["shard"] = d["shard"]
+            if changed and before is not None:
+                self.aboard = None  # moved to another server: the ship didn't come along
             return event("shard_join", shard=d["shard"]) if changed else []
+
+        # -- the ship you're aboard
+        if k == "channel_join":
+            a = self.aboard
+            if a and (a.ship, a.owner) == (d["ship"], d["owner"]):
+                return []
+            self.aboard = Aboard(ship=d["ship"], owner=d["owner"], since=t)
+            return event("boarded", ship=d["ship"], owner=d["owner"])
+        if k == "channel_left":
+            a = self.aboard
+            if not a or (a.ship, a.owner) != (d["ship"], d["owner"]):
+                return []
+            self.aboard = None
+            return event("disembarked", ship=d["ship"], owner=d["owner"])
 
         # -- location
         if k in ("armistice", "monitored", "restricted", "private"):
@@ -414,6 +451,7 @@ class LogState:
         if k == "actor_death":
             if self.handle and d["victim"] == self.handle:
                 self.session.deaths += 1
+                self.aboard = None
                 return event("death", by=who(d["killer"]), damage=d["damage"])
             if self.handle and d["killer"] == self.handle:
                 self.session.kills += 1
@@ -466,12 +504,13 @@ class LogState:
 
     def respawned(self) -> None:
         self.injuries.clear()
+        self.aboard = None
 
     # -- read
 
     def location(self, t: int, quantum: bool | None) -> Location | None:
         route = self.route.route(t, quantum)
-        if not self.loc and route is None:
+        if not self.loc and route is None and self.aboard is None:
             return None
         return Location(
             armistice=self.loc.get("armistice"),
@@ -483,6 +522,7 @@ class LogState:
             shard=self.loc.get("shard"),
             system=self.loc.get("system"),
             route=route,
+            aboard=self.aboard.model_copy() if self.aboard else None,
         )
 
     def mission_list(self, t: int) -> list[Mission]:

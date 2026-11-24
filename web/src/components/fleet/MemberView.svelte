@@ -6,6 +6,7 @@
   import type { MemberSummary, Snapshot, TelemetryEvent } from "../../lib/types";
   import Dashboard from "../Dashboard.svelte";
   import LocationChips from "../LocationChips.svelte";
+  import { footLine } from "./roster";
   import { applyTheme, DEFAULT_THEME, THEME_BY_ID, themeForShip } from "../../lib/themes";
 
   let {
@@ -18,6 +19,7 @@
     myShard,
     isMe,
     onClose,
+    nameOf = () => undefined,
   }: {
     member: MemberSummary;
     snap: Snapshot | null;
@@ -28,6 +30,8 @@
     myShard: string | null;
     isMe: boolean;
     onClose: () => void;
+    /** A member's display name by id (whose ship they're aboard). */
+    nameOf?: (id: string) => string | undefined;
   } = $props();
 
   const ship = $derived(snap?.ship ?? null);
@@ -49,8 +53,7 @@
     if (member.presence === "stale") return "Connection lost";
     if (member.presence === "idle") return "Agent running · not in game";
     if (ship) return `${ship.model}${snap?.status?.role ? ` · ${ROLE_NAMES[snap.status.role]}` : ""}`;
-    const l = snap?.status?.locomotion;
-    return l === "eva" ? "EVA" : l === "seated" ? "Seated" : "On foot";
+    return footLine({ ...member, locomotion: snap?.status?.locomotion ?? member.locomotion }, nameOf);
   });
   const mode = $derived(
     ship?.flight.quantum ? "QT" : ship?.powered === false ? null : (ship?.master_mode ?? null),

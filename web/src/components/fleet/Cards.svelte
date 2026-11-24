@@ -2,6 +2,7 @@
   import type { Prefs } from "../../lib/prefs.svelte";
   import type { MemberSummary } from "../../lib/types";
   import MemberCard from "./MemberCard.svelte";
+  import { crewKey } from "./roster";
 
   // Everyone's basic numbers side by side, for flying together: ships first (crews
   // together, pilot first), then people on foot, then the rest.
@@ -25,18 +26,21 @@
   function rank(m: MemberSummary): number {
     if (m.presence === "offline") return 4;
     if (m.presence === "idle") return 3;
-    if (m.ship) return 0;
+    if (crewKey(m)) return 0; // in a ship, or aboard one on foot (next to its crew)
     return m.presence === "stale" ? 2 : 1;
   }
   const sorted = $derived(
     [...rows].sort(
       (a, b) =>
         rank(a) - rank(b) ||
-        (a.ship?.id ?? "").localeCompare(b.ship?.id ?? "") ||
+        (crewKey(a) ?? "").localeCompare(crewKey(b) ?? "") ||
+        Number(!a.ship) - Number(!b.ship) ||
         (ROLE_ORDER[a.role ?? ""] ?? 9) - (ROLE_ORDER[b.role ?? ""] ?? 9) ||
         a.name.localeCompare(b.name),
     ),
   );
+  const names = $derived(new Map(rows.map((r) => [r.id, r.name])));
+  const nameOf = (id: string) => names.get(id);
   const active = $derived(sorted.filter((m) => m.presence !== "offline"));
   const away = $derived(sorted.filter((m) => m.presence === "offline"));
 </script>
@@ -50,6 +54,7 @@
       isMe={m.id === meId}
       same={!!myShard && m.location?.shard === myShard && m.id !== meId}
       {onOpen}
+      {nameOf}
     />
   {:else}
     <p class="empty">Nobody's online right now.</p>

@@ -47,6 +47,7 @@ Everyone with a linked PC, as the fleet page's roster shows them:
       "channel": "LIVE",
       "locomotion": "seated",       // on_foot | eva | seated | unknown
       "role": "pilot",              // pilot | copilot | gunner | crew | null
+      "handle": "Wren_SC",          // in-game handle (from Game.log), or null
       "ship": {                     // null when not in a ship (or not shared)
         "id": "ORIG_m80_123456789", // same id = same ship: crewmates share it
         "model": "M80",
@@ -77,7 +78,14 @@ Everyone with a linked PC, as the fleet page's roster shows them:
         "jurisdiction": "Hurston Dynamics",
         "system": null,
         "shard": "pub_use1b_13165946_150",   // same shard = same server instance
-        "route": {"destination": "Bounty Beacon", "state": "en_route"}
+        "route": {"destination": "Bounty Beacon", "state": "en_route"},
+        "aboard": {                 // the ship they're aboard, seated or on foot; else null
+          "ship": "RSI Constellation Taurus",   // the game's name for it
+          "owner": "Kestrel_SC",    // owner's in-game handle
+          "since": 1795540000000,
+          "owner_id": "m_123",      // the member who owns it, when they're in the fleet
+          "ship_id": "RSI_Constellation_Taurus_987"  // the owner's ship, when they're flying it
+        }
       },
       "vitals": {"health": 1.0, "oxygen": 1.0, "hunger": 0.64, "thirst": 0.81,   // 0-1
                  "body_temp": 36.6, "heart_rate": 84,
@@ -130,6 +138,7 @@ Useful kinds for alerts:
 | `quantum_route`, `quantum_arrived`, `quantum_blocked` | `destination` |
 | `contract_accepted`, `contract_complete`, `contract_failed`, `contract_abandoned` | `title` |
 | `jurisdiction` | `name` |
+| `boarded`, `disembarked` | `ship`, `owner` (in-game handle). Leaving isn't always logged by the game |
 | `armistice_enter` / `armistice_leave`, `restricted_enter` / `restricted_leave` | |
 | `game_start`, `game_exit`, `seat_enter`, `seat_leave`, `ship_change`, `takeoff`, `landed` | (seat events: `seat`, `role`) |
 

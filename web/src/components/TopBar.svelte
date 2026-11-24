@@ -40,6 +40,13 @@
   const ship = $derived(snapshot?.ship ?? null);
   const status = $derived(snapshot?.status ?? null);
   const loc = $derived(snapshot?.location ?? null);
+  // The ship you're aboard on foot (its comms channel): yours, or someone else's.
+  const aboard = $derived.by(() => {
+    const a = loc?.aboard;
+    if (!a) return null;
+    const mine = !!status?.handle && a.owner.toLowerCase() === status.handle.toLowerCase();
+    return mine ? `your ${a.ship}` : `${a.owner}'s ${a.ship}`;
+  });
 
   async function openFleet() {
     // The agent asks the hub for a one-time sign-in link; open it in a new tab.
@@ -82,7 +89,9 @@
     {:else if status?.locomotion === "seated"}
       <span class="ship">Boarding…</span>
     {:else if status}
-      <span class="ship muted">{status.locomotion === "eva" ? "EVA" : "On foot"}</span>
+      <span class="ship muted"
+        >{status.locomotion === "eva" ? "EVA" : "On foot"}{#if aboard}<span class="aboard"> · aboard {aboard}</span>{/if}</span
+      >
     {/if}
   </div>
 

@@ -5,6 +5,7 @@ import time
 from pathlib import Path
 
 import pytest
+from fleet_agent.capturefile import read_frames
 from fleet_agent.gamelog import (
     ARRIVED_SHOWN_MS,
     GameLogTail,
@@ -177,7 +178,6 @@ def test_parse(line, kind, data):
 def test_ignored_lines():
     assert parse_line("") is None
     assert parse_line(note("Entered Monitored Space: ", action="StartFade")) is None, "once only"
-    assert parse_line(note("You have joined channel 'Origin M80 : x'.")) is None, "no comms"
     assert parse_line(f"{TS}[Notice] <Calculate Route> ... [QuantumTravel]") is None
 
 
@@ -409,3 +409,70 @@ def _wait(cond, timeout=3.0):
             return
         time.sleep(0.02)
     raise AssertionError("timed out")
+
+
+def test_ship_channels():
+    """Boarding a ship joins its comms channel: "<Manufacturer Model> : <owner>"."""
+    ev = parse_line(note("You have joined channel 'RSI Constellation Taurus : Wing_Mate-7'.: "))
+    assert ev.kind == "channel_join"
+    assert ev.data == {"ship": "RSI Constellation Taurus", "owner": "Wing_Mate-7"}
+    ev = parse_line(note("You have left the channel 'Origin M80 : TestPilot'."))
+    assert ev.kind == "channel_left" and ev.data["ship"] == "Origin M80"
+    # An untranslated name.
+    ev = parse_line(note("You have joined channel '@vehicle_NameRSI_Perseus : TestPilot'."))
+    assert ev.data["ship"] == "RSI Perseus"
+
+
+def test_aboard_state():
+    s = LogState()
+    s.handle = ME
+    join = parse_line(note("You have joined channel 'RSI Constellation Taurus : Wing'."))
+    events = s.on_log(join, 1000)
+    assert [e.kind for e in events] == ["boarded"]
+    assert events[0].data == {"ship": "RSI Constellation Taurus", "owner": "Wing"}
+    a = s.location(2000, None).aboard
+    assert (a.ship, a.owner, a.since) == ("RSI Constellation Taurus", "Wing", 1000)
+    assert s.on_log(join, 3000) == [], "the same channel again is not news"
+    # Leaving a different ship's channel changes nothing.
+    other = parse_line(note("You have left the channel 'Origin M80 : TestPilot'."))
+    assert s.on_log(other, 4000) == [] and s.aboard is not None
+    left = parse_line(note("You have left the channel 'RSI Constellation Taurus : Wing'."))
+    assert [e.kind for e in s.on_log(left, 5000)] == ["disembarked"]
+    assert s.location(6000, None) is None
+
+
+@pytest.mark.parametrize("how", ["other ship", "server", "respawn", "new game"])
+def test_aboard_ends_without_a_left_line(how):
+    """Leaving isn't always logged: other things end it too."""
+    s = LogState()
+    s.on_log(parse_line(note("You have joined channel 'Origin M80 : TestPilot'.")), 0)
+    s.on_log(parse_line(f"{TS}[Notice] <Update Shard Id> New Shard Id: pub_use1b_1_1."), 1)
+    assert s.aboard is not None, "the first server of the session doesn't end it"
+    if how == "other ship":
+        s.on_log(parse_line(note("You have joined channel 'Drake Cutlass Black : Wing'.")), 10)
+        assert s.aboard.ship == "Drake Cutlass Black"
+        return
+    if how == "server":
+        s.on_log(parse_line(f"{TS}[Notice] <Update Shard Id> New Shard Id: pub_use1b_1_2."), 10)
+    elif how == "respawn":
+        s.respawned()
+    else:
+        s.reset_session()
+    assert s.aboard is None
+
+
+def test_pipeline_adds_the_handle_and_aboard():
+    p = Pipeline()
+    p.on_log(
+        f"{TS}[Notice] <Legacy login response> [CIG-net] User Login Success - Handle[{ME}]",
+        t=0,
+    )
+    p.on_log(note("You have joined channel 'Origin M80 : TestPilot'."), t=10)
+    raw = next(raw for _, raw in read_frames(FIXTURES / "on-foot.jsonl.gz"))
+    p.on_frame(raw, 20)
+    snap = p.latest
+    assert snap.status.handle == ME
+    assert snap.location.aboard.ship == "Origin M80"
+    # Shared under "location", the handle under "status".
+    hidden = apply_sharing(snap, ["status"])
+    assert hidden.location is None and hidden.status.handle == ME

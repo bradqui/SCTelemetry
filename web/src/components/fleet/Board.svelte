@@ -185,6 +185,7 @@
             {myShard}
             isMe={member.id === me.id}
             onClose={() => open(null)}
+            nameOf={(id) => fleet.roster[id]?.name}
           />
         {:else}
           <div class="views" role="tablist" aria-label="Fleet view">

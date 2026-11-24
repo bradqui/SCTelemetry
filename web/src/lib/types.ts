@@ -10,6 +10,8 @@ export interface Status {
   locomotion: Locomotion;
   seat: string | null;
   role: SeatRole | null;
+  /** In-game handle, from Game.log. */
+  handle?: string | null;
 }
 
 export interface Shields {
@@ -103,6 +105,16 @@ export interface Location {
   shard: string | null;
   system: string | null;
   route: Route | null;
+  /** The ship you're aboard, seated or on foot (its comms channel). */
+  aboard?: Aboard | null;
+}
+
+/** "<Manufacturer Model> : <owner>" channel: the ship you boarded and whose it is. */
+export interface Aboard {
+  ship: string;
+  /** The owner's in-game handle. */
+  owner: string;
+  since: number;
 }
 
 export interface Mission {
@@ -212,6 +224,7 @@ export interface MemberSummary extends Me {
   channel: string | null;
   locomotion: Status["locomotion"] | null;
   role: SeatRole | null;
+  handle?: string | null;
   ship: {
     id: string;
     model: string;
@@ -237,7 +250,13 @@ export interface MemberSummary extends Me {
     alarm: "major" | "minor" | null;
     lights: string[];
   } | null;
-  location: (Omit<Location, "route"> & { route: { destination: string | null; state: Route["state"] } | null }) | null;
+  location:
+    | (Omit<Location, "route" | "aboard"> & {
+        route: { destination: string | null; state: Route["state"] } | null;
+        /** owner_id: the member who owns it; ship_id: their ship, when they're flying that model now. */
+        aboard: (Aboard & { owner_id: string | null; ship_id: string | null }) | null;
+      })
+    | null;
   vitals: {
     health: number | null;
     oxygen: number | null;

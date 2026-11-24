@@ -3,6 +3,7 @@
   import type { Prefs } from "../../lib/prefs.svelte";
   import { applyTheme, DEFAULT_THEME, THEME_BY_ID, themeForShip, type Scheme, type Theme } from "../../lib/themes";
   import type { MemberSummary } from "../../lib/types";
+  import { footLine } from "./roster";
 
   // One player at a glance: flight numbers in a ship, body numbers on foot. With
   // "match the ship" on, the card wears its ship's theme.
@@ -13,6 +14,7 @@
     same,
     isMe,
     onOpen,
+    nameOf = () => undefined,
   }: {
     m: MemberSummary;
     prefs: Prefs;
@@ -21,6 +23,8 @@
     same: boolean;
     isMe: boolean;
     onOpen: (id: string) => void;
+    /** A member's display name by id (whose ship someone is aboard). */
+    nameOf?: (id: string) => string | undefined;
   } = $props();
 
   const theme = $derived(
@@ -49,7 +53,7 @@
     if (m.presence === "idle") return "Agent on · not in game";
     if (m.presence === "stale") return "Connection lost";
     if (s) return `${s.model}${m.role ? ` · ${ROLE_NAMES[m.role]}` : ""}`;
-    return m.locomotion === "eva" ? "EVA" : m.locomotion === "seated" ? "Seated" : "On foot";
+    return footLine(m, nameOf);
   });
   const ROUTE_STATE: Record<string, string> = {
     plotted: "Route set",

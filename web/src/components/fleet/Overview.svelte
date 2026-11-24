@@ -2,6 +2,7 @@
   import { CATEGORIES, eventCategory, eventText, eventTone, since, type EventCategory } from "../../lib/format";
   import type { FleetEvent, MemberSummary } from "../../lib/types";
   import EventIcon from "../EventIcon.svelte";
+  import { crews } from "./roster";
 
   // The fleet with nobody opened: what everyone did this session, and everything as it happens.
   let {
@@ -51,13 +52,8 @@
       .slice(-80)
       .reverse(),
   );
-  const crews = $derived.by(() => {
-    const ships = new Map<string, MemberSummary[]>();
-    for (const m of rows) {
-      if (m.ship && m.presence !== "offline") ships.set(m.ship.id, [...(ships.get(m.ship.id) ?? []), m]);
-    }
-    return [...ships.values()].sort((a, b) => b.length - a.length);
-  });
+  // Ships someone's flying, with anyone aboard on foot (ship channel) in the crew.
+  const shipCrews = $derived(crews(rows).filter((c) => c[0].ship).sort((a, b) => b.length - a.length));
 </script>
 
 <div class="overview">
@@ -72,7 +68,7 @@
 
   <section class="panel ships">
     <span class="label">Ships out</span>
-    {#each crews as crew (crew[0].ship!.id)}
+    {#each shipCrews as crew (crew[0].ship!.id)}
       {@const s = crew[0].ship!}
       <button class="ship" onclick={() => onOpen(crew[0].id)}>
         <span class="mode {s.quantum ? 'qt' : (s.master_mode ?? 'off').toLowerCase()}">{s.quantum ? "QT" : (s.master_mode ?? "—")}</span>

@@ -45,7 +45,7 @@
     if (k === "takeoff" || k === "landed") return k;
     if (k === "seat_enter") return "seat";
     if (k === "seat_leave") return "leave";
-    if (k === "ship_change") return "ship";
+    if (k === "ship_change" || k === "boarded" || k === "disembarked") return "ship";
     if (k === "mode_change") return "mode";
     if (k.startsWith("quantum")) return "quantum";
     if (k === "qt_calibration") return "sync";

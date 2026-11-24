@@ -4,6 +4,7 @@ from .models import (
     EVENT_CATEGORY,
     SCHEMA_VERSION,
     SHARE_CATEGORIES,
+    Aboard,
     Countermeasure,
     Delta,
     Environment,
@@ -32,6 +33,7 @@ from .models import (
 from .patch import apply_patch, make_patch
 
 __all__ = [
+    "Aboard",
     "SCHEMA_VERSION",
     "SHARE_CATEGORIES",
     "Countermeasure",

@@ -61,6 +61,8 @@ LIVE = [
     ),
     ("m_nova", "Nova", "on-foot", 0, None, None),
 ]
+ABOARD = {"m_nova": ("RSI Constellation Mk V Centaurus", "Kestrel", "m_kestrel")}
+"""On foot aboard someone's ship: the ship's comms channel, as Game.log has it."""
 STATIC = [
     ("m_pike", "Pike", "idle", None),
     ("m_juno", "Juno", "offline", -2 * 3600 * 1000 - 14 * 60 * 1000),
@@ -103,6 +105,14 @@ def run(member_id, name, fixture, start, ship_label, role):
     pipeline.subscribe(lambda kind, p: kind == "event" and events.append((pos_now["pos"], p)))
     samples: list[dict] = []
     next_ms = start * 1000
+    if member_id in ABOARD:
+        ship, owner, _ = ABOARD[member_id]
+        pipeline.on_log(
+            '<2026-11-24T18:00:00.000Z> [Notice] <UpdateNotificationItem> Notification "You have'
+            f" joined channel '{ship} : {owner}'.\" [1], Action: Next [Comms]",
+            0,
+            True,
+        )
     for i, pos in enumerate(rec.positions):
         pos_now["pos"] = pos
         t = int(pos * 1000)
@@ -154,6 +164,13 @@ def static(member_id, name, kind, last_seen):
 
 def main() -> None:
     members = [run(*m) for m in LIVE] + [static(*m) for m in STATIC]
+    # The hub resolves whose ship it is across the roster (resolve_aboard): here, by hand.
+    by_id = {m["id"]: m for m in members}
+    for member_id, (_, _, owner_id) in ABOARD.items():
+        ship_id = next((r["ship"]["id"] for r in by_id[owner_id]["rows"] if r.get("ship")), None)
+        aboard = (by_id[member_id]["rows"][0].get("location") or {}).get("aboard")
+        if aboard:
+            aboard["owner_id"], aboard["ship_id"] = owner_id, ship_id
     data = {"step_ms": STEP_MS, "me": "m_rook", "org": "Friday Night Club", "members": members}
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(json.dumps(data, separators=(",", ":")), encoding="utf-8")

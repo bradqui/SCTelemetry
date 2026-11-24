@@ -103,6 +103,8 @@ const EVENT_TEXT: Record<string, (d: Record<string, unknown>) => string> = {
   // The game's own words: the same notification comes for arriving and for leaving.
   hangar_ready: () => "Hangar request completed",
   hangar_queue: () => "Waiting for a hangar",
+  boarded: (d) => `Boarded ${d.owner}'s ${d.ship}`,
+  disembarked: (d) => `Left ${d.owner}'s ${d.ship}`,
   blueprint: (d) => `Blueprint: ${d.name}`,
 };
 
@@ -147,7 +149,7 @@ export function eventCategory(kind: string): EventCategory {
     return "combat";
   if (kind.startsWith("contract") || kind.startsWith("objective") || kind === "reward") return "mission";
   if (
-    ["shard_join", "jurisdiction", "comms_down", "comms_restored", "hangar_ready", "hangar_queue"].includes(kind) ||
+    ["shard_join", "jurisdiction", "comms_down", "comms_restored", "hangar_ready", "hangar_queue", "boarded", "disembarked"].includes(kind) ||
     /^(armistice|monitored|restricted|private)_/.test(kind)
   )
     return "location";

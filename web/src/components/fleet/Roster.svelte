@@ -1,7 +1,7 @@
 <script lang="ts">
   import { ago, LIGHT_NAMES, ROLE_NAMES } from "../../lib/format";
   import type { MemberSummary } from "../../lib/types";
-  import { groupRoster, type GroupBy } from "./roster";
+  import { footLine, groupRoster, type GroupBy } from "./roster";
 
   let {
     rows,
@@ -45,8 +45,12 @@
       const role = m.role ? ROLE_NAMES[m.role] : null;
       return by === "ship" ? (role ?? "Aboard") : `${m.ship.model}${role ? ` · ${role}` : ""}`;
     }
-    return m.locomotion === "eva" ? "EVA" : m.locomotion === "seated" ? "Seated" : "On foot";
+    // Grouped by ship, the group already names the ship they're aboard.
+    if (by === "ship" && m.location?.aboard) return m.locomotion === "eva" ? "EVA" : "On foot";
+    return footLine(m, nameOf);
   }
+  const names = $derived(new Map(rows.map((r) => [r.id, r.name])));
+  const nameOf = (id: string) => names.get(id);
 
   function mode(m: MemberSummary): { text: string; cls: string; title?: string } | null {
     const s = m.ship;

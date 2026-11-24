@@ -139,6 +139,8 @@ class Pipeline:
             "missions": self._log.mission_list(t),
             "session": self._log.session.model_copy(),
         }
+        if snap.status is not None and self._log.handle:
+            update["status"] = snap.status.model_copy(update={"handle": self._log.handle})
         if snap.vitals is not None and self._log.injuries:
             update["vitals"] = snap.vitals.model_copy(
                 update={"injuries": list(self._log.injuries.values())}

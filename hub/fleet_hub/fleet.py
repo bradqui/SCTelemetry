@@ -154,6 +154,7 @@ def summarize(m: MemberLive, now: int, cfg: Config) -> dict:
         "channel": m.channel,
         "locomotion": status.get("locomotion"),
         "role": status.get("role"),
+        "handle": status.get("handle"),
         "ship": None,
         "location": None,
         "vitals": None,
@@ -214,6 +215,19 @@ def summarize(m: MemberLive, now: int, cfg: Config) -> dict:
             if route
             else None
         )
+        aboard = loc.get("aboard")
+        # owner_id / ship_id: filled in across the roster by resolve_aboard.
+        out["location"]["aboard"] = (
+            {
+                "ship": aboard.get("ship"),
+                "owner": aboard.get("owner"),
+                "since": aboard.get("since"),
+                "owner_id": None,
+                "ship_id": None,
+            }
+            if aboard
+            else None
+        )
     vit = s.get("vitals")
     if vit:
         severities = [i.get("severity", "") for i in vit.get("injuries") or []]
@@ -233,6 +247,42 @@ def summarize(m: MemberLive, now: int, cfg: Config) -> dict:
     if active:
         out["mission"] = {"title": active.get("title"), "objective": active.get("objective")}
     return out
+
+
+def resolve_aboard(roster: dict[str, dict]) -> None:
+    """Who owns the ship each member is aboard: a ship channel names its owner by
+    in-game handle, so match handles first, then display names (they default to the
+    handle). When the owner is flying that model now, link their ship too."""
+    by_name: dict[str, str] = {}
+    for key in ("handle", "name"):
+        for mid, row in roster.items():
+            if isinstance(row.get(key), str) and row[key]:
+                by_name.setdefault(row[key].lower(), mid)
+    for row in roster.values():
+        aboard = (row.get("location") or {}).get("aboard")
+        if not aboard or not aboard.get("owner"):
+            continue
+        owner_id = by_name.get(aboard["owner"].lower())
+        aboard["owner_id"] = owner_id
+        ship = roster[owner_id].get("ship") if owner_id else None
+        model = _words((ship or {}).get("model"))
+        same = bool(model) and model <= _words(aboard.get("ship"))
+        aboard["ship_id"] = ship.get("id") if ship and same else None
+
+
+_ROMAN = {"i": "1", "ii": "2", "iii": "3", "iv": "4", "v": "5", "vi": "6"}
+
+
+def _words(name: str | None) -> set[str]:
+    """A ship name's words, so the class-derived model ("Hornet F7A Mk2") is found in the
+    channel's marketing name ("Anvil F7A Hornet Mk II"): Mk II -> mk2, lowercase."""
+    out: list[str] = []
+    for w in (name or "").lower().replace("-", " ").split():
+        if out and out[-1] == "mk" and (w in _ROMAN or w.isdigit()):
+            out[-1] = "mk" + _ROMAN.get(w, w)
+        else:
+            out.append(w)
+    return set(out)
 
 
 # ---------------------------------------------------------------- viewers
@@ -419,6 +469,7 @@ class Fleet:
     def refresh_roster(self) -> bool:
         now = now_ms()
         roster = {mid: summarize(m, now, self.cfg) for mid, m in self.members.items()}
+        resolve_aboard(roster)
         if roster == self.roster:
             return False
         self.roster = roster

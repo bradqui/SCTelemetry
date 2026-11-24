@@ -99,11 +99,23 @@ export class DemoFleet {
     this.#publishFocus();
   }
 
+  /** Each event is converted once, so panels see the same object every time: the Activity
+   * panel animates and the dashboard flashes a panel only for an event that's really new. */
+  #panelEvents = new WeakMap<FleetEvent, TelemetryEvent>();
+  #asPanelEvent(e: FleetEvent): TelemetryEvent {
+    let out = this.#panelEvents.get(e);
+    if (!out) {
+      out = { type: "event", v: 1, t: e.t, kind: e.kind, data: e.data };
+      this.#panelEvents.set(e, out);
+    }
+    return out;
+  }
+
   eventsOf(memberId: string): TelemetryEvent[] {
     const out: TelemetryEvent[] = [];
     for (let i = this.events.length - 1; i >= 0 && out.length < 60; i--) {
       const e = this.events[i];
-      if (e.member === memberId) out.push({ type: "event", v: 1, t: e.t, kind: e.kind, data: e.data });
+      if (e.member === memberId) out.push(this.#asPanelEvent(e));
     }
     return out;
   }

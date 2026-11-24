@@ -110,7 +110,8 @@
   const rows = $derived(Object.values(fleet.roster));
   const myShard = $derived(fleet.roster[me.id]?.location?.shard ?? null);
   const member = $derived(fleet.focus ? (fleet.roster[fleet.focus] ?? null) : null);
-  const memberEvents = $derived(member ? fleet.eventsOf(member.id) : []);
+  // Depends on the events and who's open, not on their roster row (that changes constantly).
+  const memberEvents = $derived(fleet.focus ? fleet.eventsOf(fleet.focus) : []);
 
   async function signOut() {
     await fetch("/auth/logout", { method: "POST" });

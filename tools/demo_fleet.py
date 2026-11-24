@@ -117,7 +117,7 @@ def run(member_id, name, fixture, start, ship_label, role):
     live = MemberLive(Member(member_id, name, None, "member", 1, 0))
     live.sockets = {1: object()}  # connected
     snaps, rows, prev_s, prev_r = [], [], None, None
-    for k, state in enumerate(samples):
+    for state in samples:
         state = relative(state, base)
         live.snapshot, live.in_game, live.last_seen = state, True, 10**13
         row = summarize(live, 10**13, CFG)

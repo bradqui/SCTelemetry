@@ -2,6 +2,7 @@
   // The agent's own settings, for this PC: the fleet it sends to, what it shares, and the
   // game's telemetry switch. Saved by the agent (not this browser), applied at once.
   import { onMount } from "svelte";
+  import { appWindow } from "../lib/appwin.svelte";
   import type { UplinkStatus } from "../lib/types";
 
   let { uplink = null }: { uplink?: UplinkStatus | null } = $props();
@@ -170,6 +171,42 @@
       </ul>
     {/if}
   </section>
+
+  {#if appWindow.inApp && appWindow.state}
+    {@const w = appWindow.state}
+    <section>
+      <h3>Window</h3>
+      <ul class="share">
+        <li>
+          <label class="toggle">
+            <input type="checkbox" checked={w.frameless} onchange={(e) => appWindow.setFrameless(e.currentTarget.checked)} />
+            <span><b>Hide the title bar</b><small>Drag the window by its top bar; its buttons move there too</small></span>
+          </label>
+        </li>
+        <li>
+          <label class="toggle">
+            <input type="checkbox" checked={w.on_top} onchange={(e) => appWindow.setOnTop(e.currentTarget.checked)} />
+            <span><b>Always on top</b><small>Over the game, for a second screen or a VR overlay app</small></span>
+          </label>
+        </li>
+        <li>
+          <label class="toggle">
+            <input
+              type="checkbox"
+              checked={!!w.autostart}
+              disabled={w.autostart === null}
+              onchange={(e) => appWindow.setAutostart(e.currentTarget.checked)}
+            />
+            <span
+              ><b>Start with Windows</b><small
+                >{w.autostart === null ? "Only in the installed starglance.exe" : "In the tray when you sign in, ready before the game"}</small
+              ></span
+            >
+          </label>
+        </li>
+      </ul>
+    </section>
+  {/if}
 
   <p class="hint">Agent {info.agent_version} · settings saved on this PC, for every window.</p>
 {/if}

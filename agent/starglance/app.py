@@ -2,11 +2,14 @@
 
 ``starglance.exe`` with no arguments (or ``python -m starglance app``). The agent runs on
 a background thread (``__main__.serve``); the cockpit view shows in a window of its own
-(pywebview on Windows' Edge WebView2: no address bar, no tabs). Closing the window hides
-it to the tray; Quit in the tray menu stops everything. Starting it again brings the
-window back instead of running twice. Window size, position and "always on top" are
-remembered (app.json in the agent's folder); the page's own storage (dashboard layouts,
-themes) lives in its WebView2 profile there too. Output goes to logs/starglance.log.
+(pywebview on Windows' Edge WebView2: no address bar, no tabs), with Windows' title bar or
+without (the page's top bar then drags the window and has its own buttons). Closing the
+window hides it to the tray; Quit in the tray menu stops everything. Starting it again
+brings the window back instead of running twice. Window size, position, "always on top"
+and the title bar choice are remembered (app.json in the agent's folder); the page's own
+storage (dashboard layouts, themes) lives in its WebView2 profile there too. "Start with
+Windows" (off unless switched on) is one value under HKCU\\...\\Run. Output goes to
+logs/starglance.log.
 
 Without WebView2 (very old Windows 10), the view opens in the default browser and the tray
 icon still works.
@@ -103,11 +106,71 @@ def save_prefs(prefs: dict) -> None:
         _prefs_file().write_text(json.dumps(prefs, indent=2), encoding="utf-8")
 
 
+# ---------------------------------------------------------------- start with Windows
+
+
+RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
+"""Start with Windows: one value here (this user only), only while it's switched on."""
+
+
+def autostart_command() -> str | None:
+    """What Windows runs at sign-in: this exe, in the tray. None when running from source."""
+    if not getattr(sys, "frozen", False) or sys.platform != "win32":
+        return None
+    return f'"{sys.executable}" app --hidden'
+
+
+def autostart_enabled() -> bool | None:
+    """On, off, or None when it isn't available (running from source, not Windows)."""
+    if autostart_command() is None:
+        return None
+    import winreg
+
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY) as key:
+            winreg.QueryValueEx(key, APP_NAME)
+        return True
+    except OSError:
+        return False
+
+
+def set_autostart(on: bool) -> bool | None:
+    command = autostart_command()
+    if command is None:
+        return None
+    import winreg
+
+    with winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY, 0, winreg.KEY_SET_VALUE) as key:
+        if on:
+            winreg.SetValueEx(key, APP_NAME, 0, winreg.REG_SZ, command)
+        else:
+            with contextlib.suppress(FileNotFoundError):
+                winreg.DeleteValue(key, APP_NAME)
+    return autostart_enabled()
+
+
+def _refresh_autostart() -> None:
+    """Switched on, and the exe has moved or been replaced by a newer one: point at it."""
+    command = autostart_command()
+    if command is None or not autostart_enabled():
+        return
+    import winreg
+
+    with contextlib.suppress(OSError):
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY) as key:
+            current, _ = winreg.QueryValueEx(key, APP_NAME)
+        if current != command:
+            set_autostart(True)
+
+
 # ---------------------------------------------------------------- the app
 
 
 class Api:
-    """What the page may ask of the app (window.pywebview.api)."""
+    """What the page may ask of the app (window.pywebview.api): its window, and links."""
+
+    def __init__(self, app: App | None = None) -> None:
+        self._app = app
 
     def open_external(self, url: str) -> bool:
         """Open a link in the default browser: http(s) only."""
@@ -115,6 +178,47 @@ class Api:
             webbrowser.open(url)
             return True
         return False
+
+    def state(self) -> dict:
+        a = self._app
+        return {
+            "frameless": bool(a and a.prefs.get("frameless", False)),
+            "on_top": bool(a and a.prefs.get("on_top", False)),
+            "maximized": bool(a and a.maximized),
+            "autostart": autostart_enabled(),
+        }
+
+    def minimize(self) -> None:
+        if self._app and self._app.window:
+            self._app.window.minimize()
+
+    def toggle_maximize(self) -> dict:
+        if self._app and self._app.window:
+            if self._app.maximized:
+                self._app.window.restore()
+            else:
+                self._app.window.maximize()
+        return self.state()
+
+    def hide(self) -> None:
+        """The page's close button: to the tray, like the title bar's."""
+        if self._app and self._app.window:
+            self._app._remember()
+            self._app.window.hide()
+
+    def set_on_top(self, on: bool) -> dict:
+        if self._app:
+            self._app.set_on_top(bool(on))
+        return self.state()
+
+    def set_frameless(self, on: bool) -> dict:
+        if self._app:
+            self._app.set_frameless(bool(on))
+        return self.state()
+
+    def set_autostart(self, on: bool) -> dict:
+        set_autostart(bool(on))
+        return self.state()
 
 
 class App:
@@ -126,7 +230,9 @@ class App:
         self.server = None
         self.ready = threading.Event()
         self.failed: str | None = None
+        self.webview = None
         self.window = None
+        self.maximized = False
         self.icon = None
         self.quitting = False
         self.prefs = load_prefs()
@@ -160,6 +266,36 @@ class App:
 
     # -- window
 
+    def _create_window(self, *, hidden: bool):
+        """The window. Frameless (no title bar): the page's top bar is the drag area, with
+        its own minimize, maximize and close buttons (WindowButtons.svelte)."""
+        p = self.prefs
+        window = self.webview.create_window(
+            APP_NAME,
+            self.url(),
+            js_api=Api(self),
+            width=int(p.get("width", 1280)),
+            height=int(p.get("height", 800)),
+            x=p.get("x"),
+            y=p.get("y"),
+            min_size=(420, 320),
+            on_top=bool(p.get("on_top", False)),
+            frameless=bool(p.get("frameless", False)),
+            easy_drag=False,  # only the top bar drags (dragging panels must still work)
+            hidden=hidden,
+            background_color=BG,
+        )
+        window.events.closing += lambda: self._on_closing(window)
+        size = (int(p.get("width", 1280)), int(p.get("height", 800)))
+        window.events.shown += lambda: self._measure_frame(window, size)
+        window.events.loaded += lambda: log.info("Window loaded %s", self.url())
+        window.events.maximized += lambda: self._set_maximized(True)
+        window.events.restored += lambda: self._set_maximized(False)
+        return window
+
+    def _set_maximized(self, on: bool) -> None:
+        self.maximized = on
+
     def show(self, hash_: str | None = None, script: str | None = None) -> None:
         if self.window is None:
             webbrowser.open(self.url(hash_ or ""))
@@ -171,20 +307,29 @@ class App:
         self.window.show()
         self.window.restore()
 
+    def _measure_frame(self, window, asked: tuple[int, int]) -> None:
+        """A window is made at its outer size but reports its inner size (no borders or
+        title bar): remember the difference, or it would shrink a little every launch."""
+        with contextlib.suppress(Exception):
+            dw, dh = asked[0] - window.width, asked[1] - window.height
+            if 0 <= dw <= 80 and 0 <= dh <= 120:
+                self._frame = (dw, dh)
+
     def _remember(self) -> None:
         w = self.window
         if w is None:
             return
+        dw, dh = getattr(self, "_frame", (0, 0))
         with contextlib.suppress(Exception):
-            if w.width > 200 and w.height > 100:
-                self.prefs.update(x=w.x, y=w.y, width=w.width, height=w.height)
+            if w.width > 200 and w.height > 100 and not self.maximized:
+                self.prefs.update(x=w.x, y=w.y, width=w.width + dw, height=w.height + dh)
         save_prefs(self.prefs)
 
-    def _on_closing(self) -> bool:
-        if self.quitting:
-            return True
+    def _on_closing(self, window) -> bool:
+        if self.quitting or window is not self.window:
+            return True  # quitting, or an old window being replaced
         self._remember()
-        self.window.hide()  # to the tray: the agent keeps running
+        window.hide()  # to the tray: the agent keeps running
         return False
 
     def set_on_top(self, on: bool) -> None:
@@ -192,6 +337,21 @@ class App:
         save_prefs(self.prefs)
         if self.window is not None:
             self.window.on_top = on
+
+    def set_frameless(self, on: bool) -> None:
+        """Title bar on or off: Windows can't change that on an open window, so open a new
+        one in the same place and close the old."""
+        if bool(self.prefs.get("frameless", False)) == on or self.window is None:
+            self.prefs["frameless"] = on
+            save_prefs(self.prefs)
+            return
+        self._remember()
+        self.prefs["frameless"] = on
+        save_prefs(self.prefs)
+        old = self.window
+        self.window = self._create_window(hidden=False)
+        with contextlib.suppress(Exception):
+            old.destroy()
 
     # -- quit
 
@@ -216,6 +376,7 @@ class App:
 
         settings = "dispatchEvent(new CustomEvent('ft:settings', { detail: 'agent' }))"
         item = pystray.MenuItem
+        windowed = self.window is not None
         return pystray.Icon(
             APP_NAME,
             draw_icon(64),
@@ -229,8 +390,21 @@ class App:
                     "Always on top",
                     lambda: self.set_on_top(not self.prefs.get("on_top", False)),
                     checked=lambda _i: bool(self.prefs.get("on_top", False)),
-                    visible=self.window is not None,
+                    visible=windowed,
                 ),
+                item(
+                    "Hide the title bar",
+                    lambda: self.set_frameless(not self.prefs.get("frameless", False)),
+                    checked=lambda _i: bool(self.prefs.get("frameless", False)),
+                    visible=windowed,
+                ),
+                item(
+                    "Start with Windows",
+                    lambda: set_autostart(not autostart_enabled()),
+                    checked=lambda _i: bool(autostart_enabled()),
+                    visible=autostart_command() is not None,
+                ),
+                pystray.Menu.SEPARATOR,
                 item("Open in browser", lambda: webbrowser.open(self.url())),
                 item("Logs folder", lambda: _open_folder(paths.logs_dir())),
                 pystray.Menu.SEPARATOR,
@@ -241,6 +415,7 @@ class App:
     # -- run
 
     def run(self) -> int:
+        _refresh_autostart()
         self.agent_thread = threading.Thread(target=self._agent, name="agent", daemon=True)
         self.agent_thread.start()
         self.ready.wait(60)
@@ -261,7 +436,8 @@ class App:
             except Exception:  # noqa: BLE001 (no WebView2 runtime, ...)
                 log.exception("No window (WebView2?): using the browser")
                 self.window = None
-        webbrowser.open(self.url())
+        if not getattr(self.args, "hidden", False):
+            webbrowser.open(self.url())
         try:
             self.icon = self._tray()
         except ImportError:  # from source without the desktop extra: browser only
@@ -273,23 +449,11 @@ class App:
         return 0
 
     def _run_window(self, webview) -> int:
-        p = self.prefs
+        self.webview = webview
         webview.settings["OPEN_EXTERNAL_LINKS_IN_BROWSER"] = True
-        self.window = webview.create_window(
-            APP_NAME,
-            self.url(),
-            js_api=Api(),
-            width=int(p.get("width", 1280)),
-            height=int(p.get("height", 800)),
-            x=p.get("x"),
-            y=p.get("y"),
-            min_size=(420, 320),
-            on_top=bool(p.get("on_top", False)),
-            hidden=bool(getattr(self.args, "hidden", False)),
-            background_color=BG,
-        )
-        self.window.events.closing += self._on_closing
-        self.window.events.loaded += lambda: log.info("Window loaded %s", self.url())
+        # Frameless: drag by the top bar itself, not by the buttons and chips on it.
+        webview.settings["DRAG_REGION_DIRECT_TARGET_ONLY"] = True
+        self.window = self._create_window(hidden=bool(getattr(self.args, "hidden", False)))
         self.icon = self._tray()
         self.icon.run_detached()
         storage = paths.data_dir() / "webview"
@@ -301,7 +465,7 @@ class App:
             storage_path=str(storage),
             icon=str(icon_file) if icon_file.exists() else None,
         )
-        self.quit()  # the window is gone: stop the agent and the tray
+        self.quit()  # the last window is gone: stop the agent and the tray
         return 0
 
 

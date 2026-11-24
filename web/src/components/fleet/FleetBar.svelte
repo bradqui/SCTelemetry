@@ -1,6 +1,7 @@
 <script lang="ts">
   import { LIGHT_NAMES } from "../../lib/format";
   import type { Account, MemberSummary } from "../../lib/types";
+  import WindowButtons from "../WindowButtons.svelte";
 
   let {
     org,
@@ -59,13 +60,13 @@
   let menu = $state(false);
 </script>
 
-<header class="top topbar {worst ? `alarm-${worst}` : ''}">
+<header class="top topbar pywebview-drag-region {worst ? `alarm-${worst}` : ''}">
   {#if onBack}
     <button class="back" onclick={onBack} title="Back to your cockpit view">
       <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3 5 8l5 5" /></svg>Cockpit
     </button>
   {/if}
-  <div class="brand">
+  <div class="brand pywebview-drag-region">
     <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 3 29 27H3z" /><circle cx="16" cy="20" r="3" /></svg>
     <span class="display">{org}</span>
   </div>
@@ -110,6 +111,7 @@
         </div>
       {/if}
     </div>
+    <WindowButtons />
   </div>
 </header>
 
@@ -348,5 +350,8 @@
     .alarms .who b {
       margin: 0;
     }
+  }
+  .brand > :global(*) {
+    pointer-events: none;
   }
 </style>

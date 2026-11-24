@@ -26,6 +26,7 @@ If you never join a fleet, the agent sends nothing anywhere.
 
 - The key that links this PC to your org's hub, in Windows Credential Manager.
 - Its settings (hub address, what you share, your display name), its window's size and position, the page's own storage (your dashboard layouts and theme), caches and a log file, all in `%LOCALAPPDATA%\Starglance`.
+- **Start with Windows**, only if you switch it on (Settings → Agent, or the tray menu): one value named `Starglance` under `HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run`, which starts it in the tray when you sign in. Switching it off removes the value.
 - Recordings, only if you run the capture tool yourself (`tools/capture.py`, from the source code). They stay in a local folder, with aUEC amounts removed.
 
 **Stopping**
@@ -33,7 +34,7 @@ If you never join a fleet, the agent sends nothing anywhere.
 - To stop sharing something, switch it off in Agent settings.
 - To stop sending anything, use **Leave the fleet** (or `starglance unlink`). That also deletes the key from Credential Manager.
 - To switch the game's telemetry off, use Agent settings or `starglance off`.
-- To remove the agent, delete `starglance.exe` and the folder `%LOCALAPPDATA%\Starglance`. It doesn't install anything else.
+- To remove the agent, switch off *Start with Windows* if you switched it on, then delete `starglance.exe` and the folder `%LOCALAPPDATA%\Starglance`. It doesn't install anything else.
 
 ## The hub (your org's server)
 

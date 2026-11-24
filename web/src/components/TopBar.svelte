@@ -1,6 +1,7 @@
 <script lang="ts">
   import { LIGHT_NAMES, ROLE_NAMES as ROLE } from "../lib/format";
   import { openOnHub } from "../lib/hub";
+  import WindowButtons from "./WindowButtons.svelte";
   import LocationChips from "./LocationChips.svelte";
   import type { AgentState, Snapshot, UplinkStatus } from "../lib/types";
 
@@ -67,8 +68,8 @@
   });
 </script>
 
-<header class="top topbar {alarm ? `alarm-${alarm.level}` : ''}" class:compact>
-  <div class="brand">
+<header class="top topbar pywebview-drag-region {alarm ? `alarm-${alarm.level}` : ''}" class:compact>
+  <div class="brand pywebview-drag-region">
     <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 3 29 27H3z" /><circle cx="16" cy="20" r="3" /></svg>
     {#if !compact}<span>Starglance</span>{/if}
   </div>
@@ -138,6 +139,7 @@
         /></svg
       >
     </button>
+    <WindowButtons />
   </div>
 </header>
 
@@ -396,5 +398,9 @@
     .what {
       display: none;
     }
+  }
+  /* The title bar's job when it's hidden: drag by the bar or the logo, not their text. */
+  .brand > :global(*) {
+    pointer-events: none;
   }
 </style>

@@ -99,3 +99,39 @@ def test_the_app_command_exists():
     args = build_parser().parse_args(["app", "--hidden"])
     assert args.command == "app" and args.hidden and args.ui_port == 8740
     assert Path(args.func.__code__.co_filename).name == "__main__.py"
+
+
+def test_autostart_isnt_offered_from_source():
+    """Start with Windows registers starglance.exe; running from Python there's nothing to
+    register, so the switch says it isn't available."""
+    assert app.autostart_command() is None
+    assert app.autostart_enabled() is None
+    assert app.set_autostart(True) is None
+
+
+@pytest.mark.skipif(app.sys.platform != "win32", reason="the Windows registry")
+def test_autostart_on_and_off(monkeypatch):
+    """One value under the Run key while on, gone when off. A scratch key, not the real one."""
+    import winreg
+
+    scratch = r"Software\StarglanceTest\Run"
+    monkeypatch.setattr(app, "RUN_KEY", scratch)
+    command = '"C:/Games/starglance.exe" app --hidden'
+    monkeypatch.setattr(app, "autostart_command", lambda: command)
+    winreg.CreateKey(winreg.HKEY_CURRENT_USER, scratch).Close()
+    try:
+        assert app.autostart_enabled() is False
+        assert app.set_autostart(True) is True
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, scratch) as key:
+            value, _ = winreg.QueryValueEx(key, "Starglance")
+        assert value.endswith("app --hidden")
+        assert app.set_autostart(False) is False
+        assert app.set_autostart(False) is False, "off twice is fine"
+    finally:
+        winreg.DeleteKey(winreg.HKEY_CURRENT_USER, scratch)
+        winreg.DeleteKey(winreg.HKEY_CURRENT_USER, r"Software\StarglanceTest")
+
+
+def test_page_state_without_a_window():
+    state = app.Api().state()
+    assert state == {"frameless": False, "on_top": False, "maximized": False, "autostart": None}

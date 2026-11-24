@@ -2,14 +2,10 @@
  * /api/fleet/open on 127.0.0.1). For phones and other screens, your account, and admin;
  * the cockpit page shows the fleet itself too. In the Windows app (pywebview) the link
  * opens in the default browser; in a browser, in a new tab. */
-declare global {
-  interface Window {
-    pywebview?: { api?: { open_external?: (url: string) => Promise<boolean> } };
-  }
-}
+import { appWindow } from "./appwin.svelte";
 
 export async function openOnHub(): Promise<void> {
-  const app = window.pywebview?.api?.open_external;
+  const app = appWindow.api?.open_external;
   if (app) {
     const body = await fetch("/api/fleet/open", { method: "POST" })
       .then((r) => r.json())

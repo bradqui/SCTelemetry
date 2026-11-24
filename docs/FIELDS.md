@@ -205,7 +205,7 @@ The game's own debug log (`<channel>/Game.log`, a new file each launch; older on
 | Player deaths (old) | `<Actor Death> CActor::Kill: '<victim>' ... killed by '<killer>' using '<weapon>' ... damage type '<type>'` | Parsed in case it returns. |
 | Jump drive (old) | `<Jump Drive State Changed> Now <State> \| ... \| <system> \|` | Through a jump point to another star system (not quantum travel). States: Idle, Tuning, EntryChecks, RequestingJump, WaitingForOpen, Entering, Transiting, Exiting. Parsed in case it returns. |
 
-Left out so far: comms and party channel joins/leaves (`New Member Joined`, `You have joined channel ...`). Boarding a ship joins its channel, named `'<Manufacturer Model> : <owner handle>'`, also for other players' ships: in one session the join came 16 s and 28 s before sitting down, and "You have left the channel ..." a minute after walking off. "Left" is often missing, and one 25-minute session with an M80 had no channel lines at all.
+Left out so far: comms and party channel joins/leaves (`New Member Joined`, `You have joined channel ...`). Boarding a ship joins its channel, named `'<Manufacturer Model> : <owner handle>'`, also for other players' ships: in two sessions the join came 12 s, 16 s and 28 s before sitting down (walking aboard), and "You have left the channel ..." a minute after walking off a Constellation. "Left" is often missing: none for an M80 left in a hangar and stored, or before quitting the game.
 - `Restricted Area` + `For your safety, you've been relocated.` comes after the game has moved you out, so it ends a restricted area rather than starting one.
 
 **How it has changed** (717 backed-up logs, 69 builds, January 2023 to November 2026):

@@ -4,7 +4,7 @@ Agents send a full snapshot, then deltas (``fleet_shared.patch``) at up to
 10 Hz. The hub keeps each member's latest state and tells viewers:
 
 - the **roster**: a summary of every member (presence, ship, mode, location,
-  warnings...), as patches at most every 500 ms;
+  warnings...), as patches at most every 100 ms;
 - the **member** a viewer has open: their full state, as patches at most
   every 100 ms;
 - **events** from anyone, immediately.
@@ -24,6 +24,8 @@ from typing import Any
 
 from aiohttp import web
 from fleet_shared import (
+    FLEET_ALARM_HOLD_MS,
+    FLEET_ALARM_OFF_MS,
     SCHEMA_VERSION,
     SHARE_CATEGORIES,
     Event,
@@ -32,6 +34,7 @@ from fleet_shared import (
     apply_patch,
     event_shared,
     expected_light,
+    fleet_alarm_lights,
     make_patch,
 )
 from pydantic import ValidationError
@@ -42,7 +45,7 @@ from .db import Database, Member, now_ms
 log = logging.getLogger(__name__)
 
 TICK_S = 0.1
-ROSTER_EVERY = 5  # ticks: 500 ms
+ROSTER_EVERY = 1  # ticks: 100 ms, as fast as agents send (Cards and Wingmates show speeds)
 RECENT_EVENTS = 200
 VIEWER_QUEUE = 200
 
@@ -80,6 +83,8 @@ class MemberLive:
         self.share: set[str] = set(SHARE_CATEGORIES)
         self.agent_version: str | None = None
         self.channel: str | None = None
+        self.alarms: dict[str, list] = {}
+        """Fleet alarm lights: light -> [first on, last on, level], by snapshot time."""
         self.sockets: dict[int, web.WebSocketResponse] = {}
         """Connected agents by agent id (a member may run more than one PC)."""
 
@@ -129,6 +134,23 @@ def _worst(lights: dict, master_mode: str | None = None) -> tuple[str | None, li
     return ("minor", minor) if minor else (None, [])
 
 
+def _fleet_alarm(m: MemberLive, ship: dict, t: int) -> tuple[str | None, list[str]]:
+    """``fleet_alarm_lights``, on for FLEET_ALARM_HOLD_MS before it counts and kept until
+    off for FLEET_ALARM_OFF_MS. Timed by the member's snapshots, not the hub's clock."""
+    now_on = fleet_alarm_lights(ship.get("lights") or {}, ship.get("master_mode"))
+    for light, lvl in now_on.items():
+        seen = m.alarms.get(light)
+        if seen is None or t - seen[1] > FLEET_ALARM_OFF_MS:
+            m.alarms[light] = [t, t, lvl]
+        else:
+            seen[1], seen[2] = t, lvl
+    for light in [k for k, v in m.alarms.items() if t - v[1] > FLEET_ALARM_OFF_MS]:
+        del m.alarms[light]
+    held = {k: v[2] for k, v in m.alarms.items() if t - v[0] >= FLEET_ALARM_HOLD_MS}
+    level = "major" if "major" in held.values() else ("minor" if held else None)
+    return level, sorted(held)
+
+
 SEVERITY = {"minor": 1, "moderate": 2, "severe": 3}
 
 
@@ -167,6 +189,7 @@ def summarize(m: MemberLive, now: int, cfg: Config) -> dict:
     if ship:
         flight = ship.get("flight") or {}
         level, lit = _worst(ship.get("lights") or {}, ship.get("master_mode"))
+        fleet_level, fleet_lit = _fleet_alarm(m, ship, s.get("t") or now)
         speed = flight.get("speed")
         out["ship"] = {
             "id": ship.get("id"),
@@ -193,6 +216,9 @@ def summarize(m: MemberLive, now: int, cfg: Config) -> dict:
             "h2_fuel": _r(flight.get("h2_fuel"), 2),
             "alarm": level,
             "lights": lit,
+            # What the whole fleet should hear about (the header): held, see fleet_alarm_lights.
+            "fleet_alarm": fleet_level,
+            "fleet_lights": fleet_lit,
         }
     loc = s.get("location")
     if loc:
@@ -527,7 +553,7 @@ class Fleet:
                     viewer.sent_focus = state
 
     async def run(self) -> None:
-        """The clock: focus updates every 100 ms, the roster (and presence) every 500 ms."""
+        """The clock: focus updates and the roster (and presence) every 100 ms."""
         tick = 0
         while True:
             await asyncio.sleep(TICK_S)

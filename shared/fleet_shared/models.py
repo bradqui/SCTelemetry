@@ -355,6 +355,34 @@ def expected_light(light: str, master_mode: str | None) -> bool:
     return light == "thr" and master_mode == "NAV"
 
 
+FLEET_ALARM_HOLD_MS = 1000
+"""A light must stay on this long before the fleet hears about it (shields blip MAJOR for
+a moment every time they come up)."""
+FLEET_ALARM_OFF_MS = 3000
+"""...and off this long before it clears (the hit light flickers between hits)."""
+
+
+def fleet_alarm_lights(lights: dict, master_mode: str | None) -> dict[str, str]:
+    """The warning lights worth telling the whole fleet about: light -> "major" | "minor".
+
+    The cockpit shows every light, as the game's panel does. The fleet only hears that
+    someone needs help: getting hit, radar warning (on for exactly the stretches hostiles
+    were about, in every recording so far), thruster damage (THR minor after taking hits;
+    THR in NAV is the quantum drive). Shields coming back after NAV, weapons not ready
+    while landed and proximity stay on that member's card and dashboard.
+    """
+    out: dict[str, str] = {}
+    hit = lights.get("hit")
+    if isinstance(hit, str) and hit.startswith(("major", "minor")):
+        out["hit"] = "major"
+    if lights.get("radr") in ("major", "major_flashing"):
+        out["radr"] = "major"
+    thr = lights.get("thr")
+    if isinstance(thr, str) and thr.startswith(("major", "minor")) and master_mode != "NAV":
+        out["thr"] = "major" if thr.startswith("major") else "minor"
+    return out
+
+
 # ---------------------------------------------------------------- privacy
 
 

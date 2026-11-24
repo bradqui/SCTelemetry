@@ -26,7 +26,7 @@ from fleet_hub.db import Member  # noqa: E402
 from fleet_hub.fleet import MemberLive, summarize  # noqa: E402
 from fleet_shared import Event, make_patch  # noqa: E402
 
-STEP_MS = 250
+STEP_MS = 100
 OUT = ROOT / "web" / "showcase" / "demo-fleet.json"
 CFG = Config()
 

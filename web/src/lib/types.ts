@@ -249,6 +249,9 @@ export interface MemberSummary extends Me {
     h2_fuel: number | null;
     alarm: "major" | "minor" | null;
     lights: string[];
+    /** What the fleet header shows: getting hit, radar warning, thruster damage; held 1 s. */
+    fleet_alarm: "major" | "minor" | null;
+    fleet_lights: string[];
   } | null;
   location:
     | (Omit<Location, "route" | "aboard"> & {

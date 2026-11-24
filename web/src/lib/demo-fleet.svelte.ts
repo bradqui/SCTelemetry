@@ -34,7 +34,7 @@ interface Playing {
 }
 
 const MAX_EVENTS = 200;
-const WARM_STEPS = 120; // start 30 s in, with that history already in the activity feeds
+const WARM_MS = 30_000; // start 30 s in, with that history already in the activity feeds
 
 /** Recorded times are ms from the loop start; make them clock times. */
 function clocked<T>(value: T, start: number): T {
@@ -61,7 +61,6 @@ export class DemoFleet {
   #data: DemoData;
   #playing: Playing[] = [];
   #timer: ReturnType<typeof setInterval> | null = null;
-  #tick = 0;
 
   constructor(data: DemoData) {
     this.#data = data;
@@ -80,7 +79,8 @@ export class DemoFleet {
       row: m.rows[0] as unknown as MemberSummary,
     }));
     // Warm up: play the first WARM_STEPS as if they'd already happened.
-    for (let k = 0; k < WARM_STEPS; k++) this.#step(now - (WARM_STEPS - k) * step);
+    const warm = Math.round(WARM_MS / step);
+    for (let k = 0; k < warm; k++) this.#step(now - (warm - k) * step);
     this.#publish();
     this.#timer = setInterval(() => {
       this.#step(Date.now());
@@ -139,18 +139,15 @@ export class DemoFleet {
       }
     }
     if (fresh.length) this.events = [...this.events, ...fresh].slice(-MAX_EVENTS);
-    this.#tick++;
   }
 
+  /** The roster every step, as the hub sends it (up to 10 Hz). */
   #publish(): void {
-    if (this.#tick % 2 === 0 || !Object.keys(this.roster).length) {
-      const roster: Record<string, MemberSummary> = {};
-      for (const p of this.#playing) {
-        const row = p.m.snaps.length ? clocked(p.row, p.start) : clocked(p.row, Date.now());
-        roster[p.m.id] = row;
-      }
-      this.roster = roster;
+    const roster: Record<string, MemberSummary> = {};
+    for (const p of this.#playing) {
+      roster[p.m.id] = p.m.snaps.length ? clocked(p.row, p.start) : clocked(p.row, Date.now());
     }
+    this.roster = roster;
     this.#publishFocus();
   }
 

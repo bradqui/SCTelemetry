@@ -37,26 +37,20 @@
   const inGame = $derived(rows.filter((m) => m.presence === "live" || m.presence === "stale"));
   const inShips = $derived(online.filter((m) => m.ship));
 
-  /** Fleet-wide alarms: anyone's master warning or a bad injury. */
+  /** Fleet-wide alarms: someone getting hit, a radar warning, thruster damage (the hub's
+   * fleet_alarm, held a second), or a bad injury. Every other light stays on their card. */
+  const FLEET_LIGHT: Record<string, string> = { hit: "Taking hits", radr: "Radar", thr: "Thruster damage" };
+  const said = (lights: string[]) => lights.map((l) => FLEET_LIGHT[l] ?? LIGHT_NAMES[l] ?? l).join(", ");
   const alarms = $derived.by(() => {
     const out: { id: string; name: string; text: string; level: "bad" | "warn" }[] = [];
     for (const m of online) {
-      if (m.ship?.alarm === "major") {
-        out.push({
-          id: m.id,
-          name: m.name,
-          text: m.ship.lights.map((l) => LIGHT_NAMES[l] ?? l).join(", "),
-          level: "bad",
-        });
+      const a = m.ship?.fleet_alarm;
+      if (a === "major") {
+        out.push({ id: m.id, name: m.name, text: said(m.ship!.fleet_lights), level: "bad" });
       } else if (m.vitals?.injury === "severe" || (m.vitals?.health != null && m.vitals.health < 0.3)) {
         out.push({ id: m.id, name: m.name, text: "Badly hurt", level: "bad" });
-      } else if (m.ship?.alarm === "minor") {
-        out.push({
-          id: m.id,
-          name: m.name,
-          text: m.ship.lights.map((l) => LIGHT_NAMES[l] ?? l).join(", "),
-          level: "warn",
-        });
+      } else if (a === "minor") {
+        out.push({ id: m.id, name: m.name, text: said(m.ship!.fleet_lights), level: "warn" });
       }
     }
     return out.sort((a, b) => (a.level === b.level ? 0 : a.level === "bad" ? -1 : 1));

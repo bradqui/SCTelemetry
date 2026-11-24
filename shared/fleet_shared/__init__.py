@@ -2,6 +2,8 @@
 
 from .models import (
     EVENT_CATEGORY,
+    FLEET_ALARM_HOLD_MS,
+    FLEET_ALARM_OFF_MS,
     SCHEMA_VERSION,
     SHARE_CATEGORIES,
     Aboard,
@@ -29,6 +31,7 @@ from .models import (
     apply_sharing,
     event_shared,
     expected_light,
+    fleet_alarm_lights,
 )
 from .patch import apply_patch, make_patch
 
@@ -60,6 +63,9 @@ __all__ = [
     "Weapons",
     "apply_sharing",
     "expected_light",
+    "fleet_alarm_lights",
+    "FLEET_ALARM_HOLD_MS",
+    "FLEET_ALARM_OFF_MS",
     "event_shared",
     "apply_patch",
     "make_patch",

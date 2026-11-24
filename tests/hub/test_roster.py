@@ -66,3 +66,37 @@ def test_model_names_match_channel_names():
         }
         resolve_aboard(roster)
         assert roster["b"]["location"]["aboard"]["ship_id"] == "ship_1", (model, channel)
+
+
+def test_fleet_alarm_lights():
+    from fleet_shared import fleet_alarm_lights
+
+    assert fleet_alarm_lights({"hit": "major_flashing"}, "SCM") == {"hit": "major"}
+    assert fleet_alarm_lights({"radr": "major"}, "SCM") == {"radr": "major"}
+    assert fleet_alarm_lights({"thr": "minor"}, "SCM") == {"thr": "minor"}, "thruster damage"
+    assert fleet_alarm_lights({"thr": "major"}, "NAV") == {}, "the quantum drive"
+    # Routine: shields coming back, weapons not ready while landed, proximity.
+    quiet = {"shld": "major", "wpn": "minor", "prox": "major", "cool": "nominal"}
+    assert fleet_alarm_lights(quiet, "SCM") == {}
+
+
+def test_fleet_alarm_is_held():
+    """On for a second before the fleet hears it; kept until off for three (between hits)."""
+    from fleet_hub.db import Member
+    from fleet_hub.fleet import MemberLive, _fleet_alarm
+
+    m = MemberLive(Member("m1", "Rook", None, "member", 1, 0))
+
+    def at(t, **lights):
+        return _fleet_alarm(m, {"lights": lights, "master_mode": "SCM"}, t)
+
+    assert at(0, shld="major") == (None, [])
+    assert at(200, shld="nominal") == (None, []), "a shield blip never shows"
+    assert at(1000, hit="major_flashing") == (None, [])
+    assert at(1900, hit="major_flashing") == (None, [])
+    assert at(2000, hit="major_flashing") == ("major", ["hit"])
+    assert at(4000) == ("major", ["hit"]), "a gap between hits"
+    assert at(4500, hit="major_flashing") == ("major", ["hit"])
+    assert at(7600) == (None, []), "clear after 3 s"
+    assert at(8000, thr="minor") == (None, [])
+    assert at(9100, thr="minor") == ("minor", ["thr"])

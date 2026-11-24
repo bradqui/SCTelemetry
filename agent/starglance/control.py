@@ -84,6 +84,8 @@ class AgentControl:
         self._joining: str | None = None
         self.lan = None
         """Show on other devices (lanview.LanView), when the agent serves one."""
+        self.updater = None
+        """Updating the app in place (selfupdate.Updater)."""
         server.control = self
         server.fleet_open = self.login_link
         server.fleet_view = self.fleet_view
@@ -205,7 +207,28 @@ class AgentControl:
             ],
             "restart_note": switch.RESTART_NOTE,
             "lan": self.lan.state() if self.lan is not None else None,
+            "updates": self.updater.status() if self.updater is not None else None,
         }
+
+    # -- updates (selfupdate): only from the hub's word, only official releases
+
+    def update_now(self) -> dict:
+        if self.updater is None:
+            raise LinkError("Updates aren't available here.")
+        if not self.updater.can:
+            raise LinkError(
+                "Only the Starglance app updates itself: download it from the releases page."
+            )
+        if not self.updater.available:
+            raise LinkError("No newer version: you're up to date.")
+        self.updater.start()
+        return self.state()
+
+    def set_auto_update(self, on: bool) -> dict:
+        if self.updater is None:
+            raise LinkError("Updates aren't available here.")
+        self.updater.set_auto(on)
+        return self.state()
 
     # -- other devices (lanview): view only, on your network
 

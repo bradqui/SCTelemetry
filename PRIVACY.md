@@ -19,7 +19,8 @@ It never reads game memory, never touches Easy Anti-Cheat and never sends anythi
 - **To the hubs of the fleets you join, and nowhere else.** A hub's address is in the invite link from that org's admin. You can be in several fleets (one per org); each hub gets only what you share with that fleet, and nothing while you've switched that fleet off. To each, it sends:
   - when you join: your display name and your PC's name, so you can tell your PCs apart;
   - while it runs: what you choose to share with that fleet (Agent settings, or `starglance share --hub <fleet>`). The categories are status (in game, on foot or seated, your seat, your in-game handle), ship, weapons, vitals, uec, location, mission and combat. Everything is on by default. Anything you switch off never leaves your PC.
-- **Update notices** come from your org's hub, which says which agent version is current. The agent doesn't contact GitHub or anyone else to check.
+- **Update notices** come from your org's hub, which says which agent version is current. The agent never asks GitHub or anyone else whether there's an update.
+- **Updates**, only when you click **Update** or switch on *Update automatically* (Settings → Agent; off by default): the app downloads that version's `starglance.exe` and its checksum file from this project's GitHub releases, and nothing else. GitHub sees the download, as for any download from a browser; nothing about you or your game is sent. The address is fixed in the app; a hub can only say which version is current, not where to download it.
 
 If you never join a fleet, the agent sends nothing anywhere.
 
@@ -28,6 +29,7 @@ If you never join a fleet, the agent sends nothing anywhere.
 - The key that links this PC to your org's hub, in Windows Credential Manager.
 - Its settings (hub address, what you share, your display name), its window's size and position, the page's own storage (your dashboard layouts and theme), caches and a log file, all in `%LOCALAPPDATA%\Starglance`.
 - **Paired devices**, if you use *Show on other devices*: for each, a rough name ("Safari on iPad"), when it was paired and last seen, and a hash of its key, in `other-devices.json` in the same folder. The device keeps the key in a cookie.
+- **Updates**: whether automatic updates are on, and the last version installed that way, in `updates.json`. While updating, the previous exe sits next to the new one as `starglance.old.exe` for a few seconds.
 - **Start with Windows**, only if you switch it on (Settings → Agent, or the tray menu): one value named `Starglance` under `HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run`, which starts it in the tray when you sign in. Switching it off removes the value.
 - Recordings, only if you run the capture tool yourself (`tools/capture.py`, from the source code). They stay in a local folder, with aUEC amounts removed.
 

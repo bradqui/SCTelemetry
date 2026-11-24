@@ -9,7 +9,8 @@ brings the window back instead of running twice. Window size, position, "always 
 and the title bar choice are remembered (app.json in the agent's folder); the page's own
 storage (dashboard layouts, themes) lives in its WebView2 profile there too. "Start with
 Windows" (off unless switched on) is one value under HKCU\\...\\Run. Output goes to
-logs/starglance.log.
+logs/starglance.log. Updates (selfupdate.py) put the new exe in place, start it with
+``--updated`` and quit; it waits for this one to go, then deletes the old file.
 
 Without WebView2 (very old Windows 10), the view opens in the default browser and the tray
 icon still works.
@@ -207,6 +208,7 @@ class Api:
         if self._app and self._app.window:
             self._app._remember()
             self._app.window.hide()
+            self._app.hidden = True
 
     def set_on_top(self, on: bool) -> dict:
         if self._app:
@@ -237,6 +239,8 @@ class App:
         self.maximized = False
         self.icon = None
         self.quitting = False
+        self.hidden = bool(getattr(args, "hidden", False))
+        """The window is in the tray (an update restarts it the same way)."""
         self.prefs = load_prefs()
 
     # -- the agent, on its own thread
@@ -252,6 +256,9 @@ class App:
         def ready(server) -> None:
             self.server = server
             server.on_show = lambda: self.show()
+            updater = getattr(server.control, "updater", None)
+            if updater is not None and getattr(sys, "frozen", False):
+                updater.relaunch = self.relaunch
             self.ready.set()
 
         try:
@@ -308,6 +315,7 @@ class App:
             self.window.evaluate_js(script)
         self.window.show()
         self.window.restore()
+        self.hidden = False
 
     def _measure_frame(self, window, asked: tuple[int, int]) -> None:
         """A window is made at its outer size but reports its inner size (no borders or
@@ -332,6 +340,7 @@ class App:
             return True  # quitting, or an old window being replaced
         self._remember()
         window.hide()  # to the tray: the agent keeps running
+        self.hidden = True
         return False
 
     def set_on_top(self, on: bool) -> None:
@@ -354,6 +363,24 @@ class App:
         self.window = self._create_window(hidden=False)
         with contextlib.suppress(Exception):
             old.destroy()
+
+    # -- after an update (selfupdate): the new exe is in place
+
+    def relaunch(self) -> None:
+        """Start the new exe (it waits for this one to let go of the port), then quit.
+        The window comes back as it was: open, or in the tray."""
+        import os
+        import subprocess
+
+        args = [sys.executable, "app", "--updated", "--ui-port", str(self.port)]
+        if self.hidden:
+            args.append("--hidden")
+        # A one-file exe started from another must unpack itself afresh, not reuse ours.
+        env = {**os.environ, "PYINSTALLER_RESET_ENVIRONMENT": "1"}
+        flags = 0x00000008 | 0x00000200  # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
+        subprocess.Popen(args, env=env, close_fds=True, creationflags=flags)  # noqa: S603
+        log.info("Started the new version; quitting this one")
+        self.quit()
 
     # -- quit
 
@@ -503,9 +530,28 @@ def _log_to_file(verbose: bool) -> None:
         logging.getLogger(noisy).setLevel(logging.WARNING)
 
 
+def _after_update(port: int) -> None:
+    """Started by the previous version after it put this exe in place: wait for it to quit
+    (it holds the port), then delete it in the background."""
+    import time
+
+    from .selfupdate import remove_old
+
+    for _ in range(120):
+        if _local(port, "/api/mode", timeout=0.5) is None:
+            break
+        time.sleep(0.5)
+    if getattr(sys, "frozen", False):
+        exe = Path(sys.executable)
+        threading.Thread(target=remove_old, args=(exe,), name="remove-old", daemon=True).start()
+
+
 def run_app(args) -> None:
     _log_to_file(getattr(args, "verbose", False))
     log.info("Starglance %s starting", __version__)
+    if getattr(args, "updated", False):
+        log.info("Updated: waiting for the previous version to quit")
+        _after_update(args.ui_port)
     if already_running(args.ui_port):
         log.info("Already running: showed its window")
         return

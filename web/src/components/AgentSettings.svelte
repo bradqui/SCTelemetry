@@ -4,10 +4,17 @@
   // Saved by the agent (not this browser), applied at once.
   import { onMount } from "svelte";
   import { appWindow } from "../lib/appwin.svelte";
-  import type { UplinkStatus } from "../lib/types";
+  import type { UpdaterStatus, UplinkStatus } from "../lib/types";
   import OtherDevices, { type Lan } from "./OtherDevices.svelte";
 
-  let { uplinks = {} }: { uplinks?: Record<string, UplinkStatus> } = $props();
+  let {
+    uplinks = {},
+    updater = null,
+  }: {
+    uplinks?: Record<string, UplinkStatus>;
+    /** Live update progress (the agent's feed); the settings call has it too. */
+    updater?: UpdaterStatus | null;
+  } = $props();
 
   interface Share {
     id: string;
@@ -40,6 +47,7 @@
     installs: Install[];
     restart_note: string;
     lan: Lan | null;
+    updates: UpdaterStatus | null;
   }
 
   let info = $state<State | null>(null);
@@ -229,6 +237,58 @@
 
   {#if info.lan}
     <OtherDevices lan={info.lan} {busy} {act} refresh={() => call("settings")} />
+  {/if}
+
+  {@const u = updater ?? info.updates}
+  {#if u}
+    {@const working = ["downloading", "checking", "installing"].includes(u.state)}
+    <section>
+      <h3>Updates</h3>
+      <p class="hint">
+        Starglance {u.current}.
+        {#if u.available}<b class="new">{u.available} is out.</b>
+        {:else if info.fleets.length}Up to date, as far as your fleet's hub knows.
+        {:else}Not in a fleet, so nothing tells it about new versions: check the
+          <a href={u.releases} target="_blank" rel="noopener noreferrer">releases page</a> now and then.{/if}
+      </p>
+      {#if u.available && u.can}
+        <button class="btn primary" disabled={working || busy === "update"} onclick={() => act("update", "update", {})}>
+          {u.state === "downloading"
+            ? `Downloading… ${Math.round((u.progress ?? 0) * 100)}%`
+            : u.state === "checking"
+              ? "Checking the download…"
+              : u.state === "installing"
+                ? "Restarting…"
+                : `Update to ${u.available}`}
+        </button>
+      {:else if u.available}
+        <a class="btn" href={u.releases} target="_blank" rel="noopener noreferrer">Download {u.available}</a>
+      {/if}
+      {#if u.state === "error" && u.error}
+        <p class="error" role="alert">
+          {u.error} <a href={u.releases} target="_blank" rel="noopener noreferrer">Releases page</a>
+        </p>
+      {/if}
+      {#if u.can}
+        <ul class="share">
+          <li>
+            <label class="toggle">
+              <input type="checkbox" checked={u.auto} disabled={busy === "auto"} onchange={(e) => act("auto", "update/auto", { on: e.currentTarget.checked })} />
+              <span
+                ><b>Update automatically</b><small
+                  >When a new version is out and Star Citizen isn't running. Starglance restarts by itself, back where it was (open or in
+                  the tray).</small
+                ></span
+              >
+            </label>
+          </li>
+        </ul>
+      {/if}
+      <p class="hint">
+        Your fleet's hub says when there's a new version; Starglance then downloads it from the project's GitHub releases only, and
+        checks it before replacing itself. Your settings stay.
+      </p>
+    </section>
   {/if}
 
   {#if appWindow.inApp && appWindow.state}
@@ -453,6 +513,12 @@
   }
   .tel.on {
     color: var(--good);
+  }
+  .new {
+    color: var(--accent);
+  }
+  a.btn {
+    text-decoration: none;
   }
   .note {
     display: block !important;

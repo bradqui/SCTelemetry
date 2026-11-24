@@ -2,9 +2,10 @@
   import { alertLights, chosen, defaultAlerts, type AlertPick } from "../lib/alerts";
   import { LIGHT_NAMES, ROLE_NAMES as ROLE } from "../lib/format";
   import { openOnHub } from "../lib/hub";
+  import { view } from "../lib/remote.svelte";
   import WindowButtons from "./WindowButtons.svelte";
   import LocationChips from "./LocationChips.svelte";
-  import type { AgentState, Snapshot, UplinkStatus } from "../lib/types";
+  import type { AgentState, Snapshot, UpdaterStatus, UplinkStatus } from "../lib/types";
 
   let {
     socket,
@@ -14,6 +15,7 @@
     replay = false,
     alerts = defaultAlerts().self,
     uplinks = [],
+    updater = null,
     onFleet,
     onToggleCompact,
     onCustomize,
@@ -28,6 +30,8 @@
     /** Sending to the fleet hub? */
     /** Each fleet's link (one per org's hub you're in). */
     uplinks?: UplinkStatus[];
+    /** The app updating itself (selfupdate.py): one click instead of a download. */
+    updater?: UpdaterStatus | null;
     /** Show the fleet in this page (else the chip opens the hub's page). */
     onFleet?: () => void;
     onToggleCompact: () => void;
@@ -67,6 +71,21 @@
       .join("\n") + "\nClick to see the fleet.",
   );
   const update = $derived(links.find((u) => u.update)?.update ?? null);
+  // The packaged app updates itself in one click; from source, the releases page.
+  const updating = $derived(updater && ["downloading", "checking", "installing"].includes(updater.state));
+  const updateLabel = $derived.by(() => {
+    if (!updater || !update) return "";
+    if (updater.state === "downloading") return `Updating ${Math.round((updater.progress ?? 0) * 100)}%`;
+    if (updater.state === "checking") return "Checking…";
+    if (updater.state === "installing") return "Restarting…";
+    if (updater.state === "error") return "Update failed";
+    return `Update ${updater.available ?? update.version}`;
+  });
+  async function updateNow() {
+    await fetch("/api/agent/update", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }).catch(
+      () => {},
+    );
+  }
   // The ship you're aboard on foot (its comms channel): yours, or someone else's.
   const aboard = $derived.by(() => {
     const a = loc?.aboard;
@@ -129,7 +148,20 @@
       <button class="fleet {fleetState}" onclick={() => (onFleet ? onFleet() : openOnHub())} title={fleetTitle}
         ><span class="dot"></span>{links.length > 1 ? `Fleets ×${links.length}` : "Fleet"}</button
       >
-      {#if update}
+      {#if update && view.remote}
+        <!-- Another device: updating is the PC's business. -->
+      {:else if update && updater?.can}
+        <button
+          class="fleet update"
+          class:busy={updating}
+          disabled={!!updating}
+          onclick={updateNow}
+          title={updater.state === "error"
+            ? `${updater.error ?? "The update failed."} Click to try again.`
+            : `Starglance ${updater.available ?? update.version} is out. Click to update: it downloads the official release, checks it, and restarts in a few seconds. Your settings stay.`}
+          >{updateLabel}</button
+        >
+      {:else if update}
         <a
           class="fleet update"
           href={update.url}
@@ -292,6 +324,10 @@
   .fleet.update {
     color: var(--accent);
     text-decoration: none;
+  }
+  .fleet.update.busy {
+    cursor: progress;
+    opacity: 0.85;
   }
   .conn .dot {
     color: var(--warn);

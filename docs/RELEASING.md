@@ -29,6 +29,8 @@ The hub tells agents which version is current, using its own version, so an agen
    - signs the exe (once SignPath is set up, below);
    - pushes the hub image;
    - publishes the GitHub release with the exe and `SHA256SUMS.txt`.
+
+   Keep those two names: the app's **Update** button downloads exactly `starglance.exe` and `SHA256SUMS.txt` from the `v<version>` release, and checks one against the other.
 4. **If signing is set up**, SignPath emails you a signing request for approval. The workflow waits up to an hour, then the release appears with the signed exe.
 
 To publish a tag again, for example after setting up signing, use **Actions → Release → Run workflow** with the tag. Delete the old GitHub release first.

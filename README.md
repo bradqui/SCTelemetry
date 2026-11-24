@@ -22,6 +22,8 @@ Discord is optional: members join with invite links; a hub can also offer "Sign 
 
 Download **starglance.exe** from the [latest release](https://github.com/bradqui/starglance/releases/latest) and double-click it. Starglance opens in its own window, with an icon in the system tray: closing the window keeps it running there (right-click the icon for Fleet, Settings, *Always on top*, *Hide the title bar*, *Start with Windows*, or Quit). Starting it again just brings the window back. With the title bar hidden, drag the window by its top bar; minimize, maximize and close move there. The same view is at `http://127.0.0.1:8740` for a browser, a second screen or a VR overlay.
 
+**Updating:** when your fleet's hub says a new version is out, an **Update** button appears in the top bar. Click it: Starglance downloads the new version from this project's releases, checks it, and restarts in a few seconds, with your settings as they were. **Settings → Agent → Updates → Update automatically** does it by itself while the game isn't running. Not in a fleet? Nothing tells it about new versions, so check the [releases page](https://github.com/bradqui/starglance/releases) now and then.
+
 Then open **Settings → Agent** (the sliders button, top right):
 
 1. **Game telemetry → Switch on**, then restart the game. It reads the setting at startup. Switching it off later puts the game's `user.cfg` back exactly as it was.

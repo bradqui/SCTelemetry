@@ -159,6 +159,7 @@
     replay={live.replay}
     alerts={prefs.alerts.self}
     uplinks={Object.values(live.uplinks)}
+    updater={live.updater}
     onToggleCompact={toggleCompact}
     onCustomize={() => (customizing ? (customizing = false) : openSettings("dashboard"))}
     onFleet={() => showFleet(true)}
@@ -196,7 +197,7 @@
 {/if}
 
 {#if customizing && !fleetOpen}
-  <Customize {store} {compact} agent={!view.remote} uplinks={live.uplinks} tab={settingsTab} onClose={() => (customizing = false)} />
+  <Customize {store} {compact} agent={!view.remote} uplinks={live.uplinks} updater={live.updater} tab={settingsTab} onClose={() => (customizing = false)} />
 {/if}
 
 <style>

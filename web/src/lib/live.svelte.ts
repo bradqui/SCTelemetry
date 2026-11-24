@@ -1,5 +1,13 @@
 import { checkPaired, view } from "./remote.svelte";
-import type { AgentState, ReplayIndex, ReplayStatus, Snapshot, TelemetryEvent, UplinkStatus } from "./types";
+import type {
+  AgentState,
+  ReplayIndex,
+  ReplayStatus,
+  Snapshot,
+  TelemetryEvent,
+  UpdaterStatus,
+  UplinkStatus,
+} from "./types";
 
 const MAX_EVENTS = 60;
 
@@ -18,6 +26,9 @@ export class LiveConnection {
 
   /** The agent's links to its fleets' hubs, by hub (empty: not in a fleet, or not sending). */
   uplinks = $state.raw<Record<string, UplinkStatus>>({});
+
+  /** Updates: available, downloading, failed (the packaged app). */
+  updater = $state.raw<UpdaterStatus | null>(null);
 
   replay = $state(false);
   replayIndex = $state.raw<ReplayIndex | null>(null);
@@ -123,6 +134,9 @@ export class LiveConnection {
         this.uplinks = next;
         break;
       }
+      case "updater":
+        this.updater = msg as unknown as UpdaterStatus;
+        break;
       case "replay_index":
         this.replayIndex = msg as unknown as ReplayIndex;
         break;

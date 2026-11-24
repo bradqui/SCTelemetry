@@ -141,7 +141,10 @@ async def serve(args, *, stop=None, on_ready=None, say=print) -> None:
         announce=say,
     )
     from .lanview import LanView
+    from .selfupdate import Updater
 
+    updater = control.updater = Updater(pipeline, announce=say)
+    auto_updates = asyncio.get_running_loop().create_task(updater.auto_loop())
     lan = control.lan = LanView(server, announce=say)
     if lan.settings.enabled:
         await lan.start()
@@ -160,6 +163,7 @@ async def serve(args, *, stop=None, on_ready=None, say=print) -> None:
         reader.stop()
         if tail is not None:
             tail.stop()
+        auto_updates.cancel()
         await control.stop_uplinks()
         await lan.stop()
         await server.stop()
@@ -380,6 +384,8 @@ def build_parser() -> argparse.ArgumentParser:
     p = add("app", cmd_app, "The Windows app: tray icon and its own window (the default)")
     p.add_argument("--ui-port", type=int, default=8740, help="Local view port (default 8740)")
     p.add_argument("--hidden", action="store_true", help="Start in the tray, window closed")
+    # Started by the previous version after updating: wait for it to quit, then delete it.
+    p.add_argument("--updated", action="store_true", help=argparse.SUPPRESS)
     p.set_defaults(game_port=None, hub=None, no_uplink=False, uplink=False, replay=None)
 
     p = add("run", cmd_run, "Run the agent: read the game, serve the local view")

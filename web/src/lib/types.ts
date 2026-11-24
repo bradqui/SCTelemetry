@@ -315,3 +315,16 @@ export interface UplinkStatus {
   /** The hub says a newer agent is out (agents are released with the hub). */
   update?: { version: string; url: string } | null;
 }
+
+/** The agent's updates (selfupdate.py): what the hubs say is current, and installing it. */
+export interface UpdaterStatus {
+  current: string;
+  available: string | null;
+  /** The packaged app can replace itself; from source, the releases page instead. */
+  can: boolean;
+  state: "idle" | "downloading" | "checking" | "installing" | "error";
+  progress: number | null;
+  error: string | null;
+  auto: boolean;
+  releases: string;
+}

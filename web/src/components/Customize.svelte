@@ -3,7 +3,7 @@
   import { COMPACT_PRESETS, PANELS, PRESETS, SPANS, type Layout, type Span } from "../lib/panels";
   import type { PrefsStore } from "../lib/prefs.svelte";
   import { palette, THEMES } from "../lib/themes";
-  import type { UplinkStatus } from "../lib/types";
+  import type { UpdaterStatus, UplinkStatus } from "../lib/types";
   import AgentSettings from "./AgentSettings.svelte";
   import HeaderAlerts from "./HeaderAlerts.svelte";
 
@@ -13,6 +13,7 @@
     onClose,
     agent = false,
     uplinks = {},
+    updater = null,
     tab: startTab = "dashboard",
     selfAlerts = true,
   }: {
@@ -22,6 +23,7 @@
     /** The cockpit page: also the Agent tab (this PC's fleet link, sharing, telemetry). */
     agent?: boolean;
     uplinks?: Record<string, UplinkStatus>;
+    updater?: UpdaterStatus | null;
     tab?: "dashboard" | "agent";
     /** Header alerts: your top bar's columns too (the cockpit view, not the hub's page). */
     selfAlerts?: boolean;
@@ -72,7 +74,7 @@
   {/if}
 
   {#if tab === "agent"}
-    <AgentSettings {uplinks} />
+    <AgentSettings {uplinks} {updater} />
   {:else}
 
   <section>

@@ -78,6 +78,8 @@ class _Client:
             self.messages.append(json.dumps({"type": "replay", **payload}))  # type: ignore[dict-item]
         elif kind == "uplink":
             self.messages.append(json.dumps({"type": "uplink", **payload}))  # type: ignore[dict-item]
+        elif kind == "updater":
+            self.messages.append(json.dumps({"type": "updater", **payload}))  # type: ignore[dict-item]
         self.wake.set()
 
     async def pump(self) -> None:
@@ -142,6 +144,8 @@ class LocalServer:
                 web.post("/api/agent/lan", self._agent_lan),
                 web.post("/api/agent/lan/code", self._agent_lan_code),
                 web.post("/api/agent/lan/forget", self._agent_lan_forget),
+                web.post("/api/agent/update", self._agent_update),
+                web.post("/api/agent/update/auto", self._agent_update_auto),
                 web.post("/api/app/show", self._app_show),
                 web.get("/{tail:.*}", self.static),
             ]
@@ -310,6 +314,14 @@ class LocalServer:
             request, lambda b: self.control.lan_forget(str(b["id"]) if b.get("id") else None)
         )
 
+    async def _agent_update(self, request: web.Request) -> web.Response:
+        return await self._agent_call(request, lambda _b: self.control.update_now())
+
+    async def _agent_update_auto(self, request: web.Request) -> web.Response:
+        return await self._agent_call(
+            request, lambda b: self.control.set_auto_update(bool(b.get("on")))
+        )
+
     async def _app_show(self, _request: web.Request) -> web.Response:
         if self.on_show is None:
             return web.json_response({"error": "not the app"}, status=404)
@@ -365,6 +377,9 @@ class LocalServer:
         await ws.send_str(json.dumps(self.pipeline.state.as_dict()))
         for status in list(self.uplinks.values()):
             await ws.send_str(json.dumps({"type": "uplink", **status}))
+        updater = getattr(self.control, "updater", None)
+        if updater is not None:
+            await ws.send_str(json.dumps({"type": "updater", **updater.status()}))
         await ws.send_str(
             json.dumps(
                 {"type": "history", "events": [json.loads(_dump(e)) for e in self.pipeline.recent]}

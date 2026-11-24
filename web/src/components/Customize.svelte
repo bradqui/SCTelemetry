@@ -5,6 +5,7 @@
   import { palette, THEMES } from "../lib/themes";
   import type { UplinkStatus } from "../lib/types";
   import AgentSettings from "./AgentSettings.svelte";
+  import HeaderAlerts from "./HeaderAlerts.svelte";
 
   let {
     store,
@@ -13,6 +14,7 @@
     agent = false,
     uplinks = {},
     tab: startTab = "dashboard",
+    selfAlerts = true,
   }: {
     store: PrefsStore;
     compact: boolean;
@@ -21,6 +23,8 @@
     agent?: boolean;
     uplinks?: Record<string, UplinkStatus>;
     tab?: "dashboard" | "agent";
+    /** Header alerts: your top bar's columns too (the cockpit view, not the hub's page). */
+    selfAlerts?: boolean;
   } = $props();
   let tab = $state<"dashboard" | "agent">("dashboard");
   $effect.pre(() => {
@@ -164,10 +168,6 @@
       <span><b>HUD effects</b><small>Glow, scanlines and animations</small></span>
     </label>
     <label class="toggle">
-      <input type="checkbox" bind:checked={prefs.caution} />
-      <span><b>Master caution</b><small>Shown in the top bar while a warning light is on</small></span>
-    </label>
-    <label class="toggle">
       <input type="checkbox" bind:checked={prefs.autoHide} />
       <span><b>Hide ship panels on foot</b><small>Otherwise they wait on standby</small></span>
     </label>
@@ -179,6 +179,8 @@
       </div>
     </div>
   </section>
+
+  <HeaderAlerts alerts={prefs.alerts} self={selfAlerts} />
 
   <footer>
     <button class="reset" onclick={() => store.reset()}>Reset everything</button>

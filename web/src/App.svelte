@@ -157,7 +157,7 @@
     snapshot={snap}
     {compact}
     replay={live.replay}
-    caution={prefs.caution}
+    alerts={prefs.alerts.self}
     uplinks={Object.values(live.uplinks)}
     onToggleCompact={toggleCompact}
     onCustomize={() => (customizing ? (customizing = false) : openSettings("dashboard"))}

@@ -172,6 +172,7 @@
 <div class="board" class:embedded bind:this={root} style:--brackets={embedded ? (prefs.effects ? 1 : 0) : null}>
   <main class:detail={!!member}>
     <FleetBar
+      alerts={prefs.alerts.fleet}
       org={mode.org}
       {me}
       {rows}
@@ -226,7 +227,7 @@
   </main>
 
   {#if customizing}
-    <Customize {store} compact={false} onClose={() => (customizing = false)} />
+    <Customize {store} compact={false} selfAlerts={embedded} onClose={() => (customizing = false)} />
   {/if}
 
   {#if dialog === "account"}

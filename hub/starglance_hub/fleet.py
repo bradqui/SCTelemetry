@@ -33,6 +33,7 @@ from starglance_shared import (
     Event,
     Hello,
     Snapshot,
+    alert_lights,
     apply_patch,
     event_shared,
     expected_light,
@@ -101,6 +102,8 @@ class MemberLive:
         self.channel: str | None = None
         self.alarms: dict[str, list] = {}
         """Fleet alarm lights: light -> [first on, last on, level], by snapshot time."""
+        self.alerts: dict[str, list] = {}
+        """Every lit light, held the same way (the pages pick which to show)."""
         self.sockets: dict[int, web.WebSocketResponse] = {}
         """Connected agents by agent id (a member may run more than one PC)."""
 
@@ -150,19 +153,30 @@ def _worst(lights: dict, master_mode: str | None = None) -> tuple[str | None, li
     return ("minor", minor) if minor else (None, [])
 
 
-def _fleet_alarm(m: MemberLive, ship: dict, t: int) -> tuple[str | None, list[str]]:
-    """``fleet_alarm_lights``, on for FLEET_ALARM_HOLD_MS before it counts and kept until
-    off for FLEET_ALARM_OFF_MS. Timed by the member's snapshots, not the hub's clock."""
-    now_on = fleet_alarm_lights(ship.get("lights") or {})
+def _hold(store: dict[str, list], now_on: dict[str, str], t: int) -> dict[str, str]:
+    """Lights on for FLEET_ALARM_HOLD_MS before they count, kept until off for
+    FLEET_ALARM_OFF_MS. Timed by the member's snapshots, not the hub's clock."""
     for light, lvl in now_on.items():
-        seen = m.alarms.get(light)
+        seen = store.get(light)
         if seen is None or t - seen[1] > FLEET_ALARM_OFF_MS:
-            m.alarms[light] = [t, t, lvl]
+            store[light] = [t, t, lvl]
         else:
             seen[1], seen[2] = t, lvl
-    for light in [k for k, v in m.alarms.items() if t - v[1] > FLEET_ALARM_OFF_MS]:
-        del m.alarms[light]
-    held = {k: v[2] for k, v in m.alarms.items() if t - v[0] >= FLEET_ALARM_HOLD_MS}
+    for light in [k for k, v in store.items() if t - v[1] > FLEET_ALARM_OFF_MS]:
+        del store[light]
+    # Seen on across the hold (gaps shorter than the off time allowed), not merely seen
+    # once and not yet cleared: a shield blip never counts.
+    return {k: v[2] for k, v in store.items() if v[1] - v[0] >= FLEET_ALARM_HOLD_MS}
+
+
+def _held_alerts(m: MemberLive, ship: dict, t: int) -> dict[str, str]:
+    """``alert_lights``, held: light -> "major" | "minor"."""
+    return _hold(m.alerts, alert_lights(ship.get("lights") or {}, ship.get("master_mode")), t)
+
+
+def _fleet_alarm(m: MemberLive, ship: dict, t: int) -> tuple[str | None, list[str]]:
+    """``fleet_alarm_lights``, held (``_hold``)."""
+    held = _hold(m.alarms, fleet_alarm_lights(ship.get("lights") or {}), t)
     level = "major" if "major" in held.values() else ("minor" if held else None)
     return level, sorted(held)
 
@@ -206,6 +220,7 @@ def summarize(m: MemberLive, now: int, cfg: Config) -> dict:
         flight = ship.get("flight") or {}
         level, lit = _worst(ship.get("lights") or {}, ship.get("master_mode"))
         fleet_level, fleet_lit = _fleet_alarm(m, ship, s.get("t") or now)
+        alerts = _held_alerts(m, ship, s.get("t") or now)
         speed = flight.get("speed")
         out["ship"] = {
             "id": ship.get("id"),
@@ -236,6 +251,10 @@ def summarize(m: MemberLive, now: int, cfg: Config) -> dict:
             # warning; held, see fleet_alarm_lights. Never "minor": no fleet-wide cautions.
             "fleet_alarm": fleet_level,
             "fleet_lights": fleet_lit,
+            # Every lit light, held the same way: light -> "major" | "minor". Each page
+            # chooses which go in its fleet header (its alert settings). fleet_alarm and
+            # fleet_lights stay for pages from agents before 0.5.
+            "alerts": alerts,
         }
     loc = s.get("location")
     if loc:

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { alertLights, chosen, defaultAlerts, type AlertPick } from "../lib/alerts";
   import { LIGHT_NAMES, ROLE_NAMES as ROLE } from "../lib/format";
   import { openOnHub } from "../lib/hub";
   import WindowButtons from "./WindowButtons.svelte";
@@ -11,7 +12,7 @@
     snapshot,
     compact,
     replay = false,
-    caution = true,
+    alerts = defaultAlerts().self,
     uplinks = [],
     onFleet,
     onToggleCompact,
@@ -22,8 +23,8 @@
     snapshot: Snapshot | null;
     compact: boolean;
     replay?: boolean;
-    /** Show the master caution/warning in the bar. */
-    caution?: boolean;
+    /** Which lights the master warning/caution shows (Customize → Header alerts). */
+    alerts?: AlertPick;
     /** Sending to the fleet hub? */
     /** Each fleet's link (one per org's hub you're in). */
     uplinks?: UplinkStatus[];
@@ -76,16 +77,12 @@
 
 
   const alarm = $derived.by(() => {
-    if (!caution || !ship) return null;
-    // THR in NAV is the quantum drive locking the thrusters, not a fault (expected_light).
-    const lit = (prefix: string) =>
-      Object.entries(ship.lights)
-        .filter(([k, l]) => l?.startsWith(prefix) && !(k === "thr" && ship.master_mode === "NAV"))
-        .map(([k]) => LIGHT_NAMES[k] ?? k.toUpperCase());
-    const major = lit("major");
-    if (major.length) return { level: "warning", text: major.join(" · ") };
-    const minor = lit("minor");
-    return minor.length ? { level: "caution", text: minor.join(" · ") } : null;
+    if (!ship) return null;
+    // THR in NAV is the quantum drive locking the thrusters, not a fault (alertLights).
+    const { warning, caution } = chosen(alertLights(ship.lights, ship.master_mode), alerts);
+    const names = (ls: string[]) => ls.map((k) => LIGHT_NAMES[k] ?? k.toUpperCase()).join(" · ");
+    if (warning.length) return { level: "warning", text: names(warning) };
+    return caution.length ? { level: "caution", text: names(caution) } : null;
   });
 </script>
 

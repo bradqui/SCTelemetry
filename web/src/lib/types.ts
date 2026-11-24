@@ -249,9 +249,12 @@ export interface MemberSummary extends Me {
     h2_fuel: number | null;
     alarm: "major" | "minor" | null;
     lights: string[];
-    /** What the fleet header shows: getting hit, a radar warning; held 1 s. Never "minor". */
+    /** The old fleet header (hubs before 0.5): getting hit, a radar warning; held 1 s. */
     fleet_alarm: "major" | null;
     fleet_lights: string[];
+    /** Every lit light, held 1 s and kept 3 s (hub 0.5+): the page picks which go in its
+     * fleet header (lib/alerts.ts). */
+    alerts?: Record<string, "major" | "minor">;
   } | null;
   location:
     | (Omit<Location, "route" | "aboard"> & {

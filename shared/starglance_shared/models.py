@@ -427,6 +427,23 @@ def fleet_alarm_lights(lights: dict) -> dict[str, str]:
     return out
 
 
+def alert_lights(lights: dict, master_mode: str | None = None) -> dict[str, str]:
+    """Every lit warning light, as the headers' alerts: light -> "major" (a warning) or
+    "minor" (a caution). Each viewer picks which go in its headers (the page's alert
+    settings); the hub holds them like fleet alarms first (FLEET_ALARM_HOLD_MS/_OFF_MS).
+    The hit light counts as a warning whatever it shows; THR in NAV isn't a fault
+    (expected_light)."""
+    out: dict[str, str] = {}
+    for light, value in lights.items():
+        if not isinstance(value, str) or expected_light(light, master_mode):
+            continue
+        if value.startswith("major") or (light == "hit" and value.startswith("minor")):
+            out[light] = "major"
+        elif value.startswith("minor"):
+            out[light] = "minor"
+    return out
+
+
 # ---------------------------------------------------------------- privacy
 
 

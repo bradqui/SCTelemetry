@@ -1,3 +1,4 @@
+import { defaultAlerts, loadAlerts, type Alerts } from "./alerts";
 import { COMPACT_PRESETS, PRESETS, repairLayout, type Layout } from "./panels";
 import { DEFAULT_THEME, THEME_BY_ID, type Scheme } from "./themes";
 
@@ -13,8 +14,8 @@ export interface Prefs {
   speedUnit: "ms" | "kmh";
   /** Hide ship panels when you're not in a ship. */
   autoHide: boolean;
-  /** Master caution banner under the top bar. */
-  caution: boolean;
+  /** Which warning lights go in your top bar and the fleet header (lib/alerts.ts). */
+  alerts: Alerts;
   full: Layout;
   compact: Layout;
 }
@@ -29,7 +30,7 @@ export function defaultPrefs(): Prefs {
     effects: true,
     speedUnit: "ms",
     autoHide: true,
-    caution: true,
+    alerts: defaultAlerts(),
     full: structuredClone(PRESETS[0].layout),
     compact: structuredClone(COMPACT_PRESETS[0].layout),
   };
@@ -47,7 +48,7 @@ function load(): Prefs {
       effects: typeof raw.effects === "boolean" ? raw.effects : d.effects,
       speedUnit: raw.speedUnit === "kmh" ? "kmh" : "ms",
       autoHide: typeof raw.autoHide === "boolean" ? raw.autoHide : d.autoHide,
-      caution: typeof raw.caution === "boolean" ? raw.caution : d.caution,
+      alerts: loadAlerts(raw.alerts, raw.caution),
       full: repairLayout(raw.full, d.full),
       compact: repairLayout(raw.compact, d.compact),
     };

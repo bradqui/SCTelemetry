@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { chosen, defaultAlerts, type Alerts } from "../../lib/alerts";
   import { LIGHT_NAMES } from "../../lib/format";
   import type { Account, MemberSummary } from "../../lib/types";
   import WindowButtons from "../WindowButtons.svelte";
@@ -19,6 +20,7 @@
     fleets = [],
     fleetHub = null,
     onPickFleet,
+    alerts = defaultAlerts().fleet,
   }: {
     org: string;
     me: Account;
@@ -38,25 +40,31 @@
     fleets?: { hub: string; label: string }[];
     fleetHub?: string | null;
     onPickFleet?: (hub: string) => void;
+    /** Which lights the header shows (Customize → Header alerts). */
+    alerts?: Alerts["fleet"];
   } = $props();
 
   const online = $derived(rows.filter((m) => m.presence !== "offline"));
   const inGame = $derived(rows.filter((m) => m.presence === "live" || m.presence === "stale"));
   const inShips = $derived(online.filter((m) => m.ship));
 
-  /** Fleet-wide warnings only: someone getting hit or with a radar warning (the hub's
-   * fleet_alarm, held a second), or badly hurt. No cautions here: they last (thruster damage
-   * stays on for minutes) and stay on that member's card and dashboard. */
-  const FLEET_LIGHT: Record<string, string> = { hit: "Taking hits", radr: "Radar" };
-  const said = (lights: string[]) => lights.map((l) => FLEET_LIGHT[l] ?? LIGHT_NAMES[l] ?? l).join(", ");
+  /** Who needs attention: the lights this browser chose (by default, warnings for getting
+   * hit or hostiles on radar; no cautions: thruster damage stays on for minutes), held a
+   * second by the hub, and anyone badly hurt. Everything else stays on cards and dashboards. */
+  const said = (lights: string[]) => lights.map((l) => LIGHT_NAMES[l] ?? l).join(", ");
   const alarms = $derived.by(() => {
     const out: { id: string; name: string; text: string; level: "bad" | "warn" }[] = [];
     for (const m of online) {
-      const a = m.ship?.fleet_alarm;
-      if (a === "major") {
-        out.push({ id: m.id, name: m.name, text: said(m.ship!.fleet_lights), level: "bad" });
-      } else if (m.vitals?.injury === "severe" || (m.vitals?.health != null && m.vitals.health < 0.3)) {
-        out.push({ id: m.id, name: m.name, text: "Badly hurt", level: "bad" });
+      if (!alerts.me && m.id === me.id) continue;
+      // An older hub sends only the old fleet alarm: getting hit, radar; warnings.
+      const lit = m.ship?.alerts ?? Object.fromEntries((m.ship?.fleet_lights ?? []).map((l) => [l, "major" as const]));
+      const { warning, caution } = chosen(lit, alerts);
+      const hurt = alerts.hurt && (m.vitals?.injury === "severe" || (m.vitals?.health != null && m.vitals.health < 0.3));
+      if (warning.length || hurt) {
+        const text = [said(warning), hurt ? "Badly hurt" : ""].filter(Boolean).join(", ");
+        out.push({ id: m.id, name: m.name, text, level: "bad" });
+      } else if (caution.length) {
+        out.push({ id: m.id, name: m.name, text: said(caution), level: "warn" });
       }
     }
     return out.sort((a, b) => (a.level === b.level ? 0 : a.level === "bad" ? -1 : 1));

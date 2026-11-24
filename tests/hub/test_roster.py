@@ -101,3 +101,36 @@ def test_fleet_alarm_is_held():
     assert at(8000, radr="major") == (None, [])
     assert at(9100, radr="major") == ("major", ["radr"])
     assert at(9200, radr="major", thr="minor") == ("major", ["radr"]), "no cautions"
+
+
+def test_alert_lights():
+    from starglance_shared import alert_lights
+
+    lights = {"hit": "minor", "radr": "major_flashing", "thr": "major", "wpn": "minor"}
+    lights |= {"cool": "nominal", "qdrv": "off"}
+    assert alert_lights(lights, "SCM") == {
+        "hit": "major",
+        "radr": "major",
+        "thr": "major",
+        "wpn": "minor",
+    }
+    assert "thr" not in alert_lights({"thr": "major"}, "NAV"), "the quantum drive's THR"
+
+
+def test_alerts_are_held_like_alarms():
+    """Every light, for the pages to choose from: held a second, kept three."""
+    from starglance_hub.db import Member
+    from starglance_hub.fleet import MemberLive, _held_alerts
+
+    m = MemberLive(Member("m1", "Rook", None, "member", 1, 0))
+
+    def at(t, **lights):
+        return _held_alerts(m, {"lights": lights, "master_mode": "SCM"}, t)
+
+    assert at(0, shld="major", thr="minor") == {}
+    assert at(200, thr="minor") == {}, "a shield blip never shows"
+    assert at(1000, thr="minor") == {"thr": "minor"}, "cautions too"
+    assert at(1500, thr="major") == {"thr": "major"}
+    assert at(2600, hit="major_flashing") == {"thr": "major"}, "one flash of the hit light"
+    assert at(3700, thr="major") == {"thr": "major"}
+    assert at(6800) == {}, "clear 3 s after the last"

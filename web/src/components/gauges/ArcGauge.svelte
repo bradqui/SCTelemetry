@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount, untrack } from "svelte";
   // A 240° dial: value arc, ticks, an optional peak notch and an optional inner arc.
   let {
     value,
@@ -51,6 +52,34 @@
   );
   const peakAngle = $derived(peak != null && peak > 0 && max > 0 ? START + SWEEP * clamp01(peak / max) : null);
   const tip = $derived(pt(START + SWEEP * frac, R));
+
+  // The big number shrinks to fit between the side tick labels (1,399 m/s, 5,040 km/h,
+  // a wide theme font). Room: twice the gap from the centre to the inner edge of the
+  // labels at 20% / 80%, less a margin.
+  const BIG = 42;
+  const labelR = $derived(R - (inner !== null ? 29 : 19));
+  const room = $derived(2 * (labelR * Math.cos((18 * Math.PI) / 180) - 13));
+  let bigEl = $state<SVGTextElement>();
+  let fit = $state(1);
+  function measure() {
+    if (!bigEl) return;
+    const natural = bigEl.getComputedTextLength() / untrack(() => fit);
+    const next = natural > room ? room / natural : 1;
+    if (Math.abs(next - untrack(() => fit)) > 0.005) fit = next;
+  }
+  $effect(() => {
+    void display; // every new value (and its width)
+    void room;
+    measure();
+  });
+  onMount(() => {
+    // Theme fonts arrive late: measure again once they have.
+    document.fonts?.addEventListener("loadingdone", measure);
+    return () => document.fonts?.removeEventListener("loadingdone", measure);
+  });
+  // Smaller text stays centred where the full-size number was.
+  const bigSize = $derived(BIG * fit);
+  const bigY = $derived(CY - 7 + 0.36 * bigSize);
 </script>
 
 <svg viewBox="0 0 200 176" class="gauge {tone}" role="img" aria-label="{caption} {display} {unit}">
@@ -81,7 +110,7 @@
     {@const [rx, ry] = pt(peakAngle + 3.5, R + 15)}
     <path class="peak" d="M{px} {py} L{qx} {qy} L{rx} {ry} Z"><title>Peak in the last 3 minutes</title></path>
   {/if}
-  <text class="big num display" x={CX} y={CY + 8}>{display}</text>
+  <text class="big num display" x={CX} y={bigY} style:font-size="{bigSize}px" bind:this={bigEl}>{display}</text>
   <text class="unit" x={CX} y={CY + 27}>{unit}</text>
   {#if caption}<text class="caption" x={CX} y={CY + 58}>{caption}</text>{/if}
   {#if innerLabel}<text class="innerlabel" x={CX} y={CY + 73}>{innerLabel}</text>{/if}

@@ -41,6 +41,19 @@
   const status = $derived(snapshot?.status ?? null);
   const loc = $derived(snapshot?.location ?? null);
 
+  async function openFleet() {
+    // The agent asks the hub for a one-time sign-in link; open it in a new tab.
+    const tab = window.open("about:blank", "_blank");
+    try {
+      const r = await fetch("/api/fleet/open", { method: "POST" });
+      const body = await r.json();
+      if (body.url && tab) tab.location.href = body.url;
+      else tab?.close();
+    } catch {
+      tab?.close();
+    }
+  }
+
   const alarm = $derived.by(() => {
     if (!caution || !ship) return null;
     const lit = (prefix: string) =>
@@ -92,11 +105,12 @@
       <span class="mode off">Powered down</span>
     {/if}
     {#if uplink}
-      <span
+      <button
         class="fleet {uplink.state}"
+        onclick={openFleet}
         title={uplink.state === "connected"
-          ? `Sending to the fleet${uplink.member ? ` as ${uplink.member}` : ""}`
-          : (uplink.message ?? "Connecting to the fleet hub")}><span class="dot"></span>Fleet</span
+          ? `Sending to the fleet${uplink.member ? ` as ${uplink.member}` : ""}. Click to open the fleet page.`
+          : (uplink.message ?? "Connecting to the fleet hub")}><span class="dot"></span>Fleet</button
       >
     {/if}
     <span class="conn" class:live title={agent?.message ?? ""}>
@@ -223,6 +237,8 @@
     white-space: nowrap;
   }
   .fleet {
+    background: none;
+    cursor: pointer;
     display: inline-flex;
     align-items: center;
     gap: 6px;

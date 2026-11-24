@@ -1,11 +1,19 @@
-"""Browser sign-in with Discord (spec §5.2) and the membership check.
+"""Who is this browser? Sessions, and the optional Discord sign-in (spec §5, decision 15).
 
-A member may sign in when they're in the configured Discord server and hold the
-org member role. The role is re-checked at most hourly, with the member's own
-Discord token (scope ``guilds.members.read``; refreshed when it expires). A
-member who loses the role loses web access and their agents are refused.
+Members are the hub's own accounts. A browser gets signed in by:
+
+- an invite link (``/join/<code>``: creates the account),
+- a one-time link the member's agent opens (``/auth/token/<t>``),
+- a short code shown on a device that's already signed in ("Add a device"),
+- Discord, when the hub has it set up and the member connected it (or the
+  admins let holders of the Discord role join without an invite).
 
 Sessions are random ids in an HttpOnly cookie; only their hash is stored.
+
+With Discord set up and a member role configured, members who connected
+Discord are re-checked at most hourly with their own token (scope
+``guilds.members.read``): losing the role suspends them, getting it back
+restores them. Members who never connected Discord are managed by admins only.
 """
 
 from __future__ import annotations
@@ -46,20 +54,19 @@ class Discord:
 
     @property
     def redirect_uri(self) -> str:
-        return f"{self.cfg.hub_url}/auth/callback"
+        return f"{self.cfg.hub_url}/auth/discord/callback"
 
-    def authorize_url(self, state: str) -> str:
-        query = urlencode(
-            {
-                "client_id": self.cfg.discord_client_id,
-                "redirect_uri": self.redirect_uri,
-                "response_type": "code",
-                "scope": SCOPES,
-                "state": state,
-                "prompt": "none",
-            }
-        )
-        return f"{self.cfg.discord_authorize}?{query}"
+    def authorize_url(self, state: str, *, prompt: bool = False) -> str:
+        query = {
+            "client_id": self.cfg.discord_client_id,
+            "redirect_uri": self.redirect_uri,
+            "response_type": "code",
+            "scope": SCOPES,
+            "state": state,
+        }
+        if not prompt:
+            query["prompt"] = "none"
+        return f"{self.cfg.discord_authorize}?{urlencode(query)}"
 
     async def _token(self, data: dict) -> dict:
         data = {
@@ -81,7 +88,7 @@ class Discord:
         return await self._token({"grant_type": "refresh_token", "refresh_token": refresh_token})
 
     async def guild_member(self, access_token: str) -> DiscordIdentity | None:
-        """The member's profile in our Discord server; None if they aren't in it."""
+        """The member's profile in the configured Discord server; None if they aren't in it."""
         url = f"{self.cfg.discord_api}/users/@me/guilds/{self.cfg.discord_guild_id}/member"
         headers = {"Authorization": f"Bearer {access_token}"}
         async with self.http.get(url, headers=headers) as resp:
@@ -96,85 +103,42 @@ class Discord:
         uid = str(user.get("id"))
         name = body.get("nick") or user.get("global_name") or user.get("username") or uid
         avatar = None
-        if body.get("avatar"):
-            avatar = (
-                f"https://cdn.discordapp.com/guilds/{self.cfg.discord_guild_id}/users/{uid}"
-                f"/avatars/{body['avatar']}.png?size=64"
-            )
-        elif user.get("avatar"):
+        if user.get("avatar"):
             avatar = f"https://cdn.discordapp.com/avatars/{uid}/{user['avatar']}.png?size=64"
         return DiscordIdentity(uid, name, avatar, [str(r) for r in body.get("roles") or []])
 
 
+def expires_at(token: dict) -> int:
+    return now_ms() + int(token.get("expires_in", 604800)) * 1000
+
+
 class Auth:
-    def __init__(self, cfg: Config, db: Database, discord: Discord) -> None:
+    def __init__(self, cfg: Config, db: Database, discord: Discord | None) -> None:
         self.cfg = cfg
         self.db = db
-        self.discord = discord
+        self.discord = discord if cfg.discord_ready else None
 
-    # -- membership
+    # -- settings an admin can change
+
+    def org_name(self) -> str:
+        return self.db.setting("org_name") or self.cfg.org_name
+
+    def discord_autojoin(self) -> bool:
+        """Holders of the Discord member role may sign in without an invite."""
+        return self.db.setting("discord_autojoin") == "1"
 
     def member_role(self) -> str | None:
-        """The org member role: set at runtime by the cog, else from the environment."""
-        return self.db.setting("member_role_id") or self.cfg.discord_member_role_id
+        return self.db.setting("discord_member_role_id") or self.cfg.discord_member_role_id
 
-    def is_allowed(self, ident: DiscordIdentity | None) -> bool:
+    def role_ok(self, ident: DiscordIdentity | None) -> bool:
         if ident is None:
             return False
         role = self.member_role()
         return role is None or role in ident.roles
 
-    async def recheck(self, member: Member, *, force: bool = False) -> Member:
-        """Re-check the org role if the last check is over an hour old."""
-        if not force and now_ms() - member.checked_at < RECHECK_MS:
-            return member
-        if member.id.startswith("dev-") or not member.refresh_token:
-            return member  # dev sign-in, or nothing to check with
-        try:
-            token = member.access_token
-            if not token or (member.token_expires or 0) < now_ms() + 60_000:
-                fresh = await self.discord.refresh(member.refresh_token)
-                token = fresh["access_token"]
-                member = self.db.upsert_member(
-                    member.id,
-                    member.name,
-                    member.avatar,
-                    allowed=member.allowed,
-                    access_token=token,
-                    refresh_token=fresh.get("refresh_token"),
-                    token_expires=now_ms() + int(fresh.get("expires_in", 604800)) * 1000,
-                )
-            ident = await self.discord.guild_member(token or "")
-        except (PermissionError, web.HTTPException, aiohttp.ClientError) as exc:
-            # Can't ask Discord right now: keep what we knew, try again later.
-            log.warning("Couldn't re-check %s: %s", member.id, exc)
-            self.db.set_allowed(member.id, member.allowed)
-            return self.db.member(member.id) or member
-        allowed = self.is_allowed(ident)
-        if ident is not None:
-            member = self.db.upsert_member(ident.id, ident.name, ident.avatar, allowed=allowed)
-        else:
-            self.db.set_allowed(member.id, False)
-            member = self.db.member(member.id) or member
-        if not allowed:
-            log.info("%s no longer holds the member role", member.id)
-            self.db.end_member_sessions(member.id)
-        return member
+    # -- sessions
 
-    async def current(self, request: web.Request) -> Member | None:
-        """The signed-in member for this request, if any (and still allowed)."""
-        sid = request.cookies.get(SESSION_COOKIE)
-        if not sid:
-            return None
-        member = self.db.session_member(sid)
-        if member is None:
-            return None
-        member = await self.recheck(member)
-        return member if member.allowed else None
-
-    # -- routes (wired up in app.py)
-
-    def _set_session(self, resp: web.StreamResponse, member: Member) -> None:
+    def sign_in(self, resp: web.StreamResponse, member: Member) -> None:
         sid = self.db.new_session(member.id)
         resp.set_cookie(
             SESSION_COOKIE,
@@ -186,16 +150,67 @@ class Auth:
             path="/",
         )
 
-    async def login(self, request: web.Request) -> web.StreamResponse:
-        if not self.cfg.discord_ready:
-            if self.cfg.dev_login and not self.cfg.secure:
-                raise web.HTTPFound("/auth/dev?" + urlencode({"next": _safe_next(request)}))
-            raise web.HTTPServiceUnavailable(text="Discord sign-in isn't set up on this hub yet.")
+    async def current(self, request: web.Request) -> Member | None:
+        """The signed-in, active member for this request, if any."""
+        sid = request.cookies.get(SESSION_COOKIE)
+        member = self.db.session_member(sid) if sid else None
+        if member is None:
+            return None
+        member = await self.recheck(member)
+        return member if member.active else None
+
+    async def recheck(self, member: Member, *, force: bool = False) -> Member:
+        """Keep a Discord-connected member in step with the org role (hourly)."""
+        if (
+            self.discord is None
+            or member.discord_id is None
+            or self.member_role() is None
+            or member.discord_refresh is None
+        ):
+            return member
+        if not force and now_ms() - (member.discord_checked or 0) < RECHECK_MS:
+            return member
+        try:
+            token = member.discord_access
+            if not token or (member.discord_expires or 0) < now_ms() + 60_000:
+                fresh = await self.discord.refresh(member.discord_refresh)
+                token = fresh["access_token"]
+                self.db.discord_checked(
+                    member.id,
+                    access=token,
+                    refresh=fresh.get("refresh_token"),
+                    expires=expires_at(fresh),
+                )
+            ident = await self.discord.guild_member(token or "")
+        except (PermissionError, web.HTTPException, aiohttp.ClientError) as exc:
+            # Can't ask Discord right now: keep what we knew, try again later.
+            log.warning("Couldn't re-check %s with Discord: %s", member.id, exc)
+            self.db.discord_checked(member.id)
+            return self.db.member(member.id) or member
+        self.db.discord_checked(member.id)
+        ok = self.role_ok(ident)
+        if ok != bool(member.active):
+            log.info("%s %s the Discord member role", member.id, "regained" if ok else "lost")
+            self.db.set_active(member.id, ok)
+            if not ok:
+                self.db.end_member_sessions(member.id)
+        return self.db.member(member.id) or member
+
+    # -- Discord sign-in (optional)
+
+    async def discord_start(self, request: web.Request) -> web.StreamResponse:
+        """``/auth/discord?next=/&mode=signin|connect&invite=<code>``"""
+        if self.discord is None:
+            raise web.HTTPNotFound(text="Discord sign-in isn't set up on this hub.")
+        mode = request.query.get("mode", "signin")
+        if mode not in ("signin", "connect", "join"):
+            mode = "signin"
+        invite = request.query.get("invite", "")[:64] if mode == "join" else ""
         state = secrets.token_urlsafe(24)
-        resp = web.HTTPFound(self.discord.authorize_url(state))
+        resp = web.HTTPFound(self.discord.authorize_url(state, prompt=mode != "signin"))
         resp.set_cookie(
             STATE_COOKIE,
-            f"{state}|{_safe_next(request)}",
+            "|".join([state, mode, invite, valid_next(request.query.get("next", "/"))]),
             max_age=600,
             httponly=True,
             secure=self.cfg.secure,
@@ -204,80 +219,88 @@ class Auth:
         )
         raise resp
 
-    async def callback(self, request: web.Request) -> web.StreamResponse:
-        saved = request.cookies.get(STATE_COOKIE, "")
-        state, _, next_url = saved.partition("|")
+    async def discord_callback(self, request: web.Request) -> web.StreamResponse:
+        if self.discord is None:
+            raise web.HTTPNotFound()
+        state, mode, invite_code, next_url = (request.cookies.get(STATE_COOKIE, "") + "|||").split(
+            "|"
+        )[:4]
         if not state or not secrets.compare_digest(state, request.query.get("state", "")):
-            return _page(400, "Sign-in expired", "Please go back and sign in again.")
+            return page(400, "Sign-in expired", "Please go back and try again.")
         if "error" in request.query:
-            # prompt=none fails if the member hasn't approved the app yet: ask properly.
             if request.query["error"] in ("consent_required", "interaction_required"):
-                url = self.discord.authorize_url(state).replace("&prompt=none", "")
-                raise web.HTTPFound(url)
-            return _page(403, "Sign-in cancelled", "Discord didn't sign you in.")
+                # prompt=none fails until the app is approved once: ask properly.
+                raise web.HTTPFound(self.discord.authorize_url(state, prompt=True))
+            return page(403, "Sign-in cancelled", "Discord didn't sign you in.")
         token = await self.discord.exchange(request.query.get("code", ""))
         try:
             ident = await self.discord.guild_member(token["access_token"])
         except PermissionError:
-            return _page(403, "Sign-in failed", "Discord didn't accept the sign-in.")
+            ident = None
         if ident is None:
-            return _page(
-                403, "Not in the server", "Sign in with the Discord account you use in our server."
-            )
-        allowed = self.is_allowed(ident)
-        member = self.db.upsert_member(
-            ident.id,
-            ident.name,
-            ident.avatar,
-            allowed=allowed,
-            access_token=token["access_token"],
-            refresh_token=token.get("refresh_token"),
-            token_expires=now_ms() + int(token.get("expires_in", 604800)) * 1000,
-        )
-        if not allowed:
-            return _page(
+            return page(
                 403,
-                "Members only",
-                "Your Discord account doesn't have the org member role. Ask an officer.",
+                "Not in the server",
+                "Use the Discord account that's in the org's Discord server.",
             )
-        resp = web.HTTPFound(_valid_next(next_url))
-        self._set_session(resp, member)
+        tokens = {
+            "access": token["access_token"],
+            "refresh": token.get("refresh_token"),
+            "expires": expires_at(token),
+        }
+        if self.member_role() and not self.role_ok(ident):
+            return page(
+                403, "Members only", "Your Discord account doesn't have the org's member role."
+            )
+        existing = self.db.member_by_discord(ident.id)
+
+        if mode == "connect":
+            me = await self.current(request)
+            if me is None:
+                return page(401, "Not signed in", "Sign in first, then connect Discord.")
+            if existing is not None and existing.id != me.id:
+                return page(
+                    409, "Already connected", "That Discord account belongs to another member."
+                )
+            self.db.set_discord(me.id, ident.id, avatar=ident.avatar, **tokens)
+            member = self.db.member(me.id)
+        elif existing is not None:
+            if not existing.active:
+                self.db.set_active(existing.id, True)  # role checked just above
+            self.db.discord_checked(existing.id, **tokens)
+            member = self.db.member(existing.id)
+        elif mode == "join" and invite_code:
+            invite = self.db.use_invite(invite_code)
+            if invite is None:
+                return page(410, "Invite expired", "Ask for a new invite link.")
+            member = self.db.new_member(ident.name, role=invite.role, avatar=ident.avatar)
+            self.db.set_discord(member.id, ident.id, avatar=ident.avatar, **tokens)
+        elif self.discord_autojoin():
+            member = self.db.new_member(ident.name, avatar=ident.avatar)
+            self.db.set_discord(member.id, ident.id, avatar=ident.avatar, **tokens)
+            log.info("New member from Discord: %s", member.id)
+        else:
+            return page(
+                403,
+                "No account yet",
+                "Ask an admin for an invite link, then choose “Use Discord” on it.",
+            )
+        assert member is not None
+        resp = web.HTTPFound(valid_next(next_url or "/"))
+        self.sign_in(resp, member)
         resp.del_cookie(STATE_COOKIE, path="/auth/")
-        log.info("Signed in: %s", member.id)
-        raise resp
-
-    async def logout(self, request: web.Request) -> web.StreamResponse:
-        sid = request.cookies.get(SESSION_COOKIE)
-        if sid:
-            self.db.end_session(sid)
-        resp = web.json_response({"ok": True})
-        resp.del_cookie(SESSION_COOKIE, path="/")
-        return resp
-
-    async def dev_login(self, request: web.Request) -> web.StreamResponse:
-        """Sign in as a made-up member. Only with HUB_DEV_LOGIN=1 on a plain-http hub."""
-        if not self.cfg.dev_login or self.cfg.secure:
-            raise web.HTTPNotFound()
-        name = (request.query.get("name") or "Dev Pilot").strip()[:32] or "Dev Pilot"
-        slug = "".join(ch for ch in name.lower() if ch.isalnum())[:24] or "pilot"
-        member = self.db.upsert_member(f"dev-{slug}", name, None, allowed=True)
-        resp = web.HTTPFound(_valid_next(request.query.get("next", "/")))
-        self._set_session(resp, member)
         raise resp
 
 
-def _safe_next(request: web.Request) -> str:
-    return _valid_next(request.query.get("next", "/"))
-
-
-def _valid_next(value: str) -> str:
+def valid_next(value: str) -> str:
     """Only same-site paths: never redirect off the hub after sign-in."""
     if not value.startswith("/") or value.startswith("//") or "\\" in value:
         return "/"
     return value
 
 
-def _page(status: int, title: str, text: str) -> web.Response:
+def page(status: int, title: str, text: str) -> web.Response:
+    """A plain message page (sign-in errors). Titles and texts are ours, never user input."""
     html = f"""<!doctype html><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{title} · Fleet Telemetry</title>

@@ -42,7 +42,7 @@ def test_replay_through_pipeline_and_uplink(tmp_path, monkeypatch):
     monkeypatch.setenv("FLEET_TELEMETRY_HOME", str(tmp_path / "agent"))
 
     async def main():
-        async with running_hub(tmp_path / "hub") as (hub, _pub, _int), browser() as viewer:
+        async with running_hub(tmp_path / "hub") as (hub, _srv), browser() as viewer:
             await sign_in(viewer, hub, "Rook")
             token = await link_with_command(hub, viewer)
 
@@ -93,7 +93,7 @@ def test_replay_through_pipeline_and_uplink(tmp_path, monkeypatch):
 
 def test_uplink_gives_up_on_a_revoked_token(tmp_path):
     async def main():
-        async with running_hub(tmp_path) as (hub, _pub, _int):
+        async with running_hub(tmp_path) as (hub, _srv):
             uplink = Uplink(Pipeline(), hub.cfg.hub_url, "not-a-token", {"status"})
             uplink.start()
             await asyncio.wait_for(uplink._task, 5)
@@ -115,3 +115,50 @@ def test_agent_token_is_stored_per_hub(tmp_path, monkeypatch):
     fleetlink.forget_token("https://fleet.example")
     assert fleetlink.load_token("https://fleet.example") is None
     assert aiohttp  # the agent's only network dependency
+
+
+def test_invite_links_and_hub_addresses():
+    assert fleetlink.parse_target("https://fleet.example.org/join/AbC_12-x") == (
+        "https://fleet.example.org",
+        "AbC_12-x",
+    )
+    assert fleetlink.parse_target("fleet.example.org/") == ("https://fleet.example.org", None)
+    assert fleetlink.parse_target("https://example.org/fleet/join/xyz") == (
+        "https://example.org/fleet",
+        "xyz",
+    )
+    assert fleetlink.parse_target("http://127.0.0.1:8100") == ("http://127.0.0.1:8100", None)
+
+
+def test_join_with_an_invite_from_the_agent(tmp_path, monkeypatch):
+    monkeypatch.setenv("FLEET_TELEMETRY_HOME", str(tmp_path / "agent"))
+    log = tmp_path / "Game.log"
+    log.write_text(
+        "<2026-11-23T18:13:52.484Z> [Notice] <Legacy login response> [CIG-net] User Login "
+        "Success - Handle[TestPilot] - Time[1]\n",
+        encoding="utf-8",
+    )
+    assert fleetlink.game_handle(log) == "TestPilot"
+
+    async def main():
+        async with running_hub(tmp_path / "hub") as (hub, _srv), browser() as admin:
+            await sign_in(admin, hub, "Admin")
+            resp = await admin.post(
+                f"{hub.cfg.hub_url}/api/admin/invites",
+                json={"uses": 1},
+                headers={"Origin": hub.cfg.origin},
+            )
+            hub_url, code = fleetlink.parse_target((await resp.json())["url"])
+            settings = await fleetlink.join(hub_url, code, "TestPilot", machine="RIG")
+            assert settings.member_name == "TestPilot" and settings.org == "Fleet"
+            token = fleetlink.load_token(hub_url)
+            url = await fleetlink.login_link(hub_url, token)
+            assert "/auth/token/" in url
+            try:
+                await fleetlink.join(hub_url, code, "Again")
+            except fleetlink.LinkError as exc:
+                assert "expired" in str(exc)
+            else:
+                raise AssertionError("a used invite should fail")
+
+    asyncio.run(main())

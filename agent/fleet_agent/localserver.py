@@ -4,6 +4,7 @@
 - ``/ws``    WebSocket: state, then every snapshot (~17/s) and event as they happen
 - ``/api/state``  the latest of everything, as JSON
 - ``/api/mode``   ``{"mode": "local"}``: the same page is served by the hub in fleet mode
+- ``/api/fleet/open``  POST: a one-time link to the fleet page, signed in (when linked)
 
 In replay mode (``run --replay``) the page also gets the recording's timeline
 (chapters and every event on it) and may send replay controls over ``/ws``:
@@ -112,10 +113,13 @@ class LocalServer:
                 web.get("/ws", self._ws),
                 web.get("/api/state", self._api_state),
                 web.get("/api/mode", self._api_mode),
+                web.post("/api/fleet/open", self._fleet_open),
                 web.get("/{tail:.*}", self._static),
             ]
         )
         self._runner: web.AppRunner | None = None
+        self.fleet_open = None
+        """Set when linked to a hub: async () -> one-time sign-in URL."""
 
     @web.middleware
     async def _guard(self, request: web.Request, handler):
@@ -126,6 +130,15 @@ class LocalServer:
         return await handler(request)
 
     # -- routes
+
+    async def _fleet_open(self, _request: web.Request) -> web.Response:
+        if self.fleet_open is None:
+            return web.json_response({"error": "not linked to a fleet"}, status=404)
+        try:
+            url = await self.fleet_open()
+        except Exception as exc:  # the hub is down, the token was revoked...
+            return web.json_response({"error": str(exc)}, status=502)
+        return web.json_response({"url": url})
 
     async def _api_mode(self, _request: web.Request) -> web.Response:
         return web.json_response({"mode": "local", "agent_version": __version__})

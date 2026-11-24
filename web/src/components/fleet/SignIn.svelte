@@ -1,114 +1,81 @@
 <script lang="ts">
+  import { api } from "../../lib/api";
   import type { HubMode } from "../../lib/types";
+  import Card from "./Card.svelte";
 
   let { mode }: { mode: HubMode } = $props();
   const next = location.pathname + location.search + location.hash;
-  const login = $derived(`${mode.login}?next=${encodeURIComponent(next)}`);
+
+  let code = $state("");
+  let invite = $state("");
   let devName = $state("");
+  let error = $state("");
+
+  async function useCode(e: Event) {
+    e.preventDefault();
+    error = "";
+    try {
+      await api("POST", "/api/signin/code", { code });
+      location.reload();
+    } catch (err) {
+      error = (err as Error).message;
+    }
+  }
+  function useInvite(e: Event) {
+    e.preventDefault();
+    const m = /\/join\/([A-Za-z0-9_-]+)/.exec(invite.trim());
+    const c = m ? m[1] : invite.trim();
+    if (c) location.href = `/join/${encodeURIComponent(c)}`;
+  }
 </script>
 
-<main>
-  <section class="card">
-    <div class="brand">
-      <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 3 29 27H3z" /><circle cx="16" cy="20" r="3" /></svg>
-      <span>Fleet Telemetry</span>
-    </div>
-    <h1>Sign in to see the fleet</h1>
-    <p>Members of the org's Discord server with the member role can see everyone's status here.</p>
-    {#if mode.discord}
-      <a class="discord" href={login}>Sign in with Discord</a>
-    {:else if !mode.dev_login}
-      <p class="warn">Discord sign-in isn't set up on this hub yet.</p>
-    {/if}
-    {#if mode.dev_login}
-      <form method="get" action="/auth/dev">
-        <input type="hidden" name="next" value={next} />
-        <input name="name" placeholder="Any name (test sign-in)" bind:value={devName} required maxlength="32" />
-        <button type="submit">Test sign-in</button>
-      </form>
-    {/if}
-  </section>
-</main>
+<Card title={mode.org} subtitle="Fleet Telemetry">
+  {#if mode.setup}
+    <p class="warn">
+      This hub has no admin yet. Its setup link is in the hub's log (for Docker: <code>docker compose logs hub</code>).
+    </p>
+  {/if}
 
-<style>
-  main {
-    min-height: 100dvh;
-    display: grid;
-    place-items: center;
-    padding: 16px;
-  }
-  .card {
-    width: min(420px, 100%);
-    padding: 22px 24px;
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    background: linear-gradient(180deg, var(--panel-2), var(--panel));
-  }
-  .brand {
-    display: flex;
-    align-items: center;
-    gap: 9px;
-    font-weight: 700;
-  }
-  .brand svg {
-    width: 22px;
-    height: 22px;
-    fill: none;
-    stroke: var(--accent);
-    stroke-width: 3;
-    stroke-linejoin: round;
-  }
-  .brand circle {
-    fill: var(--accent);
-    stroke: none;
-  }
-  h1 {
-    font-size: 1.25rem;
-    margin: 18px 0 6px;
-  }
-  p {
-    color: var(--text-2);
-    font-size: 0.9rem;
-    margin: 0 0 16px;
-  }
-  .warn {
-    color: var(--warn);
-  }
-  .discord {
-    display: block;
-    text-align: center;
-    padding: 10px;
-    border-radius: 2px;
-    background: #5865f2;
-    color: #fff;
-    font-weight: 700;
-    text-decoration: none;
-  }
-  .discord:hover {
-    filter: brightness(1.1);
-  }
-  form {
-    display: flex;
-    gap: 6px;
-    margin-top: 12px;
-  }
-  input:not([type="hidden"]) {
-    flex: 1;
-    min-width: 0;
-    padding: 7px 9px;
-    border: 1px solid var(--line-2);
-    border-radius: 2px;
-    background: var(--bg-2);
-    color: var(--text);
-    font: inherit;
-    font-size: 0.88rem;
-  }
-  form button {
-    border: 1px solid var(--line-2);
-    background: var(--bg-2);
-    border-radius: 2px;
-    padding: 0 12px;
-    cursor: pointer;
-    font-size: 0.85rem;
-  }
-</style>
+  <h1>Sign in to see the fleet</h1>
+
+  <section>
+    <h3>From your gaming PC</h3>
+    <p>If your agent is linked, run <code>fleet_agent open</code> or click <b>Fleet</b> in its cockpit view.</p>
+  </section>
+
+  <section>
+    <h3>I have a code</h3>
+    <p>From <b>Your account → Sign in on another device</b>, on a device that's signed in.</p>
+    <form class="row" onsubmit={useCode}>
+      <input bind:value={code} placeholder="ABC-123" maxlength="8" autocomplete="one-time-code" required />
+      <button class="btn">Sign in</button>
+    </form>
+  </section>
+
+  <section>
+    <h3>I have an invite</h3>
+    <form class="row" onsubmit={useInvite}>
+      <input bind:value={invite} placeholder="Paste the invite link" required />
+      <button class="btn">Open</button>
+    </form>
+  </section>
+
+  {#if mode.discord}
+    <section>
+      <a class="discord" href="/auth/discord?next={encodeURIComponent(next)}">Sign in with Discord</a>
+    </section>
+  {/if}
+
+  {#if mode.dev_login}
+    <section>
+      <h3>Test sign-in (local hub only)</h3>
+      <form class="row" method="get" action="/auth/dev">
+        <input type="hidden" name="next" value={next} />
+        <input name="name" placeholder="Any name" bind:value={devName} required maxlength="32" />
+        <button class="btn" type="submit">Sign in</button>
+      </form>
+    </section>
+  {/if}
+
+  {#if error}<p class="error">{error}</p>{/if}
+</Card>

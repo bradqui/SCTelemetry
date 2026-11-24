@@ -1,43 +1,31 @@
 # CLAUDE.md
 
-Star Citizen org fleet telemetry: Windows agent → FastAPI hub → PWA + ButlerBot cog. The build spec is [docs/SC_FLEET_TELEMETRY_SPEC.md](docs/SC_FLEET_TELEMETRY_SPEC.md); read it before starting any phase.
+Star Citizen org fleet telemetry, open source (MIT): Windows agent → hub (one per org, Docker) → fleet page; bots use the hub's integration API. The original design and its numbered decisions are in [docs/SC_FLEET_TELEMETRY_SPEC.md](docs/SC_FLEET_TELEMETRY_SPEC.md); later decisions are appended there, so read the decisions list before changing behaviour.
 
-## Hard rules (from the spec)
+## Hard rules
 
 - Do **not** copy code from `TheBanjolorian/7hills-link`. It has no license, so implement from the documented behavior only.
 - Agent local servers bind `127.0.0.1` only. There is no command path from the network to the game, ever.
 - Everything is shared by default, but any category a member switches off never leaves the agent.
-- Fixtures must be scrubbed of aUEC before they are committed. Raw captures go in the gitignored `captures/` folder.
+- Fixtures must be scrubbed of aUEC and player names before they are committed (handle `TestPilot`, others `Wingmate`; `tests/test_fixtures.py` checks). Raw captures go in the gitignored `captures/` folder.
+- The repo is public: no real player names, addresses, tokens or server details in code, tests, fixtures or docs. Test members use made-up names (Rook, Ace, Kestrel...).
+- Nothing org-specific in code: the hub address comes from the invite link, the org name from hub settings. No bot code here; bots live in their own projects and use `docs/HUB_API.md`.
 
 ## Development
 
-- Python 3.12 via `uv` (`uv sync --python 3.12`, `uv run pytest -q`, `uv run ruff check .`, `uv run ruff format .`). CI runs the same on Ubuntu and Windows.
+- Python 3.12 via `uv` (`uv sync --python 3.12`, `uv run pytest -q`, `uv run ruff check .`, `uv run ruff format .`). CI runs the same on Ubuntu and Windows, type-checks and builds the page, and builds and starts the hub image.
 - Agent code lives in `agent/fleet_agent/` (CLI: `uv run python -m fleet_agent --help`). Tools in `tools/`.
-- Set `FLEET_TELEMETRY_HOME` to a scratch folder when experimenting, so the real `%LOCALAPPDATA%\FleetTelemetry` state isn't touched.
-- Never switch telemetry on/off in Brad's real `user.cfg` without asking. Read-only commands (`installs`, `status`, `protoset`) are fine.
+- Set `FLEET_TELEMETRY_HOME` to a scratch folder when experimenting, so the real `%LOCALAPPDATA%\FleetTelemetry` state (settings, hub link) isn't touched.
+- Never switch telemetry on/off in the maintainer's real `user.cfg` without asking. Read-only commands (`installs`, `status`, `protoset`) are fine.
 - Code map:
-  - `shared/fleet_shared/models.py`: the wire schema (Python 3.11-safe; CI checks it).
+  - `shared/fleet_shared/models.py`: the wire schema (Python 3.11-safe; CI checks it). `patch.py`: the merge patches (deltas) agent → hub and hub → page.
   - `agent/fleet_agent/normalize.py` + `events.py`: raw frames to snapshots and events. Every behaviour has a fixture test in `tests/agent/test_normalize.py`.
   - `runtime.py` + `localserver.py`: the live pipeline and the 127.0.0.1 server.
-  - `gamelog.py`: follows Game.log (read-only) for what the stream lacks: location (armistice, jurisdiction, monitored, restricted, server), quantum route/arrival, contracts and objectives, rewards, kills and losses, injuries. `LogState` turns lines into snapshot state (`location`, `missions`, `session`, `vitals.injuries`) and events. Only recognised lines are kept, captures included; fixtures carry scrubbed lines (handle `TestPilot`, others `Wingmate`). Shared under the `location`, `mission` and `combat` categories, on by default (spec decision 10). Line formats and their history: docs/FIELDS.md, "Game.log".
-  - `fleetlink.py` + `uplink.py`: linking to the hub (browser sign-in; token in Windows Credential Manager, or a file under `FLEET_TELEMETRY_HOME`) and the outbound WebSocket: hello, full snapshot, then merge-patch deltas (`fleet_shared.patch`) at up to 10 Hz, events immediately, all through `apply_sharing`/`event_shared`.
-  - Hub (`hub/fleet_hub/`): `app.py` routes (public 8100 + internal 8101), `auth.py` Discord sign-in and the hourly role re-check, `db.py` SQLite (hashes only for secrets), `fleet.py` live state, roster summaries and the viewer fan-out (each viewer diffs against what it last sent). Tests in `tests/hub/` run a real hub (test sign-in) plus a fake Discord. Deploy notes: `deploy/README.md`.
+  - `gamelog.py`: follows Game.log (read-only) for what the stream lacks: location (armistice, jurisdiction, monitored, restricted, server), quantum route/arrival, contracts and objectives, rewards, kills and losses, injuries. `LogState` turns lines into snapshot state (`location`, `missions`, `session`, `vitals.injuries`) and events. Only recognised lines are kept, captures included. Shared under the `location`, `mission` and `combat` categories, on by default (spec decision 10). Line formats and their history: docs/FIELDS.md, "Game.log".
+  - `fleetlink.py` + `uplink.py`: joining (invite link → account + PC token in one call), linking another PC (code confirmed on the page), one-time sign-in links (`open`), the token (Windows Credential Manager, or a file under `FLEET_TELEMETRY_HOME`), and the outbound WebSocket: hello, full snapshot, then deltas at up to 10 Hz, events immediately, all through `apply_sharing`/`event_shared`.
+  - Hub (`hub/fleet_hub/`): `app.py` every route on one port (pages, accounts, agents, admin, `/api/v1` integrations), `auth.py` sessions and the optional Discord sign-in with its hourly role re-check, `db.py` SQLite with numbered migrations (add to `MIGRATIONS`, never edit one; secrets stored as hashes only), `fleet.py` live state, roster summaries and the viewer fan-out (each viewer diffs against what it last sent). A hub with no admin logs a one-time setup link. Tests in `tests/hub/` run a real hub plus a fake Discord. Running one: `deploy/README.md`; the integration API: `docs/HUB_API.md` (keep it in step with `app.py`).
   - `replay.py`: the fake game over gRPC (`ReplayServer`), plus `Recording` (frames, chapters, event index) and `Playhead` (play/pause/seek/step) for `run --replay`, which `runtime.ReplaySource` feeds straight into the pipeline. A jump (seek, step back, loop) resets the pipeline and the page clears; a new chapter resets the pipeline but keeps the event list.
 - Develop without the game: `uv run python -m fleet_agent run --replay --open` (timeline with every event at the bottom of the page; `?customize` opens the Customize drawer on load). To exercise the gRPC path instead: `uv run python tools/replay.py` (port 2943) plus `uv run python -m fleet_agent run --game-port 2943`.
-- Run the fleet locally: `HUB_DEV_LOGIN=1 HUB_INTERNAL_SECRET=dev uv run python -m fleet_hub`, `fleet_agent link --hub http://127.0.0.1:8100`, then `fleet_agent run --replay --uplink --hub http://127.0.0.1:8100`; open http://127.0.0.1:8100 (headless Edge screenshots: `/auth/dev?name=X&next=/` signs in). Use a separate `FLEET_TELEMETRY_HOME` per test member.
-- Web UI: `web/`, Svelte 5 + Vite + TS. `main.ts` asks `/api/mode`: the agent says local (`App.svelte`), the hub says fleet (`components/fleet/FleetApp.svelte`). `web/src/lib/types.ts` mirrors the Python models, so change both together. The dashboard is panels (`web/src/lib/panels.ts`: registry, presets, layouts) drawn by `Dashboard.svelte`; each panel in `components/panels/` gets one `ctx` (`lib/context.ts`) and adapts to its own width with `@container panel` queries. Preferences (layout, accent, units) live in `lib/prefs.svelte.ts` (localStorage). TypeScript is pinned to 6.x because svelte-check doesn't support TS 7 yet. To check layouts without a browser tool, screenshot with headless Edge (`msedge --headless=new --screenshot=... --window-size=W,H --virtual-time-budget=4000 URL`); its minimum width is 500 px.
+- Run the fleet locally: `HUB_DEV_LOGIN=1 uv run python -m fleet_hub` (sign in by name; the first is admin), make an invite (Admin → Invites, or POST `/api/admin/invites`), then per test member with its own `FLEET_TELEMETRY_HOME`: `fleet_agent link <invite> --name X` and `fleet_agent run --replay --uplink`. Headless Edge screenshots of the fleet page: get a one-time link (`POST /api/agent/login-link` with the member's token; append `?next=/%3Fadmin` to open the admin dialog, `?next=/%23m=<id>` for a member) and screenshot it. In Git Bash set `MSYS_NO_PATHCONV=1`, or arguments starting with `/` become Windows paths.
+- Web UI: `web/`, Svelte 5 + Vite + TS, built with absolute paths (`base: "/"`). `main.ts` asks `/api/mode`: the agent says local (`App.svelte`), the hub says fleet (`components/fleet/FleetApp.svelte`: join, sign-in, link, board). `web/src/lib/types.ts` mirrors the Python models, so change both together. The dashboard is panels (`web/src/lib/panels.ts`: registry, presets, layouts) drawn by `Dashboard.svelte`; each panel in `components/panels/` gets one `ctx` (`lib/context.ts`) and adapts to its own width with `@container panel` queries. Preferences (layout, accent, units) live in `lib/prefs.svelte.ts` (localStorage). TypeScript is pinned to 6.x because svelte-check doesn't support TS 7 yet. To check layouts without a browser tool, screenshot with headless Edge (`msedge --headless=new --screenshot=... --window-size=W,H --virtual-time-budget=4000 URL`; use 10000+ for pages with a WebSocket); its minimum width is 500 px.
 - The real schema is in [docs/FIELDS.md](docs/FIELDS.md). The normalizer must treat every field as optional: LIVE lacks hull/shields/master mode today, and CIG can change it in any patch.
-
-## ButlerBot integration facts
-
-ButlerBot is the public repo `bradqui/ButlerBot`. Its `CLAUDE.md` is the authority on the points below; these are summarized from it (2026-11-22):
-
-- Red-DiscordBot **3.5.24**, discord.py 2.7.1, **Python 3.11**, Docker image `phasecorex/red-discordbot`, JSON Config storage, prefix `!`.
-  → The cog, and anything in `shared/` that the cog imports, must run on **Python 3.11** (the spec suggests 3.12 for the agent and hub, which is fine).
-- Custom cogs live in `data/cogs/CogManager/cogs/<cog>/` and deploy by `git pull` of the ButlerBot repo on the server, then `!reload`/`!load`. Dependencies go in the cog's `info.json` `requirements` and are installed with `!pipinstall`.
-- Cog conventions: Red `Config` with a fixed identifier, `logging.getLogger("red.<cog>")`, cancel background tasks in `cog_unload`, cards and colors from the shared `_shared/butlerui.py` module (loaded by file path with `_load_butlerui()`), and a real prefix in user-facing hints (never a literal `[p]`).
-- Tests there run on an offline harness with stubbed `redbot` (`tests/harness.py`), on GitHub Actions with Python 3.11.
-- ButlerBot runs on the same host as the hub, in its own container, with host networking: the cog calls the hub's internal API at `127.0.0.1:8101` with the `X-Internal-Secret` header.
-- No Redis: the cog talks to the hub over its internal REST API and `/internal/events` WebSocket.
-
-**Still undecided:** whether the `telemetry` cog ships inside the ButlerBot repo (matches how the server already deploys and gives it `butlerui`) or stays in this repo's `cog/` and gets copied or synced over.

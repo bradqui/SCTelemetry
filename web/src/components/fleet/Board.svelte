@@ -3,21 +3,26 @@
   import { FleetConnection } from "../../lib/fleet.svelte";
   import { ACCENTS, PrefsStore } from "../../lib/prefs.svelte";
   import { Trends } from "../../lib/trends.svelte";
-  import type { Me } from "../../lib/types";
+  import type { Account, HubMode } from "../../lib/types";
+  import AccountDialog from "./AccountDialog.svelte";
+  import AdminDialog from "./AdminDialog.svelte";
   import FleetBar from "./FleetBar.svelte";
   import MemberView from "./MemberView.svelte";
   import Overview from "./Overview.svelte";
-  import PcsDialog from "./PcsDialog.svelte";
   import Roster from "./Roster.svelte";
 
-  let { me }: { me: Me } = $props();
+  let { mode, me }: { mode: HubMode; me: Account } = $props();
 
   const fleet = new FleetConnection();
   const trends = new Trends();
   const store = new PrefsStore();
   const prefs = $derived(store.value);
   let now = $state(Date.now());
-  let showPcs = $state(false);
+  // ?account or ?admin opens that dialog on load (links from docs, screenshots).
+  const q = new URLSearchParams(location.search);
+  let dialog = $state<"account" | "admin" | null>(
+    q.has("admin") && untrack(() => me.role) === "admin" ? "admin" : q.has("account") ? "account" : null,
+  );
 
   // The open member lives in the address (#m=<id>), so Back returns to the fleet.
   function fromHash(): string | null {
@@ -75,11 +80,13 @@
 
 <main class:detail={!!member}>
   <FleetBar
+    org={mode.org}
     {me}
     {rows}
     socket={fleet.socket}
     onOpen={open}
-    onPcs={() => (showPcs = true)}
+    onAccount={() => (dialog = "account")}
+    onAdmin={() => (dialog = "admin")}
     onSignOut={signOut}
   />
   <div class="body">
@@ -106,8 +113,10 @@
   </div>
 </main>
 
-{#if showPcs}
-  <PcsDialog onClose={() => (showPcs = false)} />
+{#if dialog === "account"}
+  <AccountDialog {me} discord={mode.discord} onClose={() => (dialog = null)} />
+{:else if dialog === "admin"}
+  <AdminDialog {me} onClose={() => (dialog = null)} />
 {/if}
 
 <style>

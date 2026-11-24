@@ -3,7 +3,7 @@ name = "sctelemetry"
 version = "0.1.0"
 description = "Star Citizen org fleet telemetry: Windows agent, hub, and tools"
 readme = "README.md"
-# The agent and hub target 3.12; anything the ButlerBot cog imports must also run on 3.11.
+# The agent and hub target 3.12; the shared models also run on 3.11 (for integrations).
 requires-python = ">=3.11"
 dependencies = [
     "aiohttp>=3.10",

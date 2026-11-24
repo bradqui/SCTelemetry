@@ -241,13 +241,24 @@ export interface FleetEvent {
   data: Record<string, unknown>;
 }
 
+export interface Account extends Me {
+  role: "member" | "admin";
+  active: boolean;
+  discord: boolean;
+  created_at: number;
+}
+
 export interface HubMode {
   mode: "fleet";
   hub_version: string;
-  me: Me | null;
-  login: string;
+  /** The org's name (set by admins). */
+  org: string;
+  me: Account | null;
+  /** "Sign in with Discord" is available. */
   discord: boolean;
   dev_login: boolean;
+  /** No admin yet: the setup link is in the hub's log. */
+  setup: boolean;
 }
 
 export interface UplinkStatus {

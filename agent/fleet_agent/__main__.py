@@ -2,7 +2,9 @@
 
 python -m fleet_agent run     [--open] [--game-port 2943] [--ui-port 8740] [--no-uplink]
 python -m fleet_agent run     --replay [FILES...] [--speed 1] [--open] [--uplink]
-python -m fleet_agent link    [--hub https://fleet.example]
+python -m fleet_agent link    <invite link>            # join a fleet (from an admin)
+python -m fleet_agent link    https://fleet.example     # link another PC to your account
+python -m fleet_agent open                              # open the fleet page, signed in
 python -m fleet_agent unlink
 python -m fleet_agent share   [--off vitals uec ...] [--on ...]
 python -m fleet_agent installs
@@ -113,6 +115,8 @@ def cmd_run(args) -> None:
         want_uplink = args.uplink if playhead is not None else not args.no_uplink
         if want_uplink:
             uplink = _start_uplink(args, pipeline, install=None if playhead else _find(args))
+            if uplink is not None:
+                server.fleet_open = uplink.login_link
         url = f"http://127.0.0.1:{server.port}/"
         print(f"Fleet Telemetry agent: local view at {url}")
         print(f"{source} Ctrl+C stops.")
@@ -137,10 +141,14 @@ def _start_uplink(args, pipeline, install: Install | None):
     from .uplink import Uplink
 
     settings = load_settings()
-    hub = (args.hub or settings.hub_url).rstrip("/")
-    token = load_token(hub)
+    hub = (args.hub or settings.hub_url or "").rstrip("/")
+    token = load_token(hub) if hub else None
     if not token:
-        print(f"Fleet: not linked to {hub} (run: python -m fleet_agent link). Local view only.")
+        where = f" to {hub}" if hub else ""
+        print(
+            f"Fleet: not linked{where}. Local view only. To join a fleet, run "
+            "python -m fleet_agent link <invite link from your org's admin>."
+        )
         return None
     shared = settings.shared
     off = sorted(set(SHARE_CATEGORIES) - shared)
@@ -162,23 +170,65 @@ def _start_uplink(args, pipeline, install: Install | None):
 def cmd_link(args) -> None:
     import asyncio
 
-    from .fleetlink import LinkError, link, load_settings
+    from .fleetlink import LinkError, game_handle, join, link, parse_target
 
-    hub = (args.hub or load_settings().hub_url).rstrip("/")
-    print(f"Linking this PC to {hub}. A browser window opens: sign in with Discord and confirm.")
     try:
-        settings = asyncio.run(link(hub, open_browser=not args.no_browser))
+        hub, invite = parse_target(args.target)
+        if invite:
+            install = _find(args)
+            default = game_handle(install.game_log if install else None)
+            name = args.name or _ask_name(default)
+            print(f"Joining the fleet at {hub} as {name} ...")
+            settings = asyncio.run(join(hub, invite, name))
+        else:
+            print(f"Linking this PC to your account at {hub}.")
+            print("A browser window opens: sign in if asked, check the code and confirm.")
+            settings = asyncio.run(link(hub, open_browser=not args.no_browser))
     except LinkError as exc:
         sys.exit(str(exc))
-    print(f"Done: linked as {settings.member_name or 'you'}. Start the agent with: run")
+    org = f" ({settings.org})" if settings.org else ""
+    print(f"Done: this PC sends to {settings.hub_url}{org} as {settings.member_name or 'you'}.")
+    print("Start the agent with: python -m fleet_agent run    (open the fleet page: open)")
+
+
+def _ask_name(default: str | None) -> str:
+    prompt = (
+        f"Display name in the fleet [{default}]: " if default else "Display name in the fleet: "
+    )
+    if not sys.stdin or not sys.stdin.isatty():
+        if default:
+            return default
+        sys.exit("Pass a display name with --name.")
+    while True:
+        answer = input(prompt).strip() or (default or "")
+        if answer:
+            return answer[:32]
+
+
+def cmd_open(args) -> None:
+    import asyncio
+    import webbrowser
+
+    from .fleetlink import LinkError, load_settings, load_token, login_link
+
+    settings = load_settings()
+    token = load_token(settings.hub_url) if settings.hub_url else None
+    if not settings.hub_url or not token:
+        sys.exit("Not linked to a fleet. Run: python -m fleet_agent link <invite link>")
+    try:
+        url = asyncio.run(login_link(settings.hub_url, token))
+    except LinkError as exc:
+        sys.exit(str(exc))
+    webbrowser.open(url)
+    print(f"Opened {settings.hub_url} in your browser.")
 
 
 def cmd_unlink(args) -> None:
     from .fleetlink import unlink
 
     settings = unlink()
-    print(f"Done: this PC no longer sends to {settings.hub_url}.")
-    print("To remove it from the fleet's list too, revoke it on the hub's page (your PCs).")
+    print(f"Done: this PC no longer sends to {settings.hub_url or 'a fleet'}.")
+    print("To remove it from the fleet's list too, unlink it on the hub's page (Your account).")
 
 
 def cmd_share(args) -> None:
@@ -193,7 +243,7 @@ def cmd_share(args) -> None:
     if changes:
         save_settings(settings)
         print("Saved. Restart the agent for it to take effect.")
-    print(f"Sharing with {settings.hub_url}:")
+    print(f"Sharing with {settings.hub_url or '(no fleet linked yet)'}:")
     for c in SHARE_CATEGORIES:
         print(f"  [{'on ' if settings.share[c] else 'off'}] {c:<9} {SHARE_HELP[c]}")
 
@@ -334,9 +384,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--uplink", action="store_true", help="With --replay: send the replay to the hub too"
     )
-    p = add("link", cmd_link, "Link this PC to the fleet hub (signs in with Discord)")
-    p.add_argument("--hub", help="Hub address (default: the org's hub)")
+    p = add("link", cmd_link, "Join a fleet with an invite link, or link another PC")
+    p.add_argument("target", help="The invite link from your admin, or the hub's address")
+    p.add_argument("--name", help="Display name when joining (default: your in-game handle)")
     p.add_argument("--no-browser", action="store_true", help="Just print the address")
+    add("open", cmd_open, "Open the fleet page in your browser, signed in")
     add("unlink", cmd_unlink, "Stop sending to the fleet hub and forget the token")
     p = add("share", cmd_share, "Show or change what you share with the fleet")
     p.add_argument("--off", nargs="+", metavar="CATEGORY", help="Stop sharing these")

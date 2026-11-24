@@ -25,7 +25,7 @@ jobs:
       - run: uv run ruff format --check .
       - run: uv run pytest -q
 
-  # The ButlerBot cog runs on Python 3.11: the shared models must import there.
+  # Integrations may import the shared models on Python 3.11.
   shared-py311:
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -62,8 +62,8 @@ jobs:
       - run: docker build -f hub/Dockerfile -t fleet-telemetry-hub:ci .
       - name: Start it and check it answers
         run: |
-          docker run -d --name hub -p 127.0.0.1:8100:8100 -e HUB_DEV_LOGIN=1 -e HUB_INTERNAL_SECRET=ci fleet-telemetry-hub:ci
+          docker run -d --name hub -p 127.0.0.1:8100:8100 -e HUB_DEV_LOGIN=1 fleet-telemetry-hub:ci
           for i in $(seq 1 30); do curl -fs http://127.0.0.1:8100/api/health && break; sleep 1; done
           curl -fs http://127.0.0.1:8100/api/mode
           curl -fs http://127.0.0.1:8100/ | grep -q '<div id="app">'
-          docker logs hub
+          docker logs hub 2>&1 | tee /dev/stderr | grep -q 'No admin yet'

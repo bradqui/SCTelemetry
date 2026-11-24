@@ -12,6 +12,8 @@ export interface PanelCtx {
   compact: boolean;
   /** Wall clock, ticking once a second (for "12s ago"). */
   now: number;
+  /** Whose data this is, when it isn't yours (the fleet page): labels say their name. */
+  who?: string;
 }
 
 /** The same, for panels that only render in a ship. */

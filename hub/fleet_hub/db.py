@@ -1,12 +1,15 @@
-"""SQLite storage: members, sessions, linked agents, link codes and the event log.
+"""SQLite storage: members, sign-in, linked PCs, invites, API keys and the event log.
 
 Live telemetry is never stored here; it lives in memory (``fleet.py``). Calls are
 synchronous: each is a single indexed statement on a local file, well under a
 millisecond, so they run on the event loop directly.
 
-Secrets are stored as SHA-256 hashes only (session ids, agent tokens, device
-codes). Discord access tokens are kept so membership can be re-checked; they
-only grant ``identify`` and ``guilds.members.read``.
+Every secret is stored as a SHA-256 hash only: sessions, PC tokens, invite and
+pairing codes, API keys. Discord tokens (only for members who connect Discord)
+are kept so the org role can be re-checked.
+
+Schema changes are numbered migrations (``MIGRATIONS``), tracked with SQLite's
+``user_version``: add a new entry at the end, never edit an old one.
 """
 
 from __future__ import annotations
@@ -19,59 +22,95 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-SCHEMA = """
-CREATE TABLE IF NOT EXISTS members (
-    id            TEXT PRIMARY KEY,          -- Discord user id
-    name          TEXT NOT NULL,             -- server nickname, else global name
-    avatar        TEXT,
-    allowed       INTEGER NOT NULL DEFAULT 1,-- holds the org role, as of checked_at
-    checked_at    INTEGER NOT NULL,
-    access_token  TEXT,
-    refresh_token TEXT,
-    token_expires INTEGER,
-    created_at    INTEGER NOT NULL
-);
-CREATE TABLE IF NOT EXISTS sessions (
-    id_hash     TEXT PRIMARY KEY,
-    member_id   TEXT NOT NULL REFERENCES members(id) ON DELETE CASCADE,
-    created_at  INTEGER NOT NULL,
-    expires_at  INTEGER NOT NULL
-);
-CREATE TABLE IF NOT EXISTS agents (
-    id          INTEGER PRIMARY KEY,
-    member_id   TEXT NOT NULL REFERENCES members(id) ON DELETE CASCADE,
-    token_hash  TEXT NOT NULL UNIQUE,
-    machine     TEXT NOT NULL,
-    created_at  INTEGER NOT NULL,
-    last_seen   INTEGER,
-    revoked     INTEGER NOT NULL DEFAULT 0
-);
-CREATE TABLE IF NOT EXISTS link_codes (
-    user_code   TEXT PRIMARY KEY,
-    device_hash TEXT NOT NULL UNIQUE,
-    machine     TEXT NOT NULL,
-    created_at  INTEGER NOT NULL,
-    expires_at  INTEGER NOT NULL,
-    member_id   TEXT                         -- set when a signed-in member confirms
-);
-CREATE TABLE IF NOT EXISTS events (
-    id          INTEGER PRIMARY KEY,
-    member_id   TEXT NOT NULL,
-    t           INTEGER NOT NULL,
-    kind        TEXT NOT NULL,
-    data        TEXT NOT NULL
-);
-CREATE INDEX IF NOT EXISTS events_t ON events(t);
-CREATE TABLE IF NOT EXISTS settings (
-    key   TEXT PRIMARY KEY,
-    value TEXT NOT NULL
-);
-"""
+MIGRATIONS: list[str] = [
+    # 1: accounts owned by the hub; Discord optional
+    """
+    CREATE TABLE members (
+        id              TEXT PRIMARY KEY,
+        name            TEXT NOT NULL,
+        avatar          TEXT,
+        role            TEXT NOT NULL DEFAULT 'member',  -- member | admin
+        active          INTEGER NOT NULL DEFAULT 1,      -- 0: suspended (lost the Discord role)
+        created_at      INTEGER NOT NULL,
+        discord_id      TEXT UNIQUE,
+        discord_access  TEXT,
+        discord_refresh TEXT,
+        discord_expires INTEGER,
+        discord_checked INTEGER
+    );
+    CREATE TABLE sessions (
+        id_hash     TEXT PRIMARY KEY,
+        member_id   TEXT NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+        created_at  INTEGER NOT NULL,
+        expires_at  INTEGER NOT NULL
+    );
+    CREATE TABLE agents (
+        id          INTEGER PRIMARY KEY,
+        member_id   TEXT NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+        token_hash  TEXT NOT NULL UNIQUE,
+        machine     TEXT NOT NULL,
+        created_at  INTEGER NOT NULL,
+        last_seen   INTEGER,
+        revoked     INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE TABLE invites (
+        id          INTEGER PRIMARY KEY,
+        code_hash   TEXT NOT NULL UNIQUE,
+        role        TEXT NOT NULL DEFAULT 'member',
+        note        TEXT,
+        created_by  TEXT,                                -- member id, "setup" or "api:<key id>"
+        created_at  INTEGER NOT NULL,
+        expires_at  INTEGER,                             -- NULL: never
+        max_uses    INTEGER,                             -- NULL: unlimited
+        uses        INTEGER NOT NULL DEFAULT 0,
+        revoked     INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE TABLE pair_codes (                            -- short codes typed on another device
+        code        TEXT PRIMARY KEY,
+        kind        TEXT NOT NULL,                       -- link: an agent shows it
+                                                         -- signin: a signed-in browser shows it
+        secret_hash TEXT,                                -- link: the agent's polling secret
+        machine     TEXT,
+        member_id   TEXT REFERENCES members(id) ON DELETE CASCADE,
+        created_at  INTEGER NOT NULL,
+        expires_at  INTEGER NOT NULL
+    );
+    CREATE TABLE login_links (                           -- one-time sign-in links the agent opens
+        token_hash  TEXT PRIMARY KEY,
+        member_id   TEXT NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+        expires_at  INTEGER NOT NULL
+    );
+    CREATE TABLE api_keys (
+        id          INTEGER PRIMARY KEY,
+        key_hash    TEXT NOT NULL UNIQUE,
+        name        TEXT NOT NULL,
+        scopes      TEXT NOT NULL,                       -- space-separated: read invites
+        created_by  TEXT,
+        created_at  INTEGER NOT NULL,
+        last_used   INTEGER
+    );
+    CREATE TABLE events (
+        id          INTEGER PRIMARY KEY,
+        member_id   TEXT NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+        t           INTEGER NOT NULL,
+        kind        TEXT NOT NULL,
+        data        TEXT NOT NULL
+    );
+    CREATE INDEX events_t ON events(t);
+    CREATE TABLE settings (
+        key   TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+    );
+    """,
+]
 
 SESSION_DAYS = 30
-LINK_CODE_TTL_S = 600
-# No 0/O, 1/I/L: the code is read off one screen and typed or checked on another.
+PAIR_CODE_TTL_S = 600
+LOGIN_LINK_TTL_S = 120
+# No 0/O, 1/I/L: codes are read off one screen and typed on another.
 CODE_ALPHABET = "23456789ABCDEFGHJKMNPQRSTUVWXYZ"
+ROLES = ("member", "admin")
+API_SCOPES = ("read", "invites")
 
 
 def now_ms() -> int:
@@ -82,14 +121,20 @@ def sha256(value: str) -> str:
     return hashlib.sha256(value.encode()).hexdigest()
 
 
-def new_user_code() -> str:
+def new_short_code() -> str:
     raw = "".join(secrets.choice(CODE_ALPHABET) for _ in range(6))
     return f"{raw[:3]}-{raw[3:]}"
 
 
-def normalize_user_code(code: str) -> str:
+def normalize_code(code: str) -> str:
     raw = "".join(ch for ch in code.upper() if ch.isalnum())
-    return f"{raw[:3]}-{raw[3:]}" if len(raw) == 6 else code.upper()
+    return f"{raw[:3]}-{raw[3:]}" if len(raw) == 6 else code.strip().upper()
+
+
+def clean_name(name: str) -> str:
+    """A display name: printable, single line, at most 32 characters."""
+    name = " ".join("".join(ch for ch in str(name) if ch.isprintable()).split())
+    return name[:32]
 
 
 @dataclass
@@ -97,14 +142,30 @@ class Member:
     id: str
     name: str
     avatar: str | None
-    allowed: bool
-    checked_at: int
-    access_token: str | None = None
-    refresh_token: str | None = None
-    token_expires: int | None = None
+    role: str
+    active: int
+    created_at: int
+    discord_id: str | None = None
+    discord_access: str | None = None
+    discord_refresh: str | None = None
+    discord_expires: int | None = None
+    discord_checked: int | None = None
+
+    @property
+    def is_admin(self) -> bool:
+        return self.role == "admin"
 
     def public(self) -> dict:
         return {"id": self.id, "name": self.name, "avatar": self.avatar}
+
+    def account(self) -> dict:
+        return {
+            **self.public(),
+            "role": self.role,
+            "active": bool(self.active),
+            "discord": self.discord_id is not None,
+            "created_at": self.created_at,
+        }
 
 
 @dataclass
@@ -117,6 +178,39 @@ class Agent:
     revoked: bool
 
 
+@dataclass
+class Invite:
+    id: int
+    role: str
+    note: str | None
+    created_by: str | None
+    created_at: int
+    expires_at: int | None
+    max_uses: int | None
+    uses: int
+    revoked: bool
+
+    @property
+    def usable(self) -> bool:
+        return (
+            not self.revoked
+            and (self.expires_at is None or self.expires_at > now_ms())
+            and (self.max_uses is None or self.uses < self.max_uses)
+        )
+
+    def public(self) -> dict:
+        return {
+            "id": self.id,
+            "role": self.role,
+            "note": self.note,
+            "created_at": self.created_at,
+            "expires_at": self.expires_at,
+            "max_uses": self.max_uses,
+            "uses": self.uses,
+            "usable": self.usable,
+        }
+
+
 class Database:
     def __init__(self, path: Path | str) -> None:
         if str(path) != ":memory:":
@@ -125,7 +219,14 @@ class Database:
         self.conn.row_factory = sqlite3.Row
         self.conn.execute("PRAGMA journal_mode=WAL")
         self.conn.execute("PRAGMA foreign_keys=ON")
-        self.conn.executescript(SCHEMA)
+        self.migrate()
+
+    def migrate(self) -> int:
+        """Bring the schema up to date. Returns the version it's at."""
+        version = self.conn.execute("PRAGMA user_version").fetchone()[0]
+        for number, script in enumerate(MIGRATIONS[version:], start=version + 1):
+            self.conn.executescript(f"BEGIN;\n{script}\nPRAGMA user_version = {number};\nCOMMIT;")
+        return len(MIGRATIONS)
 
     def close(self) -> None:
         self.conn.close()
@@ -135,46 +236,91 @@ class Database:
 
     # -- members
 
-    def upsert_member(
-        self,
-        id: str,
-        name: str,
-        avatar: str | None,
-        *,
-        allowed: bool,
-        access_token: str | None = None,
-        refresh_token: str | None = None,
-        token_expires: int | None = None,
-    ) -> Member:
-        t = now_ms()
+    def new_member(self, name: str, *, role: str = "member", avatar: str | None = None) -> Member:
+        mid = "m_" + secrets.token_hex(8)
         self.conn.execute(
-            """INSERT INTO members (id, name, avatar, allowed, checked_at, access_token,
-                                    refresh_token, token_expires, created_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-               ON CONFLICT(id) DO UPDATE SET name=excluded.name, avatar=excluded.avatar,
-                   allowed=excluded.allowed, checked_at=excluded.checked_at,
-                   access_token=COALESCE(excluded.access_token, members.access_token),
-                   refresh_token=COALESCE(excluded.refresh_token, members.refresh_token),
-                   token_expires=COALESCE(excluded.token_expires, members.token_expires)""",
-            (id, name, avatar, int(allowed), t, access_token, refresh_token, token_expires, t),
+            "INSERT INTO members (id, name, avatar, role, created_at) VALUES (?, ?, ?, ?, ?)",
+            (
+                mid,
+                clean_name(name) or "Pilot",
+                avatar,
+                role if role in ROLES else "member",
+                now_ms(),
+            ),
         )
-        member = self.member(id)
+        member = self.member(mid)
         assert member is not None
         return member
 
-    def set_allowed(self, member_id: str, allowed: bool) -> None:
-        self.conn.execute(
-            "UPDATE members SET allowed=?, checked_at=? WHERE id=?",
-            (int(allowed), now_ms(), member_id),
-        )
-
     def member(self, member_id: str) -> Member | None:
         row = self._one("SELECT * FROM members WHERE id=?", member_id)
-        return _member(row) if row else None
+        return Member(**dict(row)) if row else None
+
+    def member_by_discord(self, discord_id: str) -> Member | None:
+        row = self._one("SELECT * FROM members WHERE discord_id=?", discord_id)
+        return Member(**dict(row)) if row else None
 
     def members(self) -> list[Member]:
         rows = self.conn.execute("SELECT * FROM members ORDER BY name COLLATE NOCASE").fetchall()
-        return [_member(r) for r in rows]
+        return [Member(**dict(r)) for r in rows]
+
+    def admin_count(self) -> int:
+        return self._one("SELECT COUNT(*) FROM members WHERE role='admin' AND active=1")[0]
+
+    def rename(self, member_id: str, name: str) -> None:
+        self.conn.execute("UPDATE members SET name=? WHERE id=?", (clean_name(name), member_id))
+
+    def set_role(self, member_id: str, role: str) -> None:
+        self.conn.execute("UPDATE members SET role=? WHERE id=?", (role, member_id))
+
+    def set_active(self, member_id: str, active: bool) -> None:
+        self.conn.execute("UPDATE members SET active=? WHERE id=?", (int(active), member_id))
+
+    def delete_member(self, member_id: str) -> None:
+        """Remove a member and everything about them (PCs, sessions, events)."""
+        self.conn.execute("DELETE FROM members WHERE id=?", (member_id,))
+
+    def set_discord(
+        self,
+        member_id: str,
+        discord_id: str | None,
+        *,
+        access: str | None = None,
+        refresh: str | None = None,
+        expires: int | None = None,
+        avatar: str | None = None,
+    ) -> None:
+        self.conn.execute(
+            """UPDATE members SET discord_id=?, discord_access=?, discord_refresh=?,
+                   discord_expires=?, discord_checked=?, avatar=COALESCE(?, avatar)
+               WHERE id=?""",
+            (
+                discord_id,
+                access,
+                refresh,
+                expires,
+                now_ms() if discord_id else None,
+                avatar,
+                member_id,
+            ),
+        )
+
+    def discord_checked(
+        self,
+        member_id: str,
+        *,
+        access: str | None = None,
+        refresh: str | None = None,
+        expires: int | None = None,
+    ) -> None:
+        self.conn.execute(
+            """UPDATE members SET discord_checked=?,
+                   discord_access=COALESCE(?, discord_access),
+                   discord_refresh=COALESCE(?, discord_refresh),
+                   discord_expires=COALESCE(?, discord_expires)
+               WHERE id=?""",
+            (now_ms(), access, refresh, expires, member_id),
+        )
 
     # -- sessions (browser sign-in)
 
@@ -194,7 +340,7 @@ class Database:
             sha256(sid),
             now_ms(),
         )
-        return _member(row) if row else None
+        return Member(**dict(row)) if row else None
 
     def end_session(self, sid: str) -> None:
         self.conn.execute("DELETE FROM sessions WHERE id_hash=?", (sha256(sid),))
@@ -202,13 +348,13 @@ class Database:
     def end_member_sessions(self, member_id: str) -> None:
         self.conn.execute("DELETE FROM sessions WHERE member_id=?", (member_id,))
 
-    # -- agents
+    # -- agents (linked PCs)
 
     def new_agent(self, member_id: str, machine: str) -> tuple[Agent, str]:
         token = secrets.token_urlsafe(32)
         cur = self.conn.execute(
             "INSERT INTO agents (member_id, token_hash, machine, created_at) VALUES (?, ?, ?, ?)",
-            (member_id, sha256(token), machine[:64], now_ms()),
+            (member_id, sha256(token), clean_name(machine) or "PC", now_ms()),
         )
         agent = self.agent(cur.lastrowid or 0)
         assert agent is not None
@@ -239,54 +385,208 @@ class Database:
             args.append(member_id)
         return self.conn.execute(sql, args).rowcount > 0
 
+    def member_last_seen(self) -> dict[str, int]:
+        rows = self.conn.execute(
+            "SELECT member_id, MAX(last_seen) FROM agents WHERE revoked=0 GROUP BY member_id"
+        )
+        return {r[0]: r[1] for r in rows if r[1]}
+
     def linked_member_ids(self) -> set[str]:
         rows = self.conn.execute("SELECT DISTINCT member_id FROM agents WHERE revoked=0")
         return {r[0] for r in rows}
 
-    # -- link codes (browser linking, spec §5.1)
+    # -- invites
 
-    def new_link_code(self, machine: str) -> tuple[str, str]:
-        """(user code shown to the member, secret device code the agent polls with)."""
+    def new_invite(
+        self,
+        *,
+        role: str = "member",
+        note: str | None = None,
+        created_by: str | None = None,
+        expires_in_s: int | None = 7 * 86400,
+        max_uses: int | None = 1,
+    ) -> tuple[Invite, str]:
+        code = secrets.token_urlsafe(12)
+        expires = now_ms() + expires_in_s * 1000 if expires_in_s else None
+        cur = self.conn.execute(
+            """INSERT INTO invites (code_hash, role, note, created_by, created_at, expires_at,
+                                    max_uses) VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (
+                sha256(code),
+                role if role in ROLES else "member",
+                clean_name(note or "")[:80] or None,
+                created_by,
+                now_ms(),
+                expires,
+                max_uses,
+            ),
+        )
+        invite = self.invite(cur.lastrowid or 0)
+        assert invite is not None
+        return invite, code
+
+    def invite(self, invite_id: int) -> Invite | None:
+        row = self._one("SELECT * FROM invites WHERE id=?", invite_id)
+        return _invite(row) if row else None
+
+    def invite_by_code(self, code: str) -> Invite | None:
+        row = self._one("SELECT * FROM invites WHERE code_hash=?", sha256(code.strip()))
+        return _invite(row) if row else None
+
+    def invites(self) -> list[Invite]:
+        rows = self.conn.execute(
+            "SELECT * FROM invites WHERE revoked=0 AND IFNULL(created_by, '') != 'setup' "
+            "ORDER BY created_at DESC LIMIT 100"
+        ).fetchall()
+        return [_invite(r) for r in rows]
+
+    def use_invite(self, code: str) -> Invite | None:
+        """Count one use, if the invite is still good. Returns it, or None."""
+        invite = self.invite_by_code(code)
+        if invite is None or not invite.usable:
+            return None
+        cur = self.conn.execute(
+            "UPDATE invites SET uses = uses + 1 "
+            "WHERE id=? AND (max_uses IS NULL OR uses < max_uses)",
+            (invite.id,),
+        )
+        return invite if cur.rowcount else None
+
+    def revoke_invite(self, invite_id: int) -> bool:
+        cur = self.conn.execute("UPDATE invites SET revoked=1 WHERE id=?", (invite_id,))
+        return cur.rowcount > 0
+
+    def setup_invite(self) -> str | None:
+        """While the hub has no admin: a fresh single-use admin invite (old ones revoked)."""
+        self.conn.execute("UPDATE invites SET revoked=1 WHERE created_by='setup'")
+        if self.admin_count():
+            return None
+        _invite, code = self.new_invite(
+            role="admin", created_by="setup", note="First admin", expires_in_s=None, max_uses=1
+        )
+        return code
+
+    # -- pairing codes (another device) and one-time sign-in links
+
+    def _new_pair(self, kind: str, *, member_id=None, secret_hash=None, machine=None) -> str:
         t = now_ms()
-        self.conn.execute("DELETE FROM link_codes WHERE expires_at < ?", (t,))
-        device = secrets.token_urlsafe(32)
+        self.conn.execute("DELETE FROM pair_codes WHERE expires_at < ?", (t,))
         for _ in range(10):
-            code = new_user_code()
+            code = new_short_code()
             try:
                 self.conn.execute(
-                    "INSERT INTO link_codes VALUES (?, ?, ?, ?, ?, NULL)",
-                    (code, sha256(device), machine[:64], t, t + LINK_CODE_TTL_S * 1000),
+                    "INSERT INTO pair_codes VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    (code, kind, secret_hash, machine, member_id, t, t + PAIR_CODE_TTL_S * 1000),
                 )
-                return code, device
+                return code
             except sqlite3.IntegrityError:
                 continue
-        raise RuntimeError("couldn't allocate a link code")
+        raise RuntimeError("couldn't allocate a code")
 
-    def link_code(self, user_code: str) -> sqlite3.Row | None:
+    def new_link_code(self, machine: str) -> tuple[str, str]:
+        """An agent wants linking: (code it shows, secret it polls with)."""
+        secret = secrets.token_urlsafe(32)
+        code = self._new_pair("link", secret_hash=sha256(secret), machine=clean_name(machine))
+        return code, secret
+
+    def link_code(self, code: str) -> sqlite3.Row | None:
         return self._one(
-            "SELECT * FROM link_codes WHERE user_code=? AND expires_at > ?",
-            normalize_user_code(user_code),
+            "SELECT * FROM pair_codes WHERE code=? AND kind='link' AND expires_at > ?",
+            normalize_code(code),
             now_ms(),
         )
 
-    def confirm_link_code(self, user_code: str, member_id: str) -> bool:
+    def confirm_link_code(self, code: str, member_id: str) -> bool:
         cur = self.conn.execute(
-            """UPDATE link_codes SET member_id=?
-               WHERE user_code=? AND expires_at > ? AND member_id IS NULL""",
-            (member_id, normalize_user_code(user_code), now_ms()),
+            """UPDATE pair_codes SET member_id=?
+               WHERE code=? AND kind='link' AND expires_at > ? AND member_id IS NULL""",
+            (member_id, normalize_code(code), now_ms()),
         )
         return cur.rowcount > 0
 
-    def poll_link(self, device: str) -> tuple[str, Agent | None, str | None]:
+    def poll_link(self, secret: str) -> tuple[str, Agent | None, str | None]:
         """("pending" | "expired" | "linked", agent, token). The token is issued once."""
-        row = self._one("SELECT * FROM link_codes WHERE device_hash=?", sha256(device))
+        row = self._one(
+            "SELECT * FROM pair_codes WHERE secret_hash=? AND kind='link'", sha256(secret)
+        )
         if row is None or row["expires_at"] < now_ms():
             return "expired", None, None
         if row["member_id"] is None:
             return "pending", None, None
-        self.conn.execute("DELETE FROM link_codes WHERE user_code=?", (row["user_code"],))
-        agent, token = self.new_agent(row["member_id"], row["machine"])
+        self.conn.execute("DELETE FROM pair_codes WHERE code=?", (row["code"],))
+        agent, token = self.new_agent(row["member_id"], row["machine"] or "PC")
         return "linked", agent, token
+
+    def new_signin_code(self, member_id: str) -> str:
+        """A signed-in member adds a device: the code they type on it."""
+        return self._new_pair("signin", member_id=member_id)
+
+    def use_signin_code(self, code: str) -> Member | None:
+        row = self._one(
+            "SELECT * FROM pair_codes WHERE code=? AND kind='signin' AND expires_at > ?",
+            normalize_code(code),
+            now_ms(),
+        )
+        if row is None:
+            return None
+        self.conn.execute("DELETE FROM pair_codes WHERE code=?", (row["code"],))
+        return self.member(row["member_id"])
+
+    def new_login_link(self, member_id: str) -> str:
+        token = secrets.token_urlsafe(32)
+        self.conn.execute("DELETE FROM login_links WHERE expires_at < ?", (now_ms(),))
+        self.conn.execute(
+            "INSERT INTO login_links VALUES (?, ?, ?)",
+            (sha256(token), member_id, now_ms() + LOGIN_LINK_TTL_S * 1000),
+        )
+        return token
+
+    def use_login_link(self, token: str) -> Member | None:
+        row = self._one(
+            "SELECT * FROM login_links WHERE token_hash=? AND expires_at > ?",
+            sha256(token),
+            now_ms(),
+        )
+        if row is None:
+            return None
+        self.conn.execute("DELETE FROM login_links WHERE token_hash=?", (row["token_hash"],))
+        return self.member(row["member_id"])
+
+    # -- API keys (integrations: bots, scripts)
+
+    def new_api_key(self, name: str, scopes: list[str], created_by: str) -> tuple[dict, str]:
+        key = "ftk_" + secrets.token_urlsafe(32)
+        scopes = [s for s in scopes if s in API_SCOPES] or ["read"]
+        cur = self.conn.execute(
+            "INSERT INTO api_keys (key_hash, name, scopes, created_by, created_at) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (
+                sha256(key),
+                clean_name(name) or "Integration",
+                " ".join(scopes),
+                created_by,
+                now_ms(),
+            ),
+        )
+        return self.api_key(cur.lastrowid or 0) or {}, key
+
+    def api_key(self, key_id: int) -> dict | None:
+        row = self._one("SELECT * FROM api_keys WHERE id=?", key_id)
+        return _key(row) if row else None
+
+    def api_keys(self) -> list[dict]:
+        rows = self.conn.execute("SELECT * FROM api_keys ORDER BY created_at").fetchall()
+        return [_key(r) for r in rows]
+
+    def api_key_by_secret(self, key: str) -> dict | None:
+        row = self._one("SELECT * FROM api_keys WHERE key_hash=?", sha256(key))
+        if row is None:
+            return None
+        self.conn.execute("UPDATE api_keys SET last_used=? WHERE id=?", (now_ms(), row["id"]))
+        return _key(row)
+
+    def delete_api_key(self, key_id: int) -> bool:
+        return self.conn.execute("DELETE FROM api_keys WHERE id=?", (key_id,)).rowcount > 0
 
     # -- events
 
@@ -296,10 +596,11 @@ class Database:
             (member_id, t, kind, json.dumps(data, separators=(",", ":"))),
         )
 
-    def recent_events(self, limit: int = 100) -> list[dict]:
+    def recent_events(self, limit: int = 100, since: int | None = None) -> list[dict]:
         rows = self.conn.execute(
-            "SELECT member_id, t, kind, data FROM events ORDER BY t DESC, id DESC LIMIT ?",
-            (limit,),
+            "SELECT member_id, t, kind, data FROM events WHERE t > ? "
+            "ORDER BY t DESC, id DESC LIMIT ?",
+            (since or 0, limit),
         ).fetchall()
         return [
             {
@@ -314,11 +615,13 @@ class Database:
     def prune(self, retention_days: int) -> int:
         cutoff = now_ms() - retention_days * 86_400_000
         n = self.conn.execute("DELETE FROM events WHERE t < ?", (cutoff,)).rowcount
-        self.conn.execute("DELETE FROM sessions WHERE expires_at < ?", (now_ms(),))
-        self.conn.execute("DELETE FROM link_codes WHERE expires_at < ?", (now_ms(),))
+        t = now_ms()
+        self.conn.execute("DELETE FROM sessions WHERE expires_at < ?", (t,))
+        self.conn.execute("DELETE FROM pair_codes WHERE expires_at < ?", (t,))
+        self.conn.execute("DELETE FROM login_links WHERE expires_at < ?", (t,))
         return n
 
-    # -- settings (changed at runtime by the cog's admin commands)
+    # -- settings (changed by admins on the page)
 
     def setting(self, key: str) -> str | None:
         row = self._one("SELECT value FROM settings WHERE key=?", key)
@@ -335,19 +638,6 @@ class Database:
             )
 
 
-def _member(row: sqlite3.Row) -> Member:
-    return Member(
-        id=row["id"],
-        name=row["name"],
-        avatar=row["avatar"],
-        allowed=bool(row["allowed"]),
-        checked_at=row["checked_at"],
-        access_token=row["access_token"],
-        refresh_token=row["refresh_token"],
-        token_expires=row["token_expires"],
-    )
-
-
 def _agent(row: sqlite3.Row) -> Agent:
     return Agent(
         id=row["id"],
@@ -357,3 +647,27 @@ def _agent(row: sqlite3.Row) -> Agent:
         last_seen=row["last_seen"],
         revoked=bool(row["revoked"]),
     )
+
+
+def _invite(row: sqlite3.Row) -> Invite:
+    return Invite(
+        id=row["id"],
+        role=row["role"],
+        note=row["note"],
+        created_by=row["created_by"],
+        created_at=row["created_at"],
+        expires_at=row["expires_at"],
+        max_uses=row["max_uses"],
+        uses=row["uses"],
+        revoked=bool(row["revoked"]),
+    )
+
+
+def _key(row: sqlite3.Row) -> dict:
+    return {
+        "id": row["id"],
+        "name": row["name"],
+        "scopes": row["scopes"].split(),
+        "created_at": row["created_at"],
+        "last_used": row["last_used"],
+    }

@@ -80,6 +80,12 @@ class Uplink:
         self._unsubscribe: Callable[[], None] | None = None
         self.sent = {"snapshot": 0, "delta": 0, "event": 0, "heartbeat": 0}
 
+    async def login_link(self) -> str:
+        """A one-time address that opens the fleet page signed in (the cockpit's Fleet chip)."""
+        from .fleetlink import login_link
+
+        return await login_link(self.hub_url, self.token)
+
     # -- lifecycle
 
     def start(self) -> None:

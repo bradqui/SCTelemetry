@@ -240,9 +240,11 @@ class Fleet:
         self.recent: deque[dict] = deque(db.recent_events(100), maxlen=RECENT_EVENTS)
         self.roster: dict[str, dict] = {}
         self.roster_version = 0
+        linked, seen = db.linked_member_ids(), db.member_last_seen()
         for member in db.members():
-            if member.allowed and member.id in db.linked_member_ids():
-                self.members[member.id] = MemberLive(member)
+            if member.active and member.id in linked:
+                live = self.members[member.id] = MemberLive(member)
+                live.last_seen = seen.get(member.id)
         self.refresh_roster()
 
     # -- agents
@@ -283,12 +285,25 @@ class Fleet:
                 await ws.send_json({"type": "error", "code": "revoked", "message": reason})
             await ws.close(code=4001, message=reason.encode()[:120])
 
-    async def drop_member(self, member_id: str, reason: str) -> None:
+    async def drop_member(self, member_id: str, reason: str, *, forget: bool = False) -> None:
+        """Disconnect a member's PCs; ``forget``: also take them off the roster."""
         m = self.members.get(member_id)
         if m is None:
             return
         for agent_id in list(m.sockets):
             await self.drop_agent(member_id, agent_id, reason)
+        if forget:
+            self.members.pop(member_id, None)
+            self.recent = deque(
+                (e for e in self.recent if e["member"] != member_id), maxlen=RECENT_EVENTS
+            )
+            self.refresh_roster()
+
+    def rename(self, member: Member) -> None:
+        m = self.members.get(member.id)
+        if m is not None:
+            m.info = member.public()
+            self.refresh_roster()
 
     def agent_message(self, m: MemberLive, data: Any) -> dict | None:
         """Apply one message from an agent. Returns a reply to send back, if any."""

@@ -1,7 +1,7 @@
 # Star Citizen Org Fleet Telemetry — Build Spec
 
-> Handoff document for Claude Code. Working name: **Fleet Telemetry** (rename freely).
-> Owner: Brad. Status: greenfield — nothing built yet.
+> The original handoff document for Claude Code, kept as the design record. Working name: **Fleet Telemetry**.
+> Later decisions (§11) override earlier sections. Since decisions 15–17 the project is open source and any org can run a hub; there is no ButlerBot cog in this repo (§6.4 and Phase 3 are superseded: bots use the hub's integration API, docs/HUB_API.md), and Discord is optional (§5 is rewritten).
 
 ## 1. Goal
 
@@ -236,23 +236,28 @@ Version handling: hub accepts `v` within a supported range; rejects older agents
 
 ## 5. Identity, linking, auth
 
-### 5.1 Agent linking (browser sign-in, no bot needed)
-Like signing a TV into an app (OAuth device authorization pattern):
-1. Member clicks **Join fleet** in the agent. Agent `POST /api/agent/link/start {machine_name}` → hub returns a short user code (e.g. `7K4-PQ9`, 10-min TTL, single use) and a secret device code.
-2. Agent shows the user code and opens the browser at `https://<host>/link?code=7K4-PQ9`.
-3. Member signs in with Discord (§5.2). Hub checks the guild and org member role, shows "Link *machine_name* to your account?", and on confirm binds the code to the member.
-4. Agent polls `POST /api/agent/link/poll {device_code}` (every 2–5 s) and receives a long random `agent_token` once confirmed.
-5. Agent stores the token in Windows Credential Manager (`keyring`). Hub stores **only a hash** of the token.
-6. Revoke from the web page (own devices; admins: anyone's) or `[p]telemetry unlink`. One member may have multiple agents (multiple PCs). Losing the org role disables the member's agents at the next check (on connect and hourly).
+(Rewritten for decisions 15–16. The first version required Discord for everything.)
 
-### 5.2 Viewer auth (web)
-- Discord OAuth2 login (`identify` + `guilds.members.read`).
-- Allow only members of the configured Discord server (initially the Friday Night Club server) who hold the configured org member role. Re-check the role on session refresh.
-- Server ID and role ID are settings, not hard-coded: the hub reads defaults from env (`DISCORD_GUILD_ID`, `DISCORD_MEMBER_ROLE_ID`), and the cog's admin commands can change the role at runtime via the internal API (stored in the hub DB).
-- Session cookie, HttpOnly, Secure, SameSite=Lax.
+### 5.1 Accounts and invites
+- Members are the hub's own accounts: a random id, a display name, a role (`member` or `admin`). No passwords anywhere.
+- **First admin:** while a hub has no admin it logs a one-time setup link (`<hub>/join/<code>`, admin role, single use). Using it creates the admin.
+- **Invites:** admins (or integrations with the `invites` scope, members only) create links with a use limit (1, 5, 25, unlimited) and expiry (1, 7, 30 days, never). Only a hash of the code is stored; the link is shown once.
+- **Joining from the agent:** `fleet_agent link <invite link>` → `POST /api/agent/join {invite, name, machine}` creates the account and returns the PC's token in one step. The link carries the hub's address, so one agent build serves every org. The name defaults to the in-game handle from Game.log.
+- **Joining from a browser** (watchers without the game): the invite page creates the account and signs the browser in.
 
-### 5.3 Internal API (cog ↔ hub)
-- Served on its own port, published on `127.0.0.1` only and never proxied by Apache (the public port has no `/internal` routes at all). Shared secret header as defense in depth, since anything on the host can reach loopback.
+### 5.2 PCs
+- Token per PC (long random; Windows Credential Manager on the agent; hash only on the hub).
+- **Another PC** for an existing member: `fleet_agent link <hub>` → the agent shows a short code (10 min) and opens `<hub>/link?code=...`; the member confirms it while signed in; the agent, polling with a secret, receives its token once.
+- Revoke from **Your account** (own PCs) or by an admin removing or suspending the member.
+
+### 5.3 Browsers
+- **From the agent:** `fleet_agent open` (or the cockpit's Fleet chip) asks `POST /api/agent/login-link` (bearer token) for a one-time link (2 min) that signs the browser in.
+- **Another device:** a signed-in browser shows a short code (10 min, single use); the other device types it on the sign-in page.
+- **Discord (optional):** with `DISCORD_*` set, invite pages offer "Join with Discord", members can connect Discord, and connected members can sign in with it. Admins may let holders of the member role join without an invite. Members who connected Discord are re-checked hourly with their own token (`guilds.members.read`): losing the role suspends them, regaining it restores them. Members without Discord are managed by admins only.
+- Session cookie: random id (hash stored), HttpOnly, Secure on https, SameSite=Lax, 30 days. Browser writes must carry the hub's own Origin.
+
+### 5.4 Integrations
+- Admins create API keys (scopes `read`, `invites`) on the page; bearer auth on `/api/v1/*`. Documented in docs/HUB_API.md. This replaces the internal port and shared secret of the first design.
 
 ---
 
@@ -282,7 +287,9 @@ Like signing a TV into an app (OAuth device authorization pattern):
 - **Local mode** (served by agent): single-pilot cockpit view, large type, dark, high contrast; compact VR variant.
 - Installable (manifest + service worker), works on phone/tablet.
 
-### 6.4 ButlerBot cog (`telemetry`)
+### 6.4 ButlerBot cog (`telemetry`): superseded
+
+Not part of this repo (decision 16). A bot uses the integration API (docs/HUB_API.md); the commands below remain a good wish list for one.
 Commands (prefix `[p]`):
 - `telemetry link` (optional shortcut: DMs a link to the browser flow) / `telemetry unlink`
 - `fleet` — embed of who's online, ship, role, hull/shield/fuel summary
@@ -328,7 +335,7 @@ Cog holds a reconnecting WebSocket to the hub's `/internal/events` and uses the 
 - Fleet board and member detail first; then the Wingmates panel for the local view (decision 13).
 - docker-compose; deploy behind proxy. Test with 2–3 members on a Friday night.
 
-**Phase 3 — Cog**
+**Phase 3 — Cog** (superseded by decision 16: bots live in their own projects and use the integration API)
 - link/unlink, fleet, ready, alerts.
 
 **Phase 4 — History & ops**
@@ -372,4 +379,7 @@ Cog holds a reconnecting WebSocket to the hub's `/internal/events` and uses the 
 12. **Linking without the bot (2026-11-23):** agents link through browser sign-in with Discord (§5.1). ButlerBot is a side feature; nothing in the hub depends on it.
 13. **Rates and transport (2026-11-23):** WebSocket over TLS for agent→hub and hub→viewer. UDP rejected: browsers can't use it, the Apache proxy can't carry it, we'd rebuild encryption and auth, and status data doesn't need it. Instead the uplink sends deltas at up to 10 Hz (≈1.5 KB/s per member) and viewers subscribe to summaries for the board and full rate for the member they have open. Fleet board vs cockpit Wingmates panel is a per-user layout choice (the panel lives in Customize); the board is built first because the panel uses the same feed.
 14. **Hub stack (2026-11-23):** aiohttp and `sqlite3` instead of FastAPI, uvicorn and SQLAlchemy: one web framework across agent and hub (no new dependencies), a handful of tables with single-statement queries, and a smaller image. Live state stays in memory; SQLite holds members, sessions, linked PCs (token hashes only), link codes and the 30-day event log.
+15. **Accounts without Discord (2026-11-23):** members are the hub's own accounts, brought in by invite links; the agent is the key for signing browsers in (one-time links, device codes). Discord is an optional extra: sign-in, auto-join for a role, suspension on losing it. Rationale: players shouldn't need Discord, and other orgs may not use it (§5).
+16. **Bots outside this repo (2026-11-23):** no ButlerBot cog here. The hub exposes a versioned integration API with admin-made API keys (read the fleet, live event stream, create invites); ButlerBot or any bot builds on that in its own project. The internal port and shared secret are gone; the hub is one port.
+17. **Open source (2026-11-23):** public repo under MIT. Nothing org-specific in code (the hub address comes from the invite, the org name from hub settings); a disclaimer that it's not affiliated with CIG; scrubbed fixtures only. Each org runs its own hub (deploy/README.md); whoever runs it sees what members share, which the docs say plainly.
 9. **Hull/shield bars (2026-11-23):** LIVE doesn't send hull health or shield levels (see FIELDS.md). The fleet board keeps hull and shield bars in the design anyway, alongside shield power and warning lights. Final call near the end of the build.

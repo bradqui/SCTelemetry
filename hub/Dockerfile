@@ -32,7 +32,7 @@ COPY --from=web /web/dist/ web/
 RUN useradd --system --uid 10001 hub && mkdir -p /data && chown hub /data
 USER hub
 VOLUME /data
-EXPOSE 8100 8101
+EXPOSE 8100
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8100/api/health', timeout=4)"

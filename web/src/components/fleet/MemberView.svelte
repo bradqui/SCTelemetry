@@ -31,7 +31,7 @@
 
   const ship = $derived(snap?.ship ?? null);
   const ctx = $derived<PanelCtx | null>(
-    snap ? { snap, ship, events, trends, prefs, compact: false, now } : null,
+    snap ? { snap, ship, events, trends, prefs, compact: false, now, who: isMe ? undefined : member.name } : null,
   );
   const loc = $derived(snap?.location ?? null);
   const same = $derived(!isMe && !!myShard && loc?.shard === myShard);

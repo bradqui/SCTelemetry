@@ -1,4 +1,4 @@
-"""Wire schema shared by the agent, hub and ButlerBot cog. Must run on Python 3.11."""
+"""Wire schema shared by the agent, the hub and integrations. Must run on Python 3.11."""
 
 from .models import (
     EVENT_CATEGORY,

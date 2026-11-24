@@ -9,6 +9,9 @@
   let { ctx }: { ctx: PanelCtx } = $props();
 
   let filter = $state<EventCategory | "all">("all");
+  // On the fleet page, "You" means the member being shown.
+  const label = (id: EventCategory) =>
+    id === "you" && ctx.who ? ctx.who : (CATEGORIES.find((c) => c.id === id)?.label ?? id);
   const session = $derived(ctx.snap.session ?? null);
   const events = $derived(ctx.events.filter((e) => e.kind !== "game_start"));
   const latest = $derived(events[0] ?? null);
@@ -61,7 +64,7 @@
         <div class="what">
           <span class="text">{eventText(latest.kind, latest.data)}</span>
           <span class="meta">
-            {CATEGORIES.find((c) => c.id === eventCategory(latest.kind))?.label} · {since(latest.t, ctx.now)}
+            {label(eventCategory(latest.kind))} · {since(latest.t, ctx.now)}
           </span>
         </div>
       </div>
@@ -80,7 +83,7 @@
           role="tab"
           aria-selected={filter === c.id}
         >
-          {c.label}{#if counts[c.id]}<b class="num">{counts[c.id]}</b>{/if}
+          {label(c.id)}{#if counts[c.id]}<b class="num">{counts[c.id]}</b>{/if}
         </button>
       {/each}
     </div>

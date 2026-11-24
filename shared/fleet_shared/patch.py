@@ -12,7 +12,7 @@ every key and ``null`` means "not known right now":
 A key that disappears from the new state (e.g. a warning light the game stops
 sending) is patched to ``null``.
 
-Pure Python, no dependencies: the ButlerBot cog (Python 3.11) may import it.
+Pure Python, no dependencies, Python 3.11+: integrations may import it.
 """
 
 from __future__ import annotations

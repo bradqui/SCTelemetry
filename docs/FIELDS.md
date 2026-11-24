@@ -2,7 +2,7 @@
 
 **Source:** extracted from the LIVE `StarCitizen.exe` dated 2026-11-19 (175,570,944 bytes) with `python -m fleet_agent protoset`. Package `sc.game.telemetry.v1`, files `types.proto` and `api.proto`, proto3.
 
-The first half of this document is the **schema**: which fields exist and their types. **Observed in a real session** describes what the game actually sends. The HOTFIX build on Brad's PC (2026-06-12) predates telemetry and has no definitions.
+The first half of this document is the **schema**: which fields exist and their types. **Observed in a real session** describes what the game actually sends. A HOTFIX build from 2026-06-12 predates telemetry and has no definitions.
 
 ## Service
 

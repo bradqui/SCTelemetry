@@ -6,7 +6,7 @@ const agent = "http://127.0.0.1:8740";
 
 export default defineConfig({
   plugins: [svelte()],
-  base: "./",
+  base: "/", // absolute: the page also lives at /join/<code>
   server: {
     port: 5173,
     proxy: {

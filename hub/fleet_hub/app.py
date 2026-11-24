@@ -1,19 +1,16 @@
-"""The hub's two web servers (spec §5, §6.2).
+"""The hub's web server (spec §5, §6.2; the HTTP API is in docs/HUB_API.md).
 
-Public (port 8100, behind Apache):
-- ``/``                       the web UI in fleet mode (web/dist)
-- ``/api/mode``               who's signed in, for the page
-- ``/auth/*``                 Discord sign-in
-- ``/api/agent/link/*``       agent linking (no cookies; the agent polls)
-- ``/api/link/<code>``        the signed-in member confirms a link
-- ``/api/me/agents``          their linked PCs, and revoking one
-- ``/ws/agent``               agents send telemetry (``Authorization: Bearer <token>``)
-- ``/ws/view``                pages watch the fleet (session cookie)
+One port (8100), behind a reverse proxy that terminates https.
 
-Internal (port 8101, loopback only, never proxied; ``X-Internal-Secret`` header):
-- ``/internal/health``, ``/internal/fleet``, ``/internal/members/<id>``
-- ``/internal/events``        WebSocket: every fleet event (for the ButlerBot cog)
-- ``/internal/settings/member-role``  PUT ``{"role_id": "..."}``
+- ``/``, ``/join/<code>``, ``/link``        the page (web/dist), in fleet mode
+- ``/api/mode``                          who's signed in, the org's name
+- ``/api/join``, ``/api/signin/code``,   becoming a member and signing a browser in
+  ``/auth/*``
+- ``/api/agent/*``, ``/ws/agent``        agents: join, link, telemetry (bearer token)
+- ``/api/me/*``, ``/api/link/<code>``    the signed-in member's account and PCs
+- ``/api/admin/*``                       admins: members, invites, settings, API keys
+- ``/api/v1/*``                          integrations (bots, scripts): API key
+- ``/ws/view``                           pages watch the fleet (session cookie)
 """
 
 from __future__ import annotations
@@ -22,7 +19,6 @@ import asyncio
 import contextlib
 import json
 import logging
-import secrets
 import time
 from collections import defaultdict, deque
 from pathlib import Path
@@ -31,9 +27,9 @@ import aiohttp
 from aiohttp import WSMsgType, web
 
 from . import __version__
-from .auth import Auth, Discord
+from .auth import SESSION_COOKIE, Auth, Discord, page, valid_next
 from .config import Config
-from .db import Database, now_ms
+from .db import API_SCOPES, ROLES, Database, Member, clean_name, now_ms
 from .fleet import Fleet, ProtocolError, Viewer
 
 log = logging.getLogger(__name__)
@@ -42,8 +38,9 @@ HUB = web.AppKey("hub", "Hub")
 AGENT_MAX_MESSAGE = 64 * 1024
 AGENT_RATE = 40.0
 """Messages per second an agent may send (10 Hz deltas plus bursts of events)."""
-LINK_STARTS_PER_MIN = 10
 MEMBERSHIP_CHECK_S = 900
+INVITE_DAYS = {1, 7, 30}
+INVITE_USES = {1, 5, 25}
 
 
 class RateLimit:
@@ -64,7 +61,7 @@ class RateLimit:
 
 
 def client_ip(request: web.Request) -> str:
-    """The visitor's address. Behind Apache (and maybe Cloudflare) the peer is loopback."""
+    """The visitor's address. Behind the proxy (and maybe Cloudflare) the peer is loopback."""
     peer = request.remote or ""
     if peer in ("127.0.0.1", "::1"):
         forwarded = (
@@ -79,18 +76,47 @@ def default_web_dir() -> Path:
     return Path(__file__).resolve().parents[2] / "web" / "dist"
 
 
+def _json_error(status: int, message: str) -> web.HTTPException:
+    cls = {
+        400: web.HTTPBadRequest,
+        401: web.HTTPUnauthorized,
+        403: web.HTTPForbidden,
+        404: web.HTTPNotFound,
+        409: web.HTTPConflict,
+        410: web.HTTPGone,
+        429: web.HTTPTooManyRequests,
+    }[status]
+    return cls(text=json.dumps({"error": message}), content_type="application/json")
+
+
+async def _body(request: web.Request) -> dict:
+    try:
+        body = await request.json()
+    except (ValueError, UnicodeDecodeError):
+        raise _json_error(400, "expected JSON") from None
+    if not isinstance(body, dict):
+        raise _json_error(400, "expected a JSON object")
+    return body
+
+
+def _bearer(request: web.Request) -> str:
+    header = request.headers.get("Authorization", "")
+    return header[7:].strip() if header.startswith("Bearer ") else ""
+
+
 class Hub:
     def __init__(self, cfg: Config, db: Database | None = None) -> None:
         self.cfg = cfg
         self.db = db or Database(cfg.db_path)
         self.fleet = Fleet(cfg, self.db)
         self.http: aiohttp.ClientSession | None = None
-        self.auth: Auth | None = None
+        self.auth = Auth(cfg, self.db, None)
         self.web_dir = cfg.web_dir or default_web_dir()
+        self.setup_url: str | None = None
         self._tasks: list[asyncio.Task] = []
-        self._link_starts: dict[str, deque[float]] = defaultdict(deque)
+        self._limits: dict[tuple[str, str], deque[float]] = defaultdict(deque)
 
-    # -- lifecycle (hooked to the public app)
+    # -- lifecycle
 
     async def startup(self, _app: web.Application) -> None:
         self.http = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=15))
@@ -101,6 +127,15 @@ class Hub:
         ]
         for problem in self.cfg.problems():
             log.warning(problem)
+        self.refresh_setup()
+
+    def refresh_setup(self) -> None:
+        """No admin yet: make (and log) a one-time link that creates the first admin."""
+        code = self.db.setup_invite()
+        self.setup_url = f"{self.cfg.hub_url}/join/{code}" if code else None
+        if self.setup_url:
+            log.warning("No admin yet. Open this link to create the admin account:")
+            log.warning("    %s", self.setup_url)
 
     async def cleanup(self, _app: web.Application) -> None:
         for task in self._tasks:
@@ -112,60 +147,96 @@ class Hub:
             await self.http.close()
 
     async def _housekeeping(self) -> None:
-        """Every 15 min: re-check connected members' role; hourly: prune old events."""
+        """Every 15 min: Discord role re-check for connected members; hourly: prune."""
         rounds = 0
         while True:
             await asyncio.sleep(MEMBERSHIP_CHECK_S)
             rounds += 1
-            assert self.auth is not None
             for mid, live in list(self.fleet.members.items()):
-                if not live.connected:
-                    continue
                 member = self.db.member(mid)
-                if member is None:
+                if member is None or not live.connected:
                     continue
                 member = await self.auth.recheck(member)
-                if not member.allowed:
-                    await self.fleet.drop_member(mid, "You no longer have the org member role.")
+                if not member.active:
+                    await self.fleet.drop_member(mid, "Your membership is suspended.")
             if rounds % 4 == 0:
                 pruned = self.db.prune(self.cfg.event_retention_days)
                 if pruned:
                     log.info("Pruned %d old events", pruned)
 
-    # -- public app
+    def _limited(self, request: web.Request, bucket: str, per_minute: int) -> None:
+        """Per-address limit on guessable things (codes, invites)."""
+        hits = self._limits[(bucket, client_ip(request))]
+        now = time.monotonic()
+        while hits and now - hits[0] > 60:
+            hits.popleft()
+        if len(hits) >= per_minute:
+            raise _json_error(429, "too many attempts; wait a minute")
+        hits.append(now)
 
-    def public_app(self) -> web.Application:
+    # -- the app
+
+    def app(self) -> web.Application:
         app = web.Application(middlewares=[self._headers, self._same_origin])
         app[HUB] = self
         app.on_startup.append(self.startup)
         app.on_cleanup.append(self.cleanup)
-        auth_routes = [
-            web.get("/auth/login", self._auth("login")),
-            web.get("/auth/callback", self._auth("callback")),
-            web.post("/auth/logout", self._auth("logout")),
-            web.get("/auth/dev", self._auth("dev_login")),
-        ]
         app.add_routes(
             [
-                *auth_routes,
-                web.get("/api/mode", self.api_mode),
-                web.get("/api/health", self.api_health),
+                web.get("/api/health", self.health),
+                web.get("/api/mode", self.mode),
+                # becoming a member, signing in
+                web.get("/api/invite/{code}", self.invite_info),
+                web.post("/api/join", self.join),
+                web.post("/api/signin/code", self.signin_code),
+                web.get("/auth/token/{token}", self.signin_link),
+                web.post("/auth/logout", self.logout),
+                web.get("/auth/discord", self._discord("discord_start")),
+                web.get("/auth/discord/callback", self._discord("discord_callback")),
+                web.get("/auth/dev", self.dev_login),
+                # agents
+                web.post("/api/agent/join", self.agent_join),
                 web.post("/api/agent/link/start", self.link_start),
                 web.post("/api/agent/link/poll", self.link_poll),
+                web.post("/api/agent/login-link", self.agent_login_link),
+                web.get("/ws/agent", self.ws_agent),
+                # the signed-in member
                 web.get("/api/link/{code}", self.link_info),
                 web.post("/api/link/{code}/confirm", self.link_confirm),
+                web.get("/api/me", self.me),
+                web.patch("/api/me", self.me_update),
+                web.delete("/api/me", self.me_delete),
+                web.post("/api/me/device-code", self.device_code),
+                web.post("/api/me/discord/disconnect", self.discord_disconnect),
                 web.get("/api/me/agents", self.my_agents),
                 web.post("/api/me/agents/{id}/revoke", self.revoke_agent),
-                web.get("/ws/agent", self.ws_agent),
                 web.get("/ws/view", self.ws_view),
+                # admins
+                web.get("/api/admin/members", self.admin_members),
+                web.patch("/api/admin/members/{id}", self.admin_member_update),
+                web.delete("/api/admin/members/{id}", self.admin_member_delete),
+                web.get("/api/admin/invites", self.admin_invites),
+                web.post("/api/admin/invites", self.admin_invite_new),
+                web.delete("/api/admin/invites/{id}", self.admin_invite_revoke),
+                web.get("/api/admin/settings", self.admin_settings),
+                web.put("/api/admin/settings", self.admin_settings_update),
+                web.get("/api/admin/keys", self.admin_keys),
+                web.post("/api/admin/keys", self.admin_key_new),
+                web.delete("/api/admin/keys/{id}", self.admin_key_delete),
+                # integrations (API key)
+                web.get("/api/v1/fleet", self.v1_fleet),
+                web.get("/api/v1/members/{id}", self.v1_member),
+                web.get("/api/v1/events", self.v1_events),
+                web.get("/api/v1/events/stream", self.v1_stream),
+                web.post("/api/v1/invites", self.v1_invite),
+                # the page
                 web.get("/{tail:.*}", self.static),
             ]
         )
         return app
 
-    def _auth(self, name: str):
+    def _discord(self, name: str):
         async def handler(request: web.Request) -> web.StreamResponse:
-            assert self.auth is not None
             return await getattr(self.auth, name)(request)
 
         return handler
@@ -180,59 +251,163 @@ class Hub:
 
     @web.middleware
     async def _same_origin(self, request: web.Request, handler):
-        """Cookie-authenticated changes must come from our own pages (CSRF)."""
-        cookie_write = request.method not in ("GET", "HEAD", "OPTIONS") and not (
-            request.path.startswith("/api/agent/")
+        """Browser writes must come from our own pages (CSRF). Bearer APIs are exempt."""
+        browser_write = request.method not in ("GET", "HEAD", "OPTIONS") and not (
+            request.path.startswith(("/api/agent/", "/api/v1/"))
         )
-        if cookie_write and request.headers.get("Origin") != self.cfg.origin:
+        if browser_write and request.headers.get("Origin") != self.cfg.origin:
             return web.json_response({"error": "cross-site request refused"}, status=403)
         return await handler(request)
 
-    async def _member(self, request: web.Request):
-        assert self.auth is not None
+    # -- who's asking
+
+    async def _member(self, request: web.Request) -> Member:
         member = await self.auth.current(request)
         if member is None:
-            raise web.HTTPUnauthorized(
-                text=json.dumps({"error": "sign in first", "login": "/auth/login"}),
-                content_type="application/json",
-            )
+            raise _json_error(401, "sign in first")
         return member
 
-    async def api_mode(self, request: web.Request) -> web.Response:
-        assert self.auth is not None
+    async def _admin(self, request: web.Request) -> Member:
+        member = await self._member(request)
+        if not member.is_admin:
+            raise _json_error(403, "admins only")
+        return member
+
+    def _agent_member(self, request: web.Request):
+        agent = self.db.agent_by_token(_bearer(request))
+        member = self.db.member(agent.member_id) if agent else None
+        if agent is None or member is None:
+            raise _json_error(401, "unknown or revoked agent token")
+        if not member.active:
+            raise _json_error(403, "membership suspended")
+        return agent, member
+
+    def _api_key(self, request: web.Request, scope: str) -> dict:
+        key = self.db.api_key_by_secret(_bearer(request)) if _bearer(request) else None
+        if key is None:
+            raise _json_error(401, "unknown API key")
+        if scope not in key["scopes"]:
+            raise _json_error(403, f"this key lacks the {scope!r} scope")
+        return key
+
+    # -- basics
+
+    async def health(self, _request: web.Request) -> web.Response:
+        return web.json_response({"ok": True, "version": __version__})
+
+    async def mode(self, request: web.Request) -> web.Response:
         member = await self.auth.current(request)
         return web.json_response(
             {
                 "mode": "fleet",
                 "hub_version": __version__,
-                "me": member.public() if member else None,
-                "login": "/auth/login",
-                "discord": self.cfg.discord_ready,
-                "dev_login": self.cfg.dev_login and not self.cfg.secure,
+                "org": self.auth.org_name(),
+                "me": member.account() if member else None,
+                "discord": self.auth.discord is not None,
+                "dev_login": self.cfg.dev_login_on,
+                "setup": self.setup_url is not None,
             }
         )
 
-    async def api_health(self, _request: web.Request) -> web.Response:
-        return web.json_response({"ok": True, "version": __version__})
+    # -- joining and signing in
 
-    # -- linking (spec §5.1)
+    def _invite_or_error(self, code: str):
+        invite = self.db.invite_by_code(code)
+        if invite is None or not invite.usable:
+            raise _json_error(410, "This invite has expired or was already used.")
+        return invite
+
+    async def invite_info(self, request: web.Request) -> web.Response:
+        self._limited(request, "invite", 30)
+        invite = self._invite_or_error(request.match_info["code"])
+        return web.json_response(
+            {"org": self.auth.org_name(), "role": invite.role, "expires_at": invite.expires_at}
+        )
+
+    def _create_from_invite(self, code: str, name: str) -> Member:
+        if not clean_name(name):
+            raise _json_error(400, "choose a display name")
+        invite = self.db.use_invite(code)
+        if invite is None:
+            raise _json_error(410, "This invite has expired or was already used.")
+        member = self.db.new_member(name, role=invite.role)
+        log.info("New member %s (%s) from invite %d", member.id, member.role, invite.id)
+        if invite.created_by == "setup":
+            self.refresh_setup()
+        return member
+
+    async def join(self, request: web.Request) -> web.Response:
+        """A browser accepts an invite: creates the account and signs in."""
+        self._limited(request, "join", 10)
+        body = await _body(request)
+        member = self._create_from_invite(str(body.get("code", "")), str(body.get("name", "")))
+        resp = web.json_response({"ok": True, "me": member.account()})
+        self.auth.sign_in(resp, member)
+        return resp
+
+    async def signin_code(self, request: web.Request) -> web.Response:
+        """Sign this browser in with a code from a device that's signed in already."""
+        self._limited(request, "signin", 10)
+        member = self.db.use_signin_code(str((await _body(request)).get("code", "")))
+        if member is None or not member.active:
+            raise _json_error(404, "That code has expired or was mistyped.")
+        resp = web.json_response({"ok": True, "me": member.account()})
+        self.auth.sign_in(resp, member)
+        return resp
+
+    async def signin_link(self, request: web.Request) -> web.StreamResponse:
+        """The one-time link the member's agent opened."""
+        member = self.db.use_login_link(request.match_info["token"])
+        if member is None or not member.active:
+            return page(410, "Link expired", "Open the fleet from your agent again.")
+        resp = web.HTTPFound(valid_next(request.query.get("next", "/")))
+        self.auth.sign_in(resp, member)
+        raise resp
+
+    async def logout(self, request: web.Request) -> web.Response:
+        sid = request.cookies.get(SESSION_COOKIE)
+        if sid:
+            self.db.end_session(sid)
+        resp = web.json_response({"ok": True})
+        resp.del_cookie(SESSION_COOKIE, path="/")
+        return resp
+
+    async def dev_login(self, request: web.Request) -> web.StreamResponse:
+        """Sign in by name. Only with HUB_DEV_LOGIN=1 on a plain-http hub (local testing)."""
+        if not self.cfg.dev_login_on:
+            raise web.HTTPNotFound()
+        name = clean_name(request.query.get("name", "")) or "Dev Pilot"
+        member = next((m for m in self.db.members() if m.name == name), None)
+        if member is None:
+            member = self.db.new_member(name, role="member" if self.db.admin_count() else "admin")
+            self.refresh_setup()
+        resp = web.HTTPFound(valid_next(request.query.get("next", "/")))
+        self.auth.sign_in(resp, member)
+        raise resp
+
+    # -- agents: join with an invite, link to an account, open the page
+
+    async def agent_join(self, request: web.Request) -> web.Response:
+        """``fleet_agent link <invite link>``: account and PC in one go, no browser."""
+        self._limited(request, "join", 10)
+        body = await _body(request)
+        member = self._create_from_invite(str(body.get("invite", "")), str(body.get("name", "")))
+        agent, token = self.db.new_agent(member.id, str(body.get("machine") or "PC"))
+        self.fleet.live(member)
+        self.fleet.refresh_roster()
+        return web.json_response(
+            {"status": "linked", "token": token, "agent_id": agent.id, "member": member.public()}
+        )
 
     async def link_start(self, request: web.Request) -> web.Response:
-        ip = client_ip(request)
-        starts = self._link_starts[ip]
-        now = time.monotonic()
-        while starts and now - starts[0] > 60:
-            starts.popleft()
-        if len(starts) >= LINK_STARTS_PER_MIN:
-            return web.json_response({"error": "too many link attempts; wait a minute"}, status=429)
-        starts.append(now)
-        body = await _json(request)
-        machine = str(body.get("machine") or "PC").strip()[:64] or "PC"
-        code, device = self.db.new_link_code(machine)
+        """An existing member links another PC: the agent shows a code to confirm."""
+        self._limited(request, "link", 10)
+        body = await _body(request)
+        code, secret = self.db.new_link_code(str(body.get("machine") or "PC"))
         return web.json_response(
             {
                 "user_code": code,
-                "device_code": device,
+                "device_code": secret,
                 "verify_url": f"{self.cfg.hub_url}/link?code={code}",
                 "interval": 3,
                 "expires_in": 600,
@@ -240,7 +415,7 @@ class Hub:
         )
 
     async def link_poll(self, request: web.Request) -> web.Response:
-        body = await _json(request)
+        body = await _body(request)
         status, agent, token = self.db.poll_link(str(body.get("device_code") or ""))
         if status == "expired":
             return web.json_response({"status": "expired"}, status=410)
@@ -248,7 +423,7 @@ class Hub:
             return web.json_response({"status": "pending"})
         assert agent is not None
         member = self.db.member(agent.member_id)
-        log.info("Linked agent %d (%s) to %s", agent.id, agent.machine, agent.member_id)
+        log.info("Linked PC %d (%s) to %s", agent.id, agent.machine, agent.member_id)
         if member is not None:
             self.fleet.live(member)
             self.fleet.refresh_roster()
@@ -261,16 +436,20 @@ class Hub:
             }
         )
 
+    async def agent_login_link(self, request: web.Request) -> web.Response:
+        """The agent opens the fleet page already signed in (``fleet_agent open``)."""
+        _agent, member = self._agent_member(request)
+        token = self.db.new_login_link(member.id)
+        return web.json_response({"url": f"{self.cfg.hub_url}/auth/token/{token}"})
+
     async def link_info(self, request: web.Request) -> web.Response:
         await self._member(request)
         row = self.db.link_code(request.match_info["code"])
         if row is None:
-            return web.json_response(
-                {"error": "This code has expired or was mistyped."}, status=404
-            )
+            raise _json_error(404, "This code has expired or was mistyped.")
         return web.json_response(
             {
-                "code": row["user_code"],
+                "code": row["code"],
                 "machine": row["machine"],
                 "expires_at": row["expires_at"],
                 "confirmed": row["member_id"] is not None,
@@ -280,9 +459,47 @@ class Hub:
     async def link_confirm(self, request: web.Request) -> web.Response:
         member = await self._member(request)
         if not self.db.confirm_link_code(request.match_info["code"], member.id):
-            return web.json_response(
-                {"error": "This code has expired or was already used."}, status=404
-            )
+            raise _json_error(404, "This code has expired or was already used.")
+        return web.json_response({"ok": True})
+
+    # -- your account
+
+    async def me(self, request: web.Request) -> web.Response:
+        return web.json_response((await self._member(request)).account())
+
+    async def me_update(self, request: web.Request) -> web.Response:
+        member = await self._member(request)
+        name = clean_name(str((await _body(request)).get("name", "")))
+        if not name:
+            raise _json_error(400, "choose a display name")
+        self.db.rename(member.id, name)
+        updated = self.db.member(member.id)
+        assert updated is not None
+        self.fleet.rename(updated)
+        return web.json_response(updated.account())
+
+    async def me_delete(self, request: web.Request) -> web.Response:
+        """Delete my account and everything the hub holds about me."""
+        member = await self._member(request)
+        if member.is_admin and self.db.admin_count() <= 1:
+            raise _json_error(409, "You're the only admin: make someone else admin first.")
+        await self._remove(member.id, "Your account was deleted.")
+        resp = web.json_response({"ok": True})
+        resp.del_cookie(SESSION_COOKIE, path="/")
+        return resp
+
+    async def _remove(self, member_id: str, reason: str) -> None:
+        await self.fleet.drop_member(member_id, reason, forget=True)
+        self.db.delete_member(member_id)
+        log.info("Removed member %s", member_id)
+
+    async def device_code(self, request: web.Request) -> web.Response:
+        member = await self._member(request)
+        return web.json_response({"code": self.db.new_signin_code(member.id), "expires_in": 600})
+
+    async def discord_disconnect(self, request: web.Request) -> web.Response:
+        member = await self._member(request)
+        self.db.set_discord(member.id, None)
         return web.json_response({"ok": True})
 
     async def my_agents(self, request: web.Request) -> web.Response:
@@ -303,36 +520,220 @@ class Hub:
 
     async def revoke_agent(self, request: web.Request) -> web.Response:
         member = await self._member(request)
-        try:
-            agent_id = int(request.match_info["id"])
-        except ValueError:
-            raise web.HTTPNotFound() from None
+        agent_id = _int(request.match_info["id"])
         if not self.db.revoke_agent(agent_id, member.id):
-            raise web.HTTPNotFound()
+            raise _json_error(404, "no such PC")
         await self.fleet.drop_agent(member.id, agent_id, "This PC was unlinked.")
         return web.json_response({"ok": True})
+
+    # -- admins
+
+    async def admin_members(self, request: web.Request) -> web.Response:
+        await self._admin(request)
+        seen = self.db.member_last_seen()
+        out = []
+        for m in self.db.members():
+            live = self.fleet.members.get(m.id)
+            out.append(
+                {
+                    **m.account(),
+                    "pcs": len(self.db.agents_of(m.id)),
+                    "last_seen": seen.get(m.id),
+                    "presence": live.presence(now_ms(), self.cfg) if live else "offline",
+                }
+            )
+        return web.json_response(out)
+
+    async def admin_member_update(self, request: web.Request) -> web.Response:
+        admin = await self._admin(request)
+        target = self.db.member(request.match_info["id"])
+        if target is None:
+            raise _json_error(404, "no such member")
+        body = await _body(request)
+        if "role" in body:
+            role = body["role"]
+            if role not in ROLES:
+                raise _json_error(400, "role is member or admin")
+            if target.is_admin and role != "admin" and self.db.admin_count() <= 1:
+                raise _json_error(409, "There must be at least one admin.")
+            self.db.set_role(target.id, role)
+        if "active" in body:
+            active = bool(body["active"])
+            if target.id == admin.id and not active:
+                raise _json_error(409, "You can't suspend yourself.")
+            self.db.set_active(target.id, active)
+            if not active:
+                self.db.end_member_sessions(target.id)
+                await self.fleet.drop_member(target.id, "Your membership is suspended.")
+        if "name" in body and clean_name(str(body["name"])):
+            self.db.rename(target.id, str(body["name"]))
+        updated = self.db.member(target.id)
+        assert updated is not None
+        self.fleet.rename(updated)
+        return web.json_response(updated.account())
+
+    async def admin_member_delete(self, request: web.Request) -> web.Response:
+        admin = await self._admin(request)
+        target = self.db.member(request.match_info["id"])
+        if target is None:
+            raise _json_error(404, "no such member")
+        if target.id == admin.id:
+            raise _json_error(409, "Delete your own account from Your account instead.")
+        if target.is_admin and self.db.admin_count() <= 1:
+            raise _json_error(409, "There must be at least one admin.")
+        await self._remove(target.id, "You were removed from the fleet.")
+        return web.json_response({"ok": True})
+
+    def _make_invite(self, body: dict, created_by: str, *, allow_admin: bool) -> web.Response:
+        role = body.get("role", "member")
+        if role not in ROLES or (role == "admin" and not allow_admin):
+            raise _json_error(400, "role must be member" + (" or admin" if allow_admin else ""))
+        days = body.get("days", 7)
+        uses = body.get("uses", 1)
+        if days is not None and days not in INVITE_DAYS:
+            raise _json_error(400, f"days is one of {sorted(INVITE_DAYS)} or null")
+        if uses is not None and uses not in INVITE_USES:
+            raise _json_error(400, f"uses is one of {sorted(INVITE_USES)} or null")
+        invite, code = self.db.new_invite(
+            role=role,
+            note=body.get("note"),
+            created_by=created_by,
+            expires_in_s=days * 86400 if days else None,
+            max_uses=uses,
+        )
+        return web.json_response(
+            {**invite.public(), "url": f"{self.cfg.hub_url}/join/{code}"}, status=201
+        )
+
+    async def admin_invites(self, request: web.Request) -> web.Response:
+        await self._admin(request)
+        return web.json_response([i.public() for i in self.db.invites() if i.usable])
+
+    async def admin_invite_new(self, request: web.Request) -> web.Response:
+        admin = await self._admin(request)
+        return self._make_invite(await _body(request), admin.id, allow_admin=True)
+
+    async def admin_invite_revoke(self, request: web.Request) -> web.Response:
+        await self._admin(request)
+        if not self.db.revoke_invite(_int(request.match_info["id"])):
+            raise _json_error(404, "no such invite")
+        return web.json_response({"ok": True})
+
+    async def admin_settings(self, request: web.Request) -> web.Response:
+        await self._admin(request)
+        return web.json_response(
+            {
+                "org_name": self.auth.org_name(),
+                "discord": self.auth.discord is not None,
+                "discord_autojoin": self.auth.discord_autojoin(),
+                "discord_member_role_id": self.auth.member_role(),
+                "event_retention_days": self.cfg.event_retention_days,
+            }
+        )
+
+    async def admin_settings_update(self, request: web.Request) -> web.Response:
+        await self._admin(request)
+        body = await _body(request)
+        if "org_name" in body:
+            self.db.set_setting("org_name", clean_name(str(body["org_name"])) or None)
+        if "discord_autojoin" in body:
+            self.db.set_setting("discord_autojoin", "1" if body["discord_autojoin"] else None)
+        if "discord_member_role_id" in body:
+            role = str(body["discord_member_role_id"] or "").strip()
+            self.db.set_setting("discord_member_role_id", role or None)
+        return await self.admin_settings(request)
+
+    async def admin_keys(self, request: web.Request) -> web.Response:
+        await self._admin(request)
+        return web.json_response(self.db.api_keys())
+
+    async def admin_key_new(self, request: web.Request) -> web.Response:
+        admin = await self._admin(request)
+        body = await _body(request)
+        scopes = [s for s in body.get("scopes") or ["read"] if s in API_SCOPES]
+        key, secret = self.db.new_api_key(str(body.get("name", "")), scopes, admin.id)
+        return web.json_response({**key, "key": secret}, status=201)
+
+    async def admin_key_delete(self, request: web.Request) -> web.Response:
+        await self._admin(request)
+        if not self.db.delete_api_key(_int(request.match_info["id"])):
+            raise _json_error(404, "no such key")
+        return web.json_response({"ok": True})
+
+    # -- integrations (docs/HUB_API.md)
+
+    async def v1_fleet(self, request: web.Request) -> web.Response:
+        self._api_key(request, "read")
+        return web.json_response(
+            {
+                "t": now_ms(),
+                "org": self.auth.org_name(),
+                "members": list(self.fleet.roster.values()),
+            }
+        )
+
+    async def v1_member(self, request: web.Request) -> web.Response:
+        self._api_key(request, "read")
+        mid = request.match_info["id"]
+        if mid not in self.fleet.members:
+            raise _json_error(404, "no such member")
+        return web.json_response(
+            {"summary": self.fleet.roster.get(mid), "snapshot": self.fleet.member_state(mid)}
+        )
+
+    async def v1_events(self, request: web.Request) -> web.Response:
+        self._api_key(request, "read")
+        since = _int(request.query.get("since", "0"))
+        limit = max(1, min(500, _int(request.query.get("limit", "100"))))
+        return web.json_response(self.db.recent_events(limit, since))
+
+    async def v1_invite(self, request: web.Request) -> web.Response:
+        key = self._api_key(request, "invites")
+        return self._make_invite(await _body(request), f"api:{key['id']}", allow_admin=False)
+
+    async def v1_stream(self, request: web.Request) -> web.StreamResponse:
+        self._api_key(request, "read")
+        ws = web.WebSocketResponse(heartbeat=25)
+        await ws.prepare(request)
+        queue: asyncio.Queue[dict] = asyncio.Queue(maxsize=500)
+
+        def tap(record: dict) -> None:
+            with contextlib.suppress(asyncio.QueueFull):
+                queue.put_nowait(record)
+
+        self.fleet.taps.add(tap)
+
+        async def send() -> None:
+            while True:
+                await ws.send_json({"type": "event", **(await queue.get())})
+
+        sender = asyncio.create_task(send())
+        try:
+            async for _msg in ws:
+                pass
+        finally:
+            self.fleet.taps.discard(tap)
+            sender.cancel()
+        return ws
 
     # -- agents' telemetry
 
     async def ws_agent(self, request: web.Request) -> web.StreamResponse:
-        assert self.auth is not None
-        header = request.headers.get("Authorization", "")
-        token = header[7:] if header.startswith("Bearer ") else ""
-        agent = self.db.agent_by_token(token) if token else None
-        if agent is None:
-            return web.json_response({"error": "unknown or revoked agent token"}, status=401)
-        member = self.db.member(agent.member_id)
-        if member is not None:
-            member = await self.auth.recheck(member)
-        if member is None or not member.allowed:
-            return web.json_response({"error": "not an org member"}, status=403)
-
+        agent, member = self._agent_member(request)
+        member = await self.auth.recheck(member)
+        if not member.active:
+            raise _json_error(403, "membership suspended")
         ws = web.WebSocketResponse(heartbeat=25, max_msg_size=AGENT_MAX_MESSAGE)
         await ws.prepare(request)
         live = self.fleet.agent_connected(member, agent.id, ws)
         self.db.agent_seen(agent.id)
         await ws.send_json(
-            {"type": "welcome", "hub_version": __version__, "member": member.public()}
+            {
+                "type": "welcome",
+                "hub_version": __version__,
+                "org": self.auth.org_name(),
+                "member": member.public(),
+            }
         )
         limit = RateLimit(AGENT_RATE, AGENT_RATE * 2)
         bad = 0
@@ -359,14 +760,15 @@ class Hub:
                     await ws.send_json(reply)
         finally:
             self.fleet.agent_disconnected(live, agent.id, ws)
-            self.db.agent_seen(agent.id)
+            if self.db.agent(agent.id):
+                self.db.agent_seen(agent.id)
         return ws
 
     # -- viewers
 
     async def ws_view(self, request: web.Request) -> web.StreamResponse:
         if request.headers.get("Origin") not in (None, self.cfg.origin):
-            return web.json_response({"error": "cross-site request refused"}, status=403)
+            raise _json_error(403, "cross-site request refused")
         member = await self._member(request)
         ws = web.WebSocketResponse(heartbeat=25, max_msg_size=4096)
         await ws.prepare(request)
@@ -400,118 +802,41 @@ class Hub:
 
     async def static(self, request: web.Request) -> web.StreamResponse:
         index = self.web_dir / "index.html"
+        rel = request.match_info["tail"]
+        if rel.startswith(("api/", "ws/", "auth/")):
+            raise web.HTTPNotFound()
         if not index.exists():
             return web.Response(
                 content_type="text/html",
                 text="<h1>Fleet Telemetry hub</h1><p>The web UI isn't built.</p>",
             )
-        rel = request.match_info["tail"]
-        if rel.startswith(("api/", "ws/", "auth/")):
-            raise web.HTTPNotFound()
         target = (self.web_dir / rel).resolve()
         if rel and target.is_file() and self.web_dir.resolve() in target.parents:
             resp = web.FileResponse(target)
             if "/assets/" in f"/{rel}":
                 resp.headers["Cache-Control"] = "public, max-age=31536000, immutable"
             return resp
-        resp = web.FileResponse(index)  # SPA fallback (/link, /member/...)
+        resp = web.FileResponse(index)  # the page's own routes: /join/..., /link, #m=...
         resp.headers["Cache-Control"] = "no-cache"
         return resp
 
-    # -- internal app (the ButlerBot cog)
 
-    def internal_app(self) -> web.Application:
-        app = web.Application(middlewares=[self._internal_guard])
-        app[HUB] = self
-        app.add_routes(
-            [
-                web.get("/internal/health", self.api_health),
-                web.get("/internal/fleet", self.internal_fleet),
-                web.get("/internal/members/{id}", self.internal_member),
-                web.get("/internal/events", self.internal_events),
-                web.put("/internal/settings/member-role", self.internal_member_role),
-            ]
-        )
-        return app
-
-    @web.middleware
-    async def _internal_guard(self, request: web.Request, handler):
-        given = request.headers.get("X-Internal-Secret", "")
-        if not self.cfg.internal_secret or not secrets.compare_digest(
-            given, self.cfg.internal_secret
-        ):
-            return web.json_response({"error": "forbidden"}, status=403)
-        return await handler(request)
-
-    async def internal_fleet(self, _request: web.Request) -> web.Response:
-        return web.json_response({"t": now_ms(), "members": list(self.fleet.roster.values())})
-
-    async def internal_member(self, request: web.Request) -> web.Response:
-        mid = request.match_info["id"]
-        if mid not in self.fleet.members:
-            raise web.HTTPNotFound()
-        return web.json_response(
-            {"summary": self.fleet.roster.get(mid), "snapshot": self.fleet.member_state(mid)}
-        )
-
-    async def internal_member_role(self, request: web.Request) -> web.Response:
-        body = await _json(request)
-        role = body.get("role_id")
-        self.db.set_setting("member_role_id", str(role) if role else None)
-        return web.json_response({"ok": True, "role_id": role or self.cfg.discord_member_role_id})
-
-    async def internal_events(self, request: web.Request) -> web.StreamResponse:
-        ws = web.WebSocketResponse(heartbeat=25)
-        await ws.prepare(request)
-        queue: asyncio.Queue[dict] = asyncio.Queue(maxsize=500)
-
-        def tap(record: dict) -> None:
-            with contextlib.suppress(asyncio.QueueFull):
-                queue.put_nowait(record)
-
-        self.fleet.taps.add(tap)
-
-        async def send() -> None:
-            while True:
-                await ws.send_json({"type": "event", **(await queue.get())})
-
-        sender = asyncio.create_task(send())
-        try:
-            async for _msg in ws:
-                pass
-        finally:
-            self.fleet.taps.discard(tap)
-            sender.cancel()
-        return ws
-
-
-async def _json(request: web.Request) -> dict:
+def _int(value: str) -> int:
     try:
-        body = await request.json()
-    except (ValueError, UnicodeDecodeError):
-        raise web.HTTPBadRequest(text="expected JSON") from None
-    if not isinstance(body, dict):
-        raise web.HTTPBadRequest(text="expected a JSON object")
-    return body
+        return int(value)
+    except (TypeError, ValueError):
+        raise _json_error(400, "expected a number") from None
 
 
 async def serve(cfg: Config) -> None:
-    """Run both servers until cancelled."""
+    """Run the hub until cancelled."""
     hub = Hub(cfg)
-    public = web.AppRunner(hub.public_app(), access_log=None)
-    await public.setup()
-    await web.TCPSite(public, cfg.bind, cfg.port).start()
+    runner = web.AppRunner(hub.app(), access_log=None)
+    await runner.setup()
+    await web.TCPSite(runner, cfg.bind, cfg.port).start()
     log.info("Hub %s on %s:%d (public: %s)", __version__, cfg.bind, cfg.port, cfg.hub_url)
-    internal = None
-    if cfg.internal_port:
-        internal = web.AppRunner(hub.internal_app(), access_log=None)
-        await internal.setup()
-        await web.TCPSite(internal, cfg.bind, cfg.internal_port).start()
-        log.info("Internal API on %s:%d", cfg.bind, cfg.internal_port)
     try:
         await asyncio.Event().wait()
     finally:
-        if internal:
-            await internal.cleanup()
-        await public.cleanup()
+        await runner.cleanup()
         hub.db.close()

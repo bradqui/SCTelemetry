@@ -1,20 +1,24 @@
 <script lang="ts">
   import { LIGHT_NAMES } from "../../lib/format";
-  import type { Me, MemberSummary } from "../../lib/types";
+  import type { Account, MemberSummary } from "../../lib/types";
 
   let {
+    org,
     me,
     rows,
     socket,
     onOpen,
-    onPcs,
+    onAccount,
+    onAdmin,
     onSignOut,
   }: {
-    me: Me;
+    org: string;
+    me: Account;
     rows: MemberSummary[];
     socket: "connecting" | "open" | "closed";
     onOpen: (id: string) => void;
-    onPcs: () => void;
+    onAccount: () => void;
+    onAdmin: () => void;
     onSignOut: () => void;
   } = $props();
 
@@ -54,7 +58,7 @@
 <header class="top {worst ? `alarm-${worst}` : ''}">
   <div class="brand">
     <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 3 29 27H3z" /><circle cx="16" cy="20" r="3" /></svg>
-    <span>Fleet</span>
+    <span>{org}</span>
   </div>
 
   <div class="counts" aria-label="Fleet status">
@@ -85,7 +89,10 @@
       </button>
       {#if menu}
         <div class="menu" role="menu">
-          <button role="menuitem" onclick={() => ((menu = false), onPcs())}>Your PCs</button>
+          <button role="menuitem" onclick={() => ((menu = false), onAccount())}>Your account</button>
+          {#if me.role === "admin"}
+            <button role="menuitem" onclick={() => ((menu = false), onAdmin())}>Admin</button>
+          {/if}
           <button role="menuitem" onclick={() => ((menu = false), onSignOut())}>Sign out</button>
         </div>
       {/if}

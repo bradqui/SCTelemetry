@@ -120,7 +120,10 @@
         {/each}
       </section>
     {:else}
-      <p class="empty">Nobody has linked a PC yet. Members run <code>fleet_agent link</code> to join.</p>
+      <p class="empty">
+        Nobody has linked a PC yet. Admins make invite links (your name → Admin → Invites); players run
+        <code>fleet_agent link &lt;invite link&gt;</code>.
+      </p>
     {/each}
   </div>
 </div>

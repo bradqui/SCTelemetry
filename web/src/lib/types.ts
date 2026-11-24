@@ -307,6 +307,8 @@ export interface UplinkStatus {
   member: string | null;
   message?: string | null;
   hub_version?: string | null;
+  /** The org's name (from its hub). */
+  org?: string | null;
   /** The hub says a newer agent is out (agents are released with the hub). */
   update?: { version: string; url: string } | null;
 }

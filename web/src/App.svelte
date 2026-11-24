@@ -2,6 +2,7 @@
   import { onMount, untrack } from "svelte";
   import type { PanelCtx } from "./lib/context";
   import { FleetConnection } from "./lib/fleet.svelte";
+  import { fleetPick } from "./lib/fleetpick.svelte";
   import { LiveConnection } from "./lib/live.svelte";
   import { PrefsStore } from "./lib/prefs.svelte";
   import { applyTheme, DEFAULT_THEME, forcedTheme, THEME_BY_ID, themeForShip } from "./lib/themes";
@@ -118,12 +119,17 @@
 
   // Wingmates: the fleet, relayed by the agent, only while that panel is on screen.
   const wingShown = $derived(
-    !fleetOpen && !!live.uplink && (compact ? prefs.compact : prefs.full).some((s) => s.id === "wingmates" && !s.hidden),
+    !fleetOpen &&
+      Object.keys(live.uplinks).length > 0 &&
+      (compact ? prefs.compact : prefs.full).some((s) => s.id === "wingmates" && !s.hidden),
   );
   let wing = $state<FleetConnection | null>(null);
   $effect(() => {
+    fleetPick.setFrom(live.uplinks);
+  });
+  $effect(() => {
     if (!wingShown) return;
-    const w = new FleetConnection({ local: true });
+    const w = new FleetConnection({ local: true, hub: fleetPick.hub });
     const stop = w.start();
     wing = w;
     return () => {
@@ -151,7 +157,7 @@
     {compact}
     replay={live.replay}
     caution={prefs.caution}
-    uplink={live.uplink}
+    uplinks={Object.values(live.uplinks)}
     onToggleCompact={toggleCompact}
     onCustomize={() => (customizing ? (customizing = false) : openSettings("dashboard"))}
     onFleet={() => showFleet(true)}
@@ -184,7 +190,7 @@
 {/if}
 
 {#if customizing && !fleetOpen}
-  <Customize {store} {compact} agent uplink={live.uplink} tab={settingsTab} onClose={() => (customizing = false)} />
+  <Customize {store} {compact} agent uplinks={live.uplinks} tab={settingsTab} onClose={() => (customizing = false)} />
 {/if}
 
 <style>

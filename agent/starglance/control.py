@@ -1,9 +1,10 @@
 """Agent settings while it runs: the cockpit page's Agent tab (localserver /api/agent/*).
 
-Joins or leaves a fleet, chooses what's shared, and switches the game's telemetry on or
-off, without a restart. Owns the hub uplink: starts it when linked, restarts it when the
-sharing changes (the hub learns the categories from the uplink's hello), stops it on
-leaving. The same files and functions as the command line (fleetlink, switch), so either
+Joins or leaves fleets (a PC can be in several: one per org's hub), switches each on or
+off, chooses what's shared with each, and switches the game's telemetry on or off,
+without a restart. Owns the hub uplinks, one per fleet that's on: starts them, restarts
+one when its sharing changes (the hub learns the categories from the uplink's hello),
+stops it on leaving. The same files and functions as the command line (fleetlink, switch), so either
 can be used.
 """
 
@@ -19,6 +20,8 @@ from starglance_shared import SHARE_CATEGORIES
 
 from . import __version__, gamecfg, installs, switch
 from .fleetlink import (
+    Fleet,
+    FleetSettings,
     LinkError,
     game_handle,
     join,
@@ -56,6 +59,8 @@ SHARE_LABEL = {
 
 
 class AgentControl:
+    """One uplink per fleet that's switched on (a PC can be in several orgs' fleets)."""
+
     def __init__(
         self,
         pipeline,
@@ -69,82 +74,124 @@ class AgentControl:
         self.pipeline = pipeline
         self.server = server
         self.install = install
-        self.hub_override = hub_override
+        self.hub_override = (hub_override or "").rstrip("/") or None
+        """`run --hub X`: send only to that fleet."""
         self.uplink_wanted = uplink_wanted
         self.announce = announce
-        self.uplink = None
+        self.uplinks: dict = {}
+        """Hub URL -> its running Uplink."""
         self._lock = asyncio.Lock()
         self._joining: str | None = None
         server.control = self
+        server.fleet_open = self.login_link
+        server.fleet_view = self.fleet_view
 
-    # -- the uplink
+    # -- the uplinks
 
-    def start_uplink(self) -> bool:
-        """Send to the fleet if linked (and wanted: a replay only with --uplink)."""
+    def start_uplinks(self) -> int:
+        """Send to every fleet that's linked and switched on. Returns how many."""
+        if not self.uplink_wanted:
+            return 0
+        for fleet in load_settings().fleets:
+            if fleet.enabled and (self.hub_override in (None, fleet.hub_url)):
+                self._start(fleet)
+        return len(self.uplinks)
+
+    def _start(self, fleet: Fleet) -> bool:
         from .uplink import Uplink
 
-        if not self.uplink_wanted or self.uplink is not None:
+        if not self.uplink_wanted or fleet.hub_url in self.uplinks:
             return False
-        settings = load_settings()
-        hub = (self.hub_override or settings.hub_url or "").rstrip("/")
-        token = load_token(hub) if hub else None
+        token = load_token(fleet.hub_url)
         if not token:
             return False
-        off = sorted(set(SHARE_CATEGORIES) - settings.shared)
-        self.announce(
-            f"Fleet: sending to {hub}" + (f" (not sharing: {', '.join(off)})" if off else "")
-        )
+        off = sorted(set(SHARE_CATEGORIES) - fleet.shared)
+        not_shared = f" (not sharing: {', '.join(off)})" if off else ""
+        self.announce(f"Fleet {fleet.label}: sending to {fleet.hub_url}{not_shared}")
 
         def status(s: dict) -> None:
             self.pipeline._notify("uplink", s)
             if s.get("state") in ("connected", "rejected"):
                 who = f" as {s['member']}" if s.get("member") else ""
-                self.announce(f"Fleet: {s['state']}{who}. {s.get('message') or ''}".rstrip())
+                self.announce(
+                    f"Fleet {fleet.label}: {s['state']}{who}. {s.get('message') or ''}".rstrip()
+                )
             update = s.get("update")
             if update and s.get("state") == "connected":
-                self.announce(f"Fleet: agent {update['version']} is out: {update['url']}")
+                self.announce(
+                    f"Fleet {fleet.label}: agent {update['version']} is out: {update['url']}"
+                )
 
-        self.uplink = Uplink(
+        uplink = Uplink(
             self.pipeline,
-            hub,
+            fleet.hub_url,
             token,
-            settings.shared,
+            fleet.shared,
             channel=self.install.channel if self.install else None,
             on_status=status,
         )
-        self.uplink.start()
-        self.server.fleet_open = self.uplink.login_link
-        self.server.fleet_view = self.uplink.fleet_view
+        uplink.status["org"] = fleet.org
+        uplink.start()
+        self.uplinks[fleet.hub_url] = uplink
         return True
 
-    async def stop_uplink(self, *, unlinked: bool = False) -> None:
-        if self.uplink is not None:
-            await self.uplink.stop()
-            self.uplink = None
-        self.server.fleet_open = None
-        self.server.fleet_view = None
-        if unlinked:
-            self.pipeline._notify("uplink", {"state": "unlinked", "hub": None, "member": None})
+    async def _stop(self, hub_url: str, *, unlinked: bool = False) -> None:
+        uplink = self.uplinks.pop(hub_url, None)
+        if uplink is not None:
+            await uplink.stop()
+        if unlinked or uplink is not None:
+            # The page drops this fleet's chip (it isn't sending any more).
+            self.pipeline._notify("uplink", {"state": "unlinked", "hub": hub_url, "member": None})
+
+    async def stop_uplinks(self) -> None:
+        for hub in list(self.uplinks):
+            uplink = self.uplinks.pop(hub)
+            await uplink.stop()
+
+    # -- the fleet views (localserver /api/fleet/open and /ws/fleet)
+
+    def _uplink(self, hub_url: str | None):
+        if hub_url:
+            return self.uplinks.get(hub_url.rstrip("/"))
+        return next(iter(self.uplinks.values()), None)
+
+    async def login_link(self, hub_url: str | None = None) -> str:
+        uplink = self._uplink(hub_url)
+        if uplink is None:
+            raise LinkError("Not sending to that fleet.")
+        return await uplink.login_link()
+
+    def fleet_view(self, hub_url: str | None = None):
+        """An async context giving that hub's fleet stream, or None (not in that fleet)."""
+        uplink = self._uplink(hub_url)
+        return uplink.fleet_view() if uplink is not None else None
 
     # -- what the Agent tab shows
 
     def state(self) -> dict:
         settings = load_settings()
-        linked = bool(settings.hub_url and load_token(settings.hub_url))
         found = installs.find_installs()
         return {
             "agent_version": __version__,
-            "linked": linked,
-            "hub": settings.hub_url if linked else None,
-            "org": settings.org if linked else None,
-            "member": settings.member_name if linked else None,
-            "sending": self.uplink is not None,
+            "fleets": [
+                {
+                    "hub": f.hub_url,
+                    "org": f.org,
+                    "label": f.label,
+                    "member": f.member_name,
+                    "enabled": f.enabled,
+                    "linked": bool(load_token(f.hub_url)),
+                    "sending": f.hub_url in self.uplinks,
+                    "share": [
+                        {"id": c, "label": SHARE_LABEL[c], "help": SHARE_HELP[c], "on": f.share[c]}
+                        for c in SHARE_CATEGORIES
+                    ],
+                }
+                for f in settings.fleets
+            ],
+            "can_send": self.uplink_wanted,
             "joining": self._joining,
             "suggested_name": game_handle(self.install.game_log if self.install else None),
-            "share": [
-                {"id": c, "label": SHARE_LABEL[c], "help": SHARE_HELP[c], "on": settings.share[c]}
-                for c in SHARE_CATEGORIES
-            ],
             "installs": [
                 {
                     "channel": i.channel,
@@ -159,57 +206,80 @@ class AgentControl:
 
     # -- changes
 
-    async def set_share(self, changes: dict) -> dict:
+    def _fleet(self, settings: FleetSettings, hub_url: str) -> Fleet:
+        fleet = settings.get(hub_url)
+        if fleet is None:
+            raise LinkError("This PC isn't in that fleet.")
+        return fleet
+
+    async def _restart(self, fleet: Fleet) -> None:
+        """Sharing or switch changed: the hub learns the categories from the hello."""
+        await self._stop(fleet.hub_url)
+        if fleet.enabled and self.hub_override in (None, fleet.hub_url):
+            self._start(fleet)
+
+    async def set_share(self, hub_url: str, changes: dict) -> dict:
         async with self._lock:
             settings = load_settings()
+            fleet = self._fleet(settings, hub_url)
             for c, on in changes.items():
                 if c in SHARE_CATEGORIES and isinstance(on, bool):
-                    settings.share[c] = on
+                    fleet.share[c] = on
             save_settings(settings)
-            if self.uplink is not None:  # the hub learns the categories from the hello
-                await self.stop_uplink()
-                self.start_uplink()
+            if fleet.hub_url in self.uplinks:
+                await self._restart(fleet)
+        return self.state()
+
+    async def set_enabled(self, hub_url: str, on: bool) -> dict:
+        """Send to this fleet or not, staying in it."""
+        async with self._lock:
+            settings = load_settings()
+            fleet = self._fleet(settings, hub_url)
+            fleet.enabled = on
+            save_settings(settings)
+            await self._restart(fleet)
+            self.announce(f"Fleet {fleet.label}: {'sending' if on else 'paused'}.")
         return self.state()
 
     async def join(self, target: str, name: str) -> dict:
         """An invite link (new account) or a hub address (this PC, an existing account: the
-        hub's page opens to confirm a code, and this waits until it's confirmed)."""
+        hub's page opens to confirm a code, and this waits until it's confirmed). Adds the
+        fleet; the others carry on."""
         async with self._lock:
             hub, invite = parse_target(target)
             if invite:
                 name = name.strip() or self.state()["suggested_name"] or ""
                 if not name:
                     raise LinkError("Choose a display name.")
-                settings = await join(hub, invite, name)
+                fleet = await join(hub, invite, name)
             else:
                 self._joining = hub
                 try:
-                    settings = await link(hub, open_browser=True, say=self.announce)
+                    fleet = await link(hub, open_browser=True, say=self.announce)
                 finally:
                     self._joining = None
-            await self.stop_uplink()
-            self.start_uplink()
-            org = f" ({settings.org})" if settings.org else ""
-            self.announce(f"Fleet: this PC now sends to {settings.hub_url}{org}.")
+            await self._restart(fleet)
+            self.announce(f"Fleet {fleet.label}: this PC now sends to {fleet.hub_url}.")
         return self.state()
 
-    async def leave(self) -> dict:
-        """Stop sending, tell the hub to forget this PC, and forget its key here."""
+    async def leave(self, hub_url: str) -> dict:
+        """Stop sending to a fleet, tell its hub to forget this PC, forget its key here."""
         async with self._lock:
             settings = load_settings()
-            token = load_token(settings.hub_url) if settings.hub_url else None
-            await self.stop_uplink(unlinked=True)
-            if settings.hub_url and token:
+            fleet = self._fleet(settings, hub_url)
+            token = load_token(fleet.hub_url)
+            await self._stop(fleet.hub_url, unlinked=True)
+            if token:
                 with contextlib.suppress(aiohttp.ClientError, asyncio.TimeoutError):
                     async with aiohttp.ClientSession(
                         timeout=aiohttp.ClientTimeout(total=10)
                     ) as http:
                         await http.post(
-                            f"{settings.hub_url}/api/agent/unlink",
+                            f"{fleet.hub_url}/api/agent/unlink",
                             headers={"Authorization": f"Bearer {token}"},
                         )
-            unlink()
-            self.announce(f"Fleet: this PC no longer sends to {settings.hub_url}.")
+            unlink(fleet.hub_url)
+            self.announce(f"Fleet {fleet.label}: this PC no longer sends to {fleet.hub_url}.")
         return self.state()
 
     def set_telemetry(self, channel: str, on: bool) -> dict:

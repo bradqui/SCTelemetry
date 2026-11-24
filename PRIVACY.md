@@ -15,9 +15,9 @@ It never reads game memory, never touches Easy Anti-Cheat and never sends anythi
 **What it sends, and where**
 
 - **Your cockpit view** is served on `127.0.0.1` only and accepts connections from this PC only.
-- **To your org's hub, and nowhere else**, once you join a fleet. That's the address in the invite link from your org's admin. It sends:
+- **To the hubs of the fleets you join, and nowhere else.** A hub's address is in the invite link from that org's admin. You can be in several fleets (one per org); each hub gets only what you share with that fleet, and nothing while you've switched that fleet off. To each, it sends:
   - when you join: your display name and your PC's name, so you can tell your PCs apart;
-  - while it runs: what you choose to share (Agent settings, or `starglance share`). The categories are status (in game, on foot or seated, your seat, your in-game handle), ship, weapons, vitals, uec, location, mission and combat. Everything is on by default. Anything you switch off never leaves your PC.
+  - while it runs: what you choose to share with that fleet (Agent settings, or `starglance share --hub <fleet>`). The categories are status (in game, on foot or seated, your seat, your in-game handle), ship, weapons, vitals, uec, location, mission and combat. Everything is on by default. Anything you switch off never leaves your PC.
 - **Update notices** come from your org's hub, which says which agent version is current. The agent doesn't contact GitHub or anyone else to check.
 
 If you never join a fleet, the agent sends nothing anywhere.
@@ -32,7 +32,7 @@ If you never join a fleet, the agent sends nothing anywhere.
 **Stopping**
 
 - To stop sharing something, switch it off in Agent settings.
-- To stop sending anything, use **Leave the fleet** (or `starglance unlink`). That also deletes the key from Credential Manager.
+- To stop sending to a fleet for a while, switch it off in Agent settings. To leave it, use **Leave** (or `starglance unlink --hub <fleet>`): its hub forgets this PC and the key is deleted from Credential Manager.
 - To switch the game's telemetry off, use Agent settings or `starglance off`.
 - To remove the agent, switch off *Start with Windows* if you switched it on, then delete `starglance.exe` and the folder `%LOCALAPPDATA%\Starglance`. It doesn't install anything else.
 

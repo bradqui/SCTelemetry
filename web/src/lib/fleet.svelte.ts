@@ -16,9 +16,12 @@ export class FleetConnection {
   /** Local only: why the agent couldn't reach the hub. */
   problem = $state<string | null>(null);
   readonly local: boolean;
+  /** Local: which of this PC's fleets (its hub); none: the agent's first. */
+  readonly hub: string | null;
 
-  constructor(opts: { local?: boolean } = {}) {
+  constructor(opts: { local?: boolean; hub?: string | null } = {}) {
     this.local = !!opts.local;
+    this.hub = opts.hub ?? null;
   }
   roster = $state.raw<Record<string, MemberSummary>>({});
   events = $state.raw<FleetEvent[]>([]);
@@ -84,7 +87,8 @@ export class FleetConnection {
   #connect(): void {
     this.socket = "connecting";
     const proto = location.protocol === "https:" ? "wss:" : "ws:";
-    const ws = new WebSocket(`${proto}//${location.host}${this.local ? "/ws/fleet" : "/ws/view"}`);
+    const path = this.local ? `/ws/fleet${this.hub ? `?hub=${encodeURIComponent(this.hub)}` : ""}` : "/ws/view";
+    const ws = new WebSocket(`${proto}//${location.host}${path}`);
     this.#ws = ws;
     let opened = false;
     ws.onopen = () => {

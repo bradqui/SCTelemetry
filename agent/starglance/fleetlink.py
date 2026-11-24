@@ -14,8 +14,10 @@ The PC's token is kept in Windows Credential Manager. With ``STARGLANCE_HOME``
 set (tests, portable use), or where no credential store exists, it goes in a
 file in the agent's data folder instead.
 
-Sharing: every category is on by default; each can be switched off and is then
-never sent (``starglance_shared.apply_sharing``).
+A PC can be in several fleets (one per org's hub: you play with more than one org).
+Each has its own key, its own sharing and an on/off switch. Sharing: every category is
+on by default; each can be switched off, per fleet, and is then never sent to that hub
+(``starglance_shared.apply_sharing``).
 """
 
 from __future__ import annotations
@@ -51,17 +53,68 @@ class LinkError(Exception):
 # ---------------------------------------------------------------- settings
 
 
+def _all_on() -> dict[str, bool]:
+    return dict.fromkeys(SHARE_CATEGORIES, True)
+
+
 @dataclass
-class FleetSettings:
-    hub_url: str | None = None
+class Fleet:
+    """One org's hub this PC is linked to, and what it shares with that org."""
+
+    hub_url: str
     member_name: str | None = None
     org: str | None = None
     agent_id: int | None = None
-    share: dict[str, bool] = field(default_factory=lambda: dict.fromkeys(SHARE_CATEGORIES, True))
+    enabled: bool = True
+    """Send to this fleet now (off: still linked, nothing sent)."""
+    share: dict[str, bool] = field(default_factory=_all_on)
 
     @property
     def shared(self) -> set[str]:
         return {c for c in SHARE_CATEGORIES if self.share.get(c, True)}
+
+    @property
+    def label(self) -> str:
+        return self.org or urlsplit(self.hub_url).netloc or self.hub_url
+
+
+@dataclass
+class FleetSettings:
+    """Every fleet this PC sends to: one org per hub, as many hubs as you play with."""
+
+    fleets: list[Fleet] = field(default_factory=list)
+
+    def get(self, hub_url: str | None) -> Fleet | None:
+        hub = (hub_url or "").rstrip("/")
+        return next((f for f in self.fleets if f.hub_url == hub), None)
+
+    def add(self, hub_url: str) -> Fleet:
+        fleet = self.get(hub_url)
+        if fleet is None:
+            fleet = Fleet(hub_url=hub_url.rstrip("/"))
+            self.fleets.append(fleet)
+        return fleet
+
+    def remove(self, hub_url: str) -> Fleet | None:
+        fleet = self.get(hub_url)
+        if fleet is not None:
+            self.fleets.remove(fleet)
+        return fleet
+
+    def pick(self, which: str | None) -> Fleet:
+        """The fleet a command means: by hub address or org name, or the only one."""
+        if not self.fleets:
+            raise LinkError("Not in a fleet. Join one with: starglance link <invite link>")
+        if which:
+            w = which.strip().rstrip("/").lower()
+            for f in self.fleets:
+                if w in (f.hub_url.lower(), (f.org or "").lower(), urlsplit(f.hub_url).netloc):
+                    return f
+            raise LinkError(f"No fleet {which!r}. Yours: {', '.join(f.label for f in self.fleets)}")
+        if len(self.fleets) == 1:
+            return self.fleets[0]
+        names = ", ".join(f"{f.label} ({f.hub_url})" for f in self.fleets)
+        raise LinkError(f"You're in more than one fleet: say which with --hub. {names}")
 
 
 def _read_settings() -> dict:
@@ -72,28 +125,44 @@ def _read_settings() -> dict:
     return data if isinstance(data, dict) else {}
 
 
+def _fleet_from(d: dict) -> Fleet | None:
+    hub = (d.get("hub_url") or "").rstrip("/")
+    if not hub:
+        return None
+    saved = d.get("share") or {}
+    return Fleet(
+        hub_url=hub,
+        member_name=d.get("member_name"),
+        org=d.get("org"),
+        agent_id=d.get("agent_id"),
+        enabled=bool(d.get("enabled", True)),
+        share={c: bool(saved.get(c, True)) for c in SHARE_CATEGORIES},  # new ones: on
+    )
+
+
 def load_settings() -> FleetSettings:
-    fleet = _read_settings().get("fleet") or {}
-    s = FleetSettings()
-    s.hub_url = (fleet.get("hub_url") or "").rstrip("/") or None
-    s.member_name = fleet.get("member_name")
-    s.org = fleet.get("org")
-    s.agent_id = fleet.get("agent_id")
-    saved = fleet.get("share") or {}
-    for c in SHARE_CATEGORIES:
-        s.share[c] = bool(saved.get(c, True))  # new categories default to on
-    return s
+    data = _read_settings()
+    raw = data.get("fleets")
+    if not isinstance(raw, list):
+        raw = [data["fleet"]] if isinstance(data.get("fleet"), dict) else []  # one fleet, 0.3
+    fleets = [f for f in (_fleet_from(d) for d in raw if isinstance(d, dict)) if f]
+    return FleetSettings(fleets=fleets)
 
 
 def save_settings(s: FleetSettings) -> None:
     data = _read_settings()
-    data["fleet"] = {
-        "hub_url": s.hub_url,
-        "member_name": s.member_name,
-        "org": s.org,
-        "agent_id": s.agent_id,
-        "share": s.share,
-    }
+    data.pop("fleet", None)
+    data["fleets"] = [
+        {
+            "hub_url": f.hub_url,
+            "member_name": f.member_name,
+            "org": f.org,
+            "agent_id": f.agent_id,
+            "enabled": f.enabled,
+            "share": f.share,
+        }
+        for f in s.fleets
+    ]
     paths.settings_file().write_text(json.dumps(data, indent=2), encoding="utf-8")
 
 
@@ -114,6 +183,30 @@ def _token_file() -> Path:
     return paths.data_dir() / TOKEN_FILE
 
 
+def _file_tokens() -> dict[str, str]:
+    """The token file: {hub URL: token}. (Up to 0.3 it held one: {"hub_url", "token"}.)"""
+    try:
+        data = json.loads(_token_file().read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    if "hub_url" in data and "token" in data:
+        return {str(data["hub_url"]): str(data["token"])}
+    return {str(k): str(v) for k, v in data.items() if isinstance(v, str)}
+
+
+def _write_file_tokens(tokens: dict[str, str]) -> None:
+    path = _token_file()
+    if not tokens:
+        with contextlib.suppress(FileNotFoundError):
+            path.unlink()
+        return
+    path.write_text(json.dumps(tokens), encoding="utf-8")
+    with contextlib.suppress(OSError):
+        path.chmod(0o600)
+
+
 def save_token(hub_url: str, token: str) -> None:
     if _use_keyring():
         import keyring
@@ -121,10 +214,7 @@ def save_token(hub_url: str, token: str) -> None:
         with contextlib.suppress(Exception):
             keyring.set_password(KEYRING_SERVICE, hub_url, token)
             return
-    path = _token_file()
-    path.write_text(json.dumps({"hub_url": hub_url, "token": token}), encoding="utf-8")
-    with contextlib.suppress(OSError):
-        path.chmod(0o600)
+    _write_file_tokens({**_file_tokens(), hub_url: token})
 
 
 def load_token(hub_url: str) -> str | None:
@@ -141,11 +231,7 @@ def load_token(hub_url: str) -> str | None:
                 keyring.set_password(KEYRING_SERVICE, hub_url, token)
                 keyring.delete_password(OLD_KEYRING_SERVICE, hub_url)
                 return token
-    try:
-        data = json.loads(_token_file().read_text(encoding="utf-8"))
-    except (FileNotFoundError, json.JSONDecodeError):
-        return None
-    return data.get("token") if data.get("hub_url") == hub_url else None
+    return _file_tokens().get(hub_url)
 
 
 def forget_token(hub_url: str) -> None:
@@ -155,8 +241,9 @@ def forget_token(hub_url: str) -> None:
         for service in (KEYRING_SERVICE, OLD_KEYRING_SERVICE):
             with contextlib.suppress(Exception):
                 keyring.delete_password(service, hub_url)
-    with contextlib.suppress(FileNotFoundError):
-        _token_file().unlink()
+    tokens = _file_tokens()
+    if tokens.pop(hub_url, None) is not None:
+        _write_file_tokens(tokens)
 
 
 # ---------------------------------------------------------------- addresses
@@ -180,15 +267,17 @@ def machine_name() -> str:
     return (platform.node() or "PC")[:32]
 
 
-def _save_link(hub_url: str, result: dict) -> FleetSettings:
+def _save_link(hub_url: str, result: dict) -> Fleet:
+    """Linked to a hub: add it to this PC's fleets (or refresh it, keeping its sharing)."""
     save_token(hub_url, result["token"])
     settings = load_settings()
-    settings.hub_url = hub_url
-    settings.agent_id = result.get("agent_id")
-    settings.member_name = (result.get("member") or {}).get("name")
-    settings.org = result.get("org") or settings.org
+    fleet = settings.add(hub_url)
+    fleet.agent_id = result.get("agent_id")
+    fleet.member_name = (result.get("member") or {}).get("name")
+    fleet.org = result.get("org") or fleet.org
+    fleet.enabled = True
     save_settings(settings)
-    return settings
+    return fleet
 
 
 async def _post(http: aiohttp.ClientSession, url: str, body: dict) -> tuple[int, dict]:
@@ -206,9 +295,7 @@ async def _post(http: aiohttp.ClientSession, url: str, body: dict) -> tuple[int,
 # ---------------------------------------------------------------- join / link
 
 
-async def join(
-    hub_url: str, invite: str, name: str, *, machine: str | None = None
-) -> FleetSettings:
+async def join(hub_url: str, invite: str, name: str, *, machine: str | None = None) -> Fleet:
     """Accept an invite from this PC: creates the account and links the PC."""
     async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=20)) as http:
         status, body = await _post(
@@ -231,7 +318,7 @@ async def link(
     open_browser: bool = True,
     say: Callable[[str], None] = print,
     timeout_s: float = 600,
-) -> FleetSettings:
+) -> Fleet:
     """Link this PC to an existing account: confirm the shown code on the hub's page."""
     hub_url = hub_url.rstrip("/")
     async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=20)) as http:
@@ -272,14 +359,13 @@ async def login_link(hub_url: str, token: str) -> str:
     return body["url"]
 
 
-def unlink() -> FleetSettings:
+def unlink(hub_url: str) -> Fleet | None:
+    """Forget a fleet: its key and its settings. (Telling the hub is the caller's job.)"""
     settings = load_settings()
-    if settings.hub_url:
-        forget_token(settings.hub_url)
-    settings.member_name = None
-    settings.agent_id = None
+    fleet = settings.remove(hub_url)
+    forget_token(hub_url)
     save_settings(settings)
-    return settings
+    return fleet
 
 
 def game_handle(game_log: Path | None) -> str | None:

@@ -6,6 +6,7 @@
   import { altitude, ROLE_NAMES, speedIn } from "../../lib/format";
   import type { MemberSummary } from "../../lib/types";
   import { footLine } from "../fleet/roster";
+  import { fleetPick } from "../../lib/fleetpick.svelte";
 
   let { ctx }: { ctx: PanelCtx } = $props();
 
@@ -52,7 +53,13 @@
   <p class="muted">{wing.problem}</p>
 {:else if !wing.me}
   <p class="muted">Connecting to the fleet…</p>
-{:else if !rows.length}
+{:else}
+  {#if fleetPick.choices.length > 1}
+    <select class="pick" value={fleetPick.hub} onchange={(e) => fleetPick.pick(e.currentTarget.value)} aria-label="Which fleet">
+      {#each fleetPick.choices as f (f.hub)}<option value={f.hub}>{f.label}</option>{/each}
+    </select>
+  {/if}
+  {#if !rows.length}
   <p class="muted">Nobody else is in game{idle ? ` (${idle} with the agent on)` : ""}.</p>
 {:else}
   <ul class="wing">
@@ -77,8 +84,19 @@
     {/each}
   </ul>
 {/if}
+{/if}
 
 <style>
+  .pick {
+    margin: 0 0 6px;
+    border: 1px solid var(--line-2);
+    border-radius: var(--radius-sm);
+    background: var(--bg-2);
+    color: var(--text);
+    font: inherit;
+    font-size: 0.8rem;
+    padding: 2px 6px;
+  }
   .muted {
     margin: 0;
     color: var(--text-3);

@@ -4,10 +4,11 @@
  * opens in the default browser; in a browser, in a new tab. */
 import { appWindow } from "./appwin.svelte";
 
-export async function openOnHub(): Promise<void> {
+export async function openOnHub(hub?: string | null): Promise<void> {
+  const url = `/api/fleet/open${hub ? `?hub=${encodeURIComponent(hub)}` : ""}`;
   const app = appWindow.api?.open_external;
   if (app) {
-    const body = await fetch("/api/fleet/open", { method: "POST" })
+    const body = await fetch(url, { method: "POST" })
       .then((r) => r.json())
       .catch(() => ({}));
     if (body.url) await app(body.url);
@@ -15,7 +16,7 @@ export async function openOnHub(): Promise<void> {
   }
   const tab = window.open("about:blank", "_blank");
   try {
-    const r = await fetch("/api/fleet/open", { method: "POST" });
+    const r = await fetch(url, { method: "POST" });
     const body = await r.json();
     if (body.url && tab) tab.location.href = body.url;
     else tab?.close();

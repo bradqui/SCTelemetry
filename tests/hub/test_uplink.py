@@ -31,8 +31,8 @@ async def link_with_command(hub, viewer) -> str:
         f"{hub.cfg.hub_url}/api/link/{code}/confirm", headers={"Origin": hub.cfg.origin}
     )
     assert resp.status == 200
-    settings = await asyncio.wait_for(task, 15)
-    assert settings.member_name == "Rook" and settings.hub_url == hub.cfg.hub_url
+    fleet = await asyncio.wait_for(task, 15)
+    assert fleet.member_name == "Rook" and fleet.hub_url == hub.cfg.hub_url
     token = fleetlink.load_token(hub.cfg.hub_url)
     assert token
     return token
@@ -105,16 +105,76 @@ def test_uplink_gives_up_on_a_revoked_token(tmp_path):
 def test_agent_token_is_stored_per_hub(tmp_path, monkeypatch):
     monkeypatch.setenv("STARGLANCE_HOME", str(tmp_path))
     fleetlink.save_token("https://fleet.example", "abc")
+    fleetlink.save_token("https://other.example", "xyz")
     assert fleetlink.load_token("https://fleet.example") == "abc"
-    assert fleetlink.load_token("https://other.example") is None
-    settings = fleetlink.load_settings()
-    assert settings.shared == set(settings.share)  # everything on by default
-    settings.share["vitals"] = False
-    fleetlink.save_settings(settings)
-    assert "vitals" not in fleetlink.load_settings().shared
+    assert fleetlink.load_token("https://other.example") == "xyz"
+    assert fleetlink.load_token("https://third.example") is None
     fleetlink.forget_token("https://fleet.example")
     assert fleetlink.load_token("https://fleet.example") is None
+    assert fleetlink.load_token("https://other.example") == "xyz", "the other fleet's key stays"
     assert aiohttp  # the agent's only network dependency
+
+
+def test_fleets_each_have_their_own_sharing(tmp_path, monkeypatch):
+    monkeypatch.setenv("STARGLANCE_HOME", str(tmp_path))
+    settings = fleetlink.load_settings()
+    assert settings.fleets == []
+    a = settings.add("https://a.example/")
+    b = settings.add("https://b.example")
+    a.org, b.org = "Alpha", "Bravo"
+    assert a.shared == set(a.share), "everything on by default"
+    b.share["uec"] = False
+    b.enabled = False
+    fleetlink.save_settings(settings)
+    again = fleetlink.load_settings()
+    assert [f.hub_url for f in again.fleets] == ["https://a.example", "https://b.example"]
+    assert "uec" in again.get("https://a.example").shared
+    assert "uec" not in again.get("https://b.example").shared
+    assert again.get("https://b.example").enabled is False
+    # Which fleet a command means: the only one, or by address or org name.
+    assert again.pick("bravo").hub_url == "https://b.example"
+    assert again.pick("https://a.example/").org == "Alpha"
+    try:
+        again.pick(None)
+        raise AssertionError("two fleets: must say which")
+    except fleetlink.LinkError as exc:
+        assert "--hub" in str(exc)
+
+
+def test_one_fleet_settings_from_0_3_carry_over(tmp_path, monkeypatch):
+    """Up to 0.3 the settings held one fleet and the token file one key."""
+    import json
+
+    monkeypatch.setenv("STARGLANCE_HOME", str(tmp_path))
+    (tmp_path / "settings.json").write_text(
+        json.dumps(
+            {
+                "fleet": {
+                    "hub_url": "https://fleet.example/",
+                    "member_name": "Rook",
+                    "org": "Wing",
+                    "agent_id": 3,
+                    "share": {"vitals": False},
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    (tmp_path / "hub-token").write_text(
+        json.dumps({"hub_url": "https://fleet.example", "token": "old"}), encoding="utf-8"
+    )
+    (fleet,) = fleetlink.load_settings().fleets
+    assert (fleet.hub_url, fleet.member_name, fleet.org, fleet.enabled) == (
+        "https://fleet.example",
+        "Rook",
+        "Wing",
+        True,
+    )
+    assert "vitals" not in fleet.shared and "ship" in fleet.shared
+    assert fleetlink.load_token("https://fleet.example") == "old"
+    fleetlink.save_settings(fleetlink.load_settings())
+    saved = json.loads((tmp_path / "settings.json").read_text(encoding="utf-8"))
+    assert "fleet" not in saved and len(saved["fleets"]) == 1
 
 
 def test_invite_links_and_hub_addresses():
@@ -149,8 +209,8 @@ def test_join_with_an_invite_from_the_agent(tmp_path, monkeypatch):
                 headers={"Origin": hub.cfg.origin},
             )
             hub_url, code = fleetlink.parse_target((await resp.json())["url"])
-            settings = await fleetlink.join(hub_url, code, "TestPilot", machine="RIG")
-            assert settings.member_name == "TestPilot" and settings.org == "Fleet"
+            fleet = await fleetlink.join(hub_url, code, "TestPilot", machine="RIG")
+            assert fleet.member_name == "TestPilot" and fleet.org == "Fleet"
             token = fleetlink.load_token(hub_url)
             url = await fleetlink.login_link(hub_url, token)
             assert "/auth/token/" in url

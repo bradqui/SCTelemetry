@@ -25,8 +25,8 @@ Download **starglance.exe** from the [latest release](https://github.com/bradqui
 Then open **Settings → Agent** (the sliders button, top right):
 
 1. **Game telemetry → Switch on**, then restart the game. It reads the setting at startup. Switching it off later puts the game's `user.cfg` back exactly as it was.
-2. **Fleet**: paste the invite link from your org's admin and pick your display name (your in-game handle by default).
-3. **What you share**: everything is on by default; switch off anything you'd rather keep to yourself.
+2. **Fleet**: paste the invite link from your org's admin and pick your display name (your in-game handle by default). Play with more than one org? **Join another fleet** with the other org's invite: Starglance sends to each, and the Fleet view and Wingmates panel have a picker.
+3. **What you share**, per fleet: everything is on by default; switch off anything you'd rather keep to yourself, for that org. A fleet's switch pauses sending to it without leaving.
 
 Everything there is also on the command line, from a terminal (`starglance.exe --help`, or `uv run python -m starglance` from the source):
 

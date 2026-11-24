@@ -24,6 +24,9 @@
     defaultView = "overview",
     onBack,
     onHub,
+    fleets = [],
+    fleetHub = null,
+    onPickFleet,
   }: {
     mode: HubMode;
     me: Account;
@@ -38,6 +41,10 @@
     /** In the cockpit page: back to your own dashboard; open the hub's page. */
     onBack?: () => void;
     onHub?: () => void;
+    /** The cockpit page, in several fleets: which one this is, and switching. */
+    fleets?: { hub: string; label: string }[];
+    fleetHub?: string | null;
+    onPickFleet?: (hub: string) => void;
   } = $props();
 
   // Overview (totals, ships, activity) or Cards (everyone's numbers), remembered per browser.
@@ -177,6 +184,9 @@
       onSignOut={signOut}
       {onBack}
       {onHub}
+      {fleets}
+      {fleetHub}
+      {onPickFleet}
     />
     <div class="body">
       <aside>

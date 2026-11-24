@@ -34,6 +34,8 @@ log = logging.getLogger(__name__)
 
 APP_NAME = "Starglance"
 BG = "#0b0f14"  # the page's dark background, so the window doesn't flash white
+FRAMELESS_DEFAULT = True
+"""No Windows title bar unless switched back on (Settings -> Agent -> Window, or the tray)."""
 
 
 # ---------------------------------------------------------------- the icon
@@ -182,7 +184,7 @@ class Api:
     def state(self) -> dict:
         a = self._app
         return {
-            "frameless": bool(a and a.prefs.get("frameless", False)),
+            "frameless": bool(a and a.prefs.get("frameless", FRAMELESS_DEFAULT)),
             "on_top": bool(a and a.prefs.get("on_top", False)),
             "maximized": bool(a and a.maximized),
             "autostart": autostart_enabled(),
@@ -280,7 +282,7 @@ class App:
             y=p.get("y"),
             min_size=(420, 320),
             on_top=bool(p.get("on_top", False)),
-            frameless=bool(p.get("frameless", False)),
+            frameless=bool(p.get("frameless", FRAMELESS_DEFAULT)),
             easy_drag=False,  # only the top bar drags (dragging panels must still work)
             hidden=hidden,
             background_color=BG,
@@ -341,7 +343,7 @@ class App:
     def set_frameless(self, on: bool) -> None:
         """Title bar on or off: Windows can't change that on an open window, so open a new
         one in the same place and close the old."""
-        if bool(self.prefs.get("frameless", False)) == on or self.window is None:
+        if bool(self.prefs.get("frameless", FRAMELESS_DEFAULT)) == on or self.window is None:
             self.prefs["frameless"] = on
             save_prefs(self.prefs)
             return
@@ -394,8 +396,8 @@ class App:
                 ),
                 item(
                     "Hide the title bar",
-                    lambda: self.set_frameless(not self.prefs.get("frameless", False)),
-                    checked=lambda _i: bool(self.prefs.get("frameless", False)),
+                    lambda: self.set_frameless(not self.prefs.get("frameless", FRAMELESS_DEFAULT)),
+                    checked=lambda _i: bool(self.prefs.get("frameless", FRAMELESS_DEFAULT)),
                     visible=windowed,
                 ),
                 item(

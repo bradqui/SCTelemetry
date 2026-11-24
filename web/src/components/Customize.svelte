@@ -11,7 +11,7 @@
     compact,
     onClose,
     agent = false,
-    uplink = null,
+    uplinks = {},
     tab: startTab = "dashboard",
   }: {
     store: PrefsStore;
@@ -19,7 +19,7 @@
     onClose: () => void;
     /** The cockpit page: also the Agent tab (this PC's fleet link, sharing, telemetry). */
     agent?: boolean;
-    uplink?: UplinkStatus | null;
+    uplinks?: Record<string, UplinkStatus>;
     tab?: "dashboard" | "agent";
   } = $props();
   let tab = $state<"dashboard" | "agent">("dashboard");
@@ -68,7 +68,7 @@
   {/if}
 
   {#if tab === "agent"}
-    <AgentSettings {uplink} />
+    <AgentSettings {uplinks} />
   {:else}
 
   <section>

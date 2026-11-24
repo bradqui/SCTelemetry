@@ -12,7 +12,7 @@
     compact,
     replay = false,
     caution = true,
-    uplink = null,
+    uplinks = [],
     onFleet,
     onToggleCompact,
     onCustomize,
@@ -25,7 +25,8 @@
     /** Show the master caution/warning in the bar. */
     caution?: boolean;
     /** Sending to the fleet hub? */
-    uplink?: UplinkStatus | null;
+    /** Each fleet's link (one per org's hub you're in). */
+    uplinks?: UplinkStatus[];
     /** Show the fleet in this page (else the chip opens the hub's page). */
     onFleet?: () => void;
     onToggleCompact: () => void;
@@ -45,6 +46,26 @@
   const ship = $derived(snapshot?.ship ?? null);
   const status = $derived(snapshot?.status ?? null);
   const loc = $derived(snapshot?.location ?? null);
+
+  // The Fleet chip: every fleet this PC sends to. Its colour is the worst of them.
+  const links = $derived(uplinks.filter((u) => u.state !== "unlinked"));
+  const fleetState = $derived(
+    links.some((u) => u.state === "rejected")
+      ? "rejected"
+      : links.every((u) => u.state === "connected")
+        ? "connected"
+        : "connecting",
+  );
+  const fleetTitle = $derived(
+    links
+      .map((u) => {
+        const name = u.org || u.hub;
+        if (u.state === "connected") return `${name}: sending${u.member ? ` as ${u.member}` : ""}`;
+        return `${name}: ${u.message ?? (u.state === "rejected" ? "refused" : "connecting")}`;
+      })
+      .join("\n") + "\nClick to see the fleet.",
+  );
+  const update = $derived(links.find((u) => u.update)?.update ?? null);
   // The ship you're aboard on foot (its comms channel): yours, or someone else's.
   const aboard = $derived.by(() => {
     const a = loc?.aboard;
@@ -107,22 +128,18 @@
     {:else if ship && ship.powered === false}
       <span class="mode off">Powered down</span>
     {/if}
-    {#if uplink && uplink.state !== "unlinked"}
-      <button
-        class="fleet {uplink.state}"
-        onclick={() => (onFleet ? onFleet() : openOnHub())}
-        title={uplink.state === "connected"
-          ? `Sending to the fleet${uplink.member ? ` as ${uplink.member}` : ""}. Click to see the fleet.`
-          : (uplink.message ?? "Connecting to the fleet hub")}><span class="dot"></span>Fleet</button
+    {#if links.length}
+      <button class="fleet {fleetState}" onclick={() => (onFleet ? onFleet() : openOnHub())} title={fleetTitle}
+        ><span class="dot"></span>{links.length > 1 ? `Fleets ×${links.length}` : "Fleet"}</button
       >
-      {#if uplink.update}
+      {#if update}
         <a
           class="fleet update"
-          href={uplink.update.url}
+          href={update.url}
           target="_blank"
           rel="noopener noreferrer"
-          title="Agent {uplink.update.version} is out. Download it from the project's releases page."
-          >Update {uplink.update.version}</a
+          title="Agent {update.version} is out. Download it from the project's releases page."
+          >Update {update.version}</a
         >
       {/if}
     {/if}

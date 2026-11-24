@@ -16,6 +16,9 @@
     onSignOut,
     onBack,
     onHub,
+    fleets = [],
+    fleetHub = null,
+    onPickFleet,
   }: {
     org: string;
     me: Account;
@@ -32,6 +35,9 @@
     onBack?: () => void;
     /** In the cockpit page: open the hub's fleet page (phones, other screens, account). */
     onHub?: () => void;
+    fleets?: { hub: string; label: string }[];
+    fleetHub?: string | null;
+    onPickFleet?: (hub: string) => void;
   } = $props();
 
   const online = $derived(rows.filter((m) => m.presence !== "offline"));
@@ -68,7 +74,19 @@
   {/if}
   <div class="brand pywebview-drag-region">
     <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 3 29 27H3z" /><circle cx="16" cy="20" r="3" /></svg>
-    <span class="display">{org}</span>
+    {#if fleets.length > 1 && onPickFleet}
+      <select
+        class="display orgpick"
+        value={fleetHub}
+        onchange={(e) => onPickFleet?.(e.currentTarget.value)}
+        aria-label="Which fleet"
+        title="Your fleets"
+      >
+        {#each fleets as f (f.hub)}<option value={f.hub}>{f.label}</option>{/each}
+      </select>
+    {:else}
+      <span class="display">{org}</span>
+    {/if}
   </div>
 
   <div class="counts" aria-label="Fleet status">
@@ -351,7 +369,17 @@
       margin: 0;
     }
   }
-  .brand > :global(*) {
+  .brand > :global(:not(select)) {
     pointer-events: none;
+  }
+  .orgpick {
+    border: 1px solid var(--line-2);
+    border-radius: var(--radius-sm);
+    background: var(--bg-2);
+    color: var(--text);
+    font: inherit;
+    font-weight: 700;
+    padding: 2px 6px;
+    cursor: pointer;
   }
 </style>

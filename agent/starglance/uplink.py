@@ -204,6 +204,7 @@ class Uplink:
                             member=member,
                             message=None,
                             hub_version=data.get("hub_version"),
+                            org=data.get("org") or self.status.get("org"),
                             update=update_notice(data),
                         )
                     elif kind == "resync":

@@ -1,17 +1,28 @@
 <script lang="ts">
-  // The agent's own settings, for this PC: the fleet it sends to, what it shares, and the
-  // game's telemetry switch. Saved by the agent (not this browser), applied at once.
+  // The agent's own settings, for this PC: the fleets it sends to (one per org's hub, as
+  // many as you play with), what it shares with each, and the game's telemetry switch.
+  // Saved by the agent (not this browser), applied at once.
   import { onMount } from "svelte";
   import { appWindow } from "../lib/appwin.svelte";
   import type { UplinkStatus } from "../lib/types";
 
-  let { uplink = null }: { uplink?: UplinkStatus | null } = $props();
+  let { uplinks = {} }: { uplinks?: Record<string, UplinkStatus> } = $props();
 
   interface Share {
     id: string;
     label: string;
     help: string;
     on: boolean;
+  }
+  interface Fleet {
+    hub: string;
+    org: string | null;
+    label: string;
+    member: string | null;
+    enabled: boolean;
+    linked: boolean;
+    sending: boolean;
+    share: Share[];
   }
   interface Install {
     channel: string;
@@ -21,14 +32,10 @@
   }
   interface State {
     agent_version: string;
-    linked: boolean;
-    hub: string | null;
-    org: string | null;
-    member: string | null;
-    sending: boolean;
+    fleets: Fleet[];
+    can_send: boolean;
     joining: string | null;
     suggested_name: string | null;
-    share: Share[];
     installs: Install[];
     restart_note: string;
   }
@@ -39,6 +46,9 @@
   let target = $state("");
   let name = $state("");
   let restartFor = $state<string | null>(null);
+  let adding = $state(false);
+  /** Which fleet's sharing is open (one at a time). */
+  let open = $state<string | null>(null);
 
   async function call(path: string, body?: unknown): Promise<void> {
     error = "";
@@ -66,6 +76,7 @@
     try {
       await call("settings");
       name = info?.suggested_name ?? "";
+      if (info && info.fleets.length === 1) open = info.fleets[0].hub;
     } catch (e) {
       error = (e as Error).message;
     }
@@ -74,31 +85,39 @@
   const isInvite = $derived(/\/join\/[^/\s]+\s*$/.test(target));
   async function joinFleet(e: SubmitEvent) {
     e.preventDefault();
+    const before = info?.fleets.length ?? 0;
     await act("join", "join", { target, name });
-    if (info?.linked) target = "";
+    if ((info?.fleets.length ?? 0) > before || !error) {
+      target = "";
+      adding = false;
+    }
   }
-  async function leave() {
-    if (!confirm(`Leave ${info?.org ?? "the fleet"}? This PC stops sending, and the hub forgets it. You can join again with an invite link.`))
+  async function leave(f: Fleet) {
+    if (!confirm(`Leave ${f.label}? This PC stops sending to it, and its hub forgets this PC. You can join again with an invite link.`))
       return;
-    await act("leave", "leave", {});
+    await act(`leave-${f.hub}`, "leave", { hub: f.hub });
   }
-  async function share(s: Share, on: boolean) {
-    await act(`share-${s.id}`, "share", { share: { [s.id]: on } });
+  async function share(f: Fleet, s: Share, on: boolean) {
+    await act(`share-${f.hub}-${s.id}`, "share", { hub: f.hub, share: { [s.id]: on } });
+  }
+  async function enable(f: Fleet, on: boolean) {
+    await act(`fleet-${f.hub}`, "fleet", { hub: f.hub, enabled: on });
   }
   async function telemetry(i: Install, on: boolean) {
     await act(`tel-${i.channel}`, "telemetry", { channel: i.channel, on });
     if (on) restartFor = i.channel;
   }
 
-  const live = $derived(
-    !uplink || uplink.state === "unlinked"
-      ? null
-      : uplink.state === "connected"
-        ? "Connected"
-        : uplink.state === "rejected"
-          ? (uplink.message ?? "Refused by the hub")
-          : (uplink.message ?? "Connecting…"),
-  );
+  function live(f: Fleet): { text: string; ok: boolean } {
+    if (!f.enabled) return { text: "Paused: nothing sent", ok: false };
+    if (!info?.can_send) return { text: "Not sending (replay, or --no-uplink)", ok: false };
+    const u = uplinks[f.hub];
+    if (!u || u.state === "unlinked") return { text: f.sending ? "Connecting…" : "Not sending", ok: false };
+    if (u.state === "connected") return { text: "Connected", ok: true };
+    if (u.state === "rejected") return { text: u.message ?? "Refused by the hub", ok: false };
+    return { text: u.message ?? "Connecting…", ok: false };
+  }
+  const offCount = (f: Fleet) => f.share.filter((s) => !s.on).length;
 </script>
 
 {#if error}<p class="error" role="alert">{error}</p>{/if}
@@ -107,48 +126,82 @@
   <p class="hint">Loading…</p>
 {:else}
   <section>
-    <h3>Fleet</h3>
-    {#if info.linked}
-      <div class="fleet">
-        <span class="dot" class:ok={uplink?.state === "connected"}></span>
-        <div>
-          <b>{info.org ?? "Your fleet"}</b>
-          <small>as {info.member ?? "you"} · {info.hub}</small>
-          {#if live}<small class="live" class:ok={uplink?.state === "connected"}>{live}</small>{/if}
-          {#if !info.sending}<small>Not sending (replay without --uplink, or --no-uplink).</small>{/if}
+    <h3>{info.fleets.length > 1 ? "Fleets" : "Fleet"}</h3>
+    {#if info.fleets.length > 1}
+      <p class="hint">Each org's hub sees only what you share with it. Switch a fleet off to stop sending to it without leaving.</p>
+    {/if}
+    {#each info.fleets as f (f.hub)}
+      {@const st = live(f)}
+      <div class="fleet" class:off={!f.enabled}>
+        <div class="head">
+          <span class="dot" class:ok={st.ok}></span>
+          <div class="who">
+            <b>{f.label}</b>
+            <small>as {f.member ?? "you"} · {f.hub}</small>
+            <small class="live" class:ok={st.ok}>{st.text}</small>
+          </div>
+          <label class="switch" title={f.enabled ? "Sending to this fleet" : "Paused"}>
+            <input
+              type="checkbox"
+              checked={f.enabled}
+              disabled={busy === `fleet-${f.hub}`}
+              onchange={(e) => enable(f, e.currentTarget.checked)}
+            />
+            <span>{f.enabled ? "On" : "Off"}</span>
+          </label>
         </div>
+        <div class="actions">
+          <button class="btn" onclick={() => (open = open === f.hub ? null : f.hub)} aria-expanded={open === f.hub}>
+            What you share{offCount(f) ? ` (${offCount(f)} off)` : ""}
+          </button>
+          <button class="btn danger" disabled={busy === `leave-${f.hub}`} onclick={() => leave(f)}
+            >{busy === `leave-${f.hub}` ? "Leaving…" : "Leave"}</button
+          >
+        </div>
+        {#if open === f.hub}
+          <p class="hint">With {f.label}. Anything off never leaves this PC for this hub.</p>
+          <ul class="share">
+            {#each f.share as s (s.id)}
+              <li>
+                <label class="toggle">
+                  <input
+                    type="checkbox"
+                    checked={s.on}
+                    disabled={busy === `share-${f.hub}-${s.id}`}
+                    onchange={(e) => share(f, s, e.currentTarget.checked)}
+                  />
+                  <span><b>{s.label}</b><small>{s.help}</small></span>
+                </label>
+              </li>
+            {/each}
+          </ul>
+        {/if}
       </div>
-      <button class="btn danger" disabled={busy === "leave"} onclick={leave}>{busy === "leave" ? "Leaving…" : "Leave the fleet"}</button>
-    {:else}
-      <p class="hint">Paste the invite link from your org's admin. Already a member, on another PC? Paste the hub's address instead: its page opens to confirm.</p>
+    {/each}
+
+    {#if !info.fleets.length || adding}
+      <p class="hint">
+        Paste the invite link from {info.fleets.length ? "the other" : "your"} org's admin. Already a member, on another PC? Paste the
+        hub's address instead: its page opens to confirm.
+      </p>
       <form onsubmit={joinFleet}>
         <input type="url" placeholder="https://fleet.example.org/join/…" bind:value={target} required />
         {#if isInvite}
           <label class="field"
-            ><span>Your name in the fleet</span>
+            ><span>Your name in this fleet</span>
             <input type="text" bind:value={name} maxlength="32" placeholder="Your in-game handle" required /></label
           >
         {/if}
-        <button class="btn primary" type="submit" disabled={busy === "join" || !target.trim()}>
-          {busy === "join" ? (info.joining ? "Confirm in your browser…" : "Joining…") : isInvite ? "Join the fleet" : "Link this PC"}
-        </button>
+        <div class="actions">
+          <button class="btn primary" type="submit" disabled={busy === "join" || !target.trim()}>
+            {busy === "join" ? (info.joining ? "Confirm in your browser…" : "Joining…") : isInvite ? "Join the fleet" : "Link this PC"}
+          </button>
+          {#if info.fleets.length}<button class="btn" type="button" onclick={() => (adding = false)}>Cancel</button>{/if}
+        </div>
       </form>
+    {:else}
+      <button class="btn" onclick={() => (adding = true)}>Join another fleet</button>
     {/if}
-  </section>
-
-  <section>
-    <h3>What you share</h3>
-    <p class="hint">{info.linked ? "With your fleet" : "Once you join a fleet"}. Anything off never leaves this PC.</p>
-    <ul class="share">
-      {#each info.share as s (s.id)}
-        <li>
-          <label class="toggle">
-            <input type="checkbox" checked={s.on} disabled={busy === `share-${s.id}`} onchange={(e) => share(s, e.currentTarget.checked)} />
-            <span><b>{s.label}</b><small>{s.help}</small></span>
-          </label>
-        </li>
-      {/each}
-    </ul>
   </section>
 
   <section>
@@ -237,18 +290,43 @@
     font-size: 0.85rem;
   }
   .fleet {
-    display: flex;
-    gap: 10px;
-    align-items: start;
+    display: grid;
+    gap: 8px;
     padding: 10px 12px;
     border: 1px solid var(--line-2);
     border-radius: var(--radius-sm);
     background: var(--panel);
   }
-  .fleet div {
+  .fleet.off {
+    opacity: 0.75;
+  }
+  .fleet .head {
+    display: flex;
+    gap: 10px;
+    align-items: start;
+  }
+  .fleet .who {
     display: grid;
     gap: 2px;
     min-width: 0;
+    flex: 1;
+  }
+  .actions {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .switch {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--text-3);
+    cursor: pointer;
+  }
+  .switch input {
+    accent-color: var(--accent);
   }
   .fleet small {
     color: var(--text-3);

@@ -5,10 +5,12 @@
 - ``/api/state``  the latest of everything, as JSON
 - ``/api/mode``   ``{"mode": "local"}``: the same page is served by the hub in fleet mode
 - ``/api/fleet/open``  POST: a one-time link to the fleet page, signed in (when linked)
-- ``/api/agent/settings`` GET, and POST ``/api/agent/share``, ``/join``, ``/leave``,
-  ``/telemetry``: the cockpit's Agent settings (``control.AgentControl``)
+- ``/api/agent/settings`` GET, and POST ``/api/agent/share``, ``/fleet``, ``/join``,
+  ``/leave``, ``/telemetry``: the cockpit's Agent settings (``control.AgentControl``);
+  the fleet ones name a fleet by its ``hub``
 - ``/api/app/show`` POST: the Windows app brings its window forward (a second launch)
-- ``/ws/fleet``  WebSocket: the hub's fleet stream, relayed (when linked). The agent
+- ``/ws/fleet?hub=``  WebSocket: that fleet's stream from its hub, relayed (default: the
+  first fleet this PC sends to). The agent
   connects to the hub with its own token; the page may only send ``focus``.
 
 In replay mode (``run --replay``) the page also gets the recording's timeline
@@ -133,6 +135,7 @@ class LocalServer:
                 web.post("/api/agent/share", self._agent_share),
                 web.post("/api/agent/join", self._agent_join),
                 web.post("/api/agent/leave", self._agent_leave),
+                web.post("/api/agent/fleet", self._agent_fleet),
                 web.post("/api/agent/telemetry", self._agent_telemetry),
                 web.post("/api/app/show", self._app_show),
                 web.get("/{tail:.*}", self._static),
@@ -140,20 +143,24 @@ class LocalServer:
         )
         self._runner: web.AppRunner | None = None
         self.fleet_open = None
-        """Set when linked to a hub: async () -> one-time sign-in URL."""
+        """async (hub URL | None) -> one-time sign-in URL for that fleet's page."""
         self.fleet_view = None
-        """Set when linked to a hub: () -> async context giving the hub's fleet WebSocket."""
+        """(hub URL | None) -> async context giving that hub's fleet WebSocket, or None."""
         self.on_show = None
         """The Windows app: () -> bring its window forward (starting it again does this)."""
         self.control = None
         """The running agent's settings (control.AgentControl); None in tests."""
-        self.uplink: dict | None = None
-        """The hub link's latest status, for pages that open later (the Fleet chip)."""
+        self.uplinks: dict[str, dict] = {}
+        """Each fleet's latest link status, by hub, for pages that open later (Fleet chip)."""
         pipeline.subscribe(self._remember)
 
     def _remember(self, kind: str, payload: object) -> None:
         if kind == "uplink" and isinstance(payload, dict):
-            self.uplink = payload
+            hub = str(payload.get("hub") or "")
+            if payload.get("state") == "unlinked":
+                self.uplinks.pop(hub, None)
+            else:
+                self.uplinks[hub] = payload
 
     @web.middleware
     async def _guard(self, request: web.Request, handler):
@@ -165,11 +172,11 @@ class LocalServer:
 
     # -- routes
 
-    async def _fleet_open(self, _request: web.Request) -> web.Response:
+    async def _fleet_open(self, request: web.Request) -> web.Response:
         if self.fleet_open is None:
             return web.json_response({"error": "not linked to a fleet"}, status=404)
         try:
-            url = await self.fleet_open()
+            url = await self.fleet_open(request.query.get("hub") or None)
         except Exception as exc:  # the hub is down, the token was revoked...
             return web.json_response({"error": str(exc)}, status=502)
         return web.json_response({"url": url})
@@ -179,12 +186,13 @@ class LocalServer:
         hub: only which member is open. Either side closing closes both."""
         ws = web.WebSocketResponse(heartbeat=20)
         await ws.prepare(request)
-        if self.fleet_view is None:
+        view = self.fleet_view(request.query.get("hub") or None) if self.fleet_view else None
+        if view is None:
             await ws.send_json({"type": "unlinked"})
             await ws.close()
             return ws
         try:
-            async with self.fleet_view() as hub:
+            async with view as hub:
 
                 async def down() -> None:
                     async for msg in hub:
@@ -246,7 +254,13 @@ class LocalServer:
 
     async def _agent_share(self, request: web.Request) -> web.Response:
         return await self._agent_call(
-            request, lambda b: self.control.set_share(b.get("share") or {})
+            request, lambda b: self.control.set_share(str(b.get("hub", "")), b.get("share") or {})
+        )
+
+    async def _agent_fleet(self, request: web.Request) -> web.Response:
+        return await self._agent_call(
+            request,
+            lambda b: self.control.set_enabled(str(b.get("hub", "")), bool(b.get("enabled"))),
         )
 
     async def _agent_join(self, request: web.Request) -> web.Response:
@@ -256,7 +270,7 @@ class LocalServer:
         )
 
     async def _agent_leave(self, request: web.Request) -> web.Response:
-        return await self._agent_call(request, lambda _b: self.control.leave())
+        return await self._agent_call(request, lambda b: self.control.leave(str(b.get("hub", ""))))
 
     async def _agent_telemetry(self, request: web.Request) -> web.Response:
         return await self._agent_call(
@@ -300,8 +314,8 @@ class LocalServer:
             await ws.send_str(json.dumps({"type": "replay_index", **self.playhead.rec.index()}))
             await ws.send_str(json.dumps({"type": "replay", **self.playhead.status()}))
         await ws.send_str(json.dumps(self.pipeline.state.as_dict()))
-        if self.uplink is not None:
-            await ws.send_str(json.dumps({"type": "uplink", **self.uplink}))
+        for status in list(self.uplinks.values()):
+            await ws.send_str(json.dumps({"type": "uplink", **status}))
         await ws.send_str(
             json.dumps(
                 {"type": "history", "events": [json.loads(_dump(e)) for e in self.pipeline.recent]}

@@ -678,7 +678,7 @@ def test_the_local_fleet_view_through_the_agent(tmp_path):
                         assert (await page.receive_json())["type"] == "unlinked"
 
                     uplink = Uplink(pipeline, hub.cfg.hub_url, token, set())
-                    server.fleet_view = uplink.fleet_view
+                    server.fleet_view = lambda _hub: uplink.fleet_view()
                     async with http.ws_connect(url) as page:
                         hello = await until(page, lambda d: d["type"] == "hello")
                         assert hello["me"]["name"] == "Rook" and hello["org"]
@@ -690,7 +690,8 @@ def test_the_local_fleet_view_through_the_agent(tmp_path):
                         assert full["snapshot"]["ship"]["class"] == snap["ship"]["class"]
 
                     # A revoked token: the page hears why.
-                    server.fleet_view = Uplink(pipeline, hub.cfg.hub_url, "bogus", set()).fleet_view
+                    bogus = Uplink(pipeline, hub.cfg.hub_url, "bogus", set())
+                    server.fleet_view = lambda _hub: bogus.fleet_view()
                     async with http.ws_connect(url) as page:
                         err = await until(page, lambda d: d["type"] == "error")
                         assert "link it again" in err["message"]
@@ -799,9 +800,10 @@ def test_agents_hear_the_current_version_and_old_ones_are_refused(tmp_path):
     asyncio.run(main())
 
 
-def test_agent_settings_join_share_and_leave(tmp_path, monkeypatch):
-    """The cockpit's Agent tab: join a fleet with an invite link, stop sharing something
-    (the hub hears at once), leave (the hub forgets this PC). No restart."""
+def test_agent_settings_two_fleets(tmp_path, monkeypatch):
+    """The cockpit's Agent tab with two orgs' hubs: join both, share differently with each
+    (each hub hears at once), pause one (it stops hearing), leave the other (it forgets
+    this PC). No restart."""
     from starglance.control import AgentControl
     from starglance.localserver import LocalServer
     from starglance.runtime import Pipeline
@@ -809,11 +811,24 @@ def test_agent_settings_join_share_and_leave(tmp_path, monkeypatch):
     monkeypatch.setenv("STARGLANCE_HOME", str(tmp_path / "agent"))
     (tmp_path / "agent").mkdir()
 
+    async def until_true(pred):
+        for _ in range(100):
+            if pred():
+                return
+            await asyncio.sleep(0.05)
+        raise AssertionError("timed out")
+
     async def main():
-        async with running_hub(tmp_path) as (hub, _srv), browser() as admin:
-            await sign_in(admin, hub, "Admin")
-            code = await make_invite(admin, hub)
-            invite = f"{hub.cfg.hub_url}/join/{code}"
+        async with (
+            running_hub(tmp_path / "a", org_name="Alpha") as (hub_a, _sa),
+            running_hub(tmp_path / "b", org_name="Bravo") as (hub_b, _sb),
+            browser() as admin_a,
+            browser() as admin_b,
+        ):
+            await sign_in(admin_a, hub_a, "Admin")
+            await sign_in(admin_b, hub_b, "Admin")
+            invite_a = f"{hub_a.cfg.hub_url}/join/{await make_invite(admin_a, hub_a)}"
+            invite_b = f"{hub_b.cfg.hub_url}/join/{await make_invite(admin_b, hub_b)}"
             pipeline = Pipeline()
             server = LocalServer(pipeline, port=0, web_dir=tmp_path / "none")
             control = AgentControl(pipeline, server, install=None, announce=lambda _m: None)
@@ -822,46 +837,76 @@ def test_agent_settings_join_share_and_leave(tmp_path, monkeypatch):
             try:
                 async with aiohttp.ClientSession() as page:
                     state = await (await page.get(f"{base}/settings")).json()
-                    assert state["linked"] is False and len(state["share"]) == 8
+                    assert state["fleets"] == []
 
-                    r = await page.post(f"{base}/join", json={"target": invite, "name": ""})
+                    r = await page.post(f"{base}/join", json={"target": invite_a, "name": ""})
                     assert r.status == 400, "a name is needed (no Game.log to suggest one)"
-                    r = await page.post(f"{base}/join", json={"target": invite, "name": "Wren"})
-                    state = await r.json()
-                    assert r.status == 200, state
-                    assert state["linked"] and state["member"] == "Wren" and state["sending"]
+                    for invite in (invite_a, invite_b):
+                        r = await page.post(f"{base}/join", json={"target": invite, "name": "Wren"})
+                        state = await r.json()
+                        assert r.status == 200, state
+                    fleets = {f["org"]: f for f in state["fleets"]}
+                    assert set(fleets) == {"Alpha", "Bravo"}
+                    assert all(f["sending"] and f["member"] == "Wren" for f in fleets.values())
 
-                    (member_id,) = [m.id for m in hub.db.members() if m.name == "Wren"]
-                    live = hub.fleet.members
+                    def live(hub):
+                        (mid,) = [m.id for m in hub.db.members() if m.name == "Wren"]
+                        return mid, hub.fleet.members
 
-                    async def until_true(pred):
-                        for _ in range(100):
-                            if pred():
-                                return
-                            await asyncio.sleep(0.05)
-                        raise AssertionError("timed out")
+                    mid_a, live_a = live(hub_a)
+                    mid_b, live_b = live(hub_b)
+                    await until_true(lambda: mid_a in live_a and live_a[mid_a].connected)
+                    await until_true(lambda: mid_b in live_b and live_b[mid_b].connected)
 
-                    await until_true(lambda: member_id in live and live[member_id].connected)
-                    r = await page.post(f"{base}/share", json={"share": {"vitals": False}})
-                    shares = {s["id"]: s["on"] for s in (await r.json())["share"]}
-                    assert shares["vitals"] is False and shares["ship"] is True
-                    await until_true(
-                        lambda: live[member_id].connected and "vitals" not in live[member_id].share
+                    # Bravo doesn't get vitals; Alpha still does.
+                    r = await page.post(
+                        f"{base}/share",
+                        json={"hub": hub_b.cfg.hub_url, "share": {"vitals": False}},
                     )
+                    fleets = {f["org"]: f for f in (await r.json())["fleets"]}
+                    on = {s["id"]: s["on"] for s in fleets["Bravo"]["share"]}
+                    assert on["vitals"] is False and on["ship"] is True
+                    assert all(s["on"] for s in fleets["Alpha"]["share"])
+                    await until_true(
+                        lambda: live_b[mid_b].connected and "vitals" not in live_b[mid_b].share
+                    )
+                    assert "vitals" in live_a[mid_a].share
 
                     # Not JSON (a form post from some other page): refused.
                     r = await page.post(f"{base}/share", data="share=x")
                     assert r.status == 415
+                    r = await page.post(f"{base}/share", json={"hub": "https://nope", "share": {}})
+                    assert r.status == 400
 
-                    state = await (await page.post(f"{base}/leave", json={})).json()
-                    assert state["linked"] is False and state["sending"] is False
-                    assert hub.db.agents_of(member_id) == [], "the hub forgot this PC"
-                    assert control.uplink is None
+                    # Pause Alpha: still in it, nothing sent.
+                    r = await page.post(
+                        f"{base}/fleet", json={"hub": hub_a.cfg.hub_url, "enabled": False}
+                    )
+                    fleets = {f["org"]: f for f in (await r.json())["fleets"]}
+                    assert fleets["Alpha"]["enabled"] is False and not fleets["Alpha"]["sending"]
+                    await until_true(lambda: not live_a[mid_a].connected)
+                    assert live_b[mid_b].connected
+
+                    # The fleet view picks a fleet; a paused one isn't there.
+                    url = f"http://127.0.0.1:{server.port}/ws/fleet"
+                    async with page.ws_connect(f"{url}?hub={hub_b.cfg.hub_url}") as view:
+                        hello = await until(view, lambda d: d["type"] == "hello")
+                        assert hello["org"] == "Bravo"
+                    async with page.ws_connect(f"{url}?hub={hub_a.cfg.hub_url}") as view:
+                        assert (await view.receive_json())["type"] == "unlinked"
+
+                    # Leave Bravo: its hub forgets this PC; Alpha stays (paused).
+                    r = await page.post(f"{base}/leave", json={"hub": hub_b.cfg.hub_url})
+                    state = await r.json()
+                    assert [f["org"] for f in state["fleets"]] == ["Alpha"]
+                    assert hub_b.db.agents_of(mid_b) == [], "Bravo's hub forgot this PC"
+                    assert hub_a.db.agents_of(mid_a) != []
+                    assert control.uplinks == {}
 
                     r = await page.post(f"{base}/telemetry", json={"channel": "NOPE", "on": True})
                     assert r.status == 400
             finally:
-                await control.stop_uplink()
+                await control.stop_uplinks()
                 await server.stop()
 
     asyncio.run(main())

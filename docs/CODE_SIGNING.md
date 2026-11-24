@@ -23,7 +23,7 @@ Changes from anyone else come in as pull requests and are reviewed by a committe
 
 This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it.
 
-In particular, the agent connects only to the game on the same PC and to the fleet hub the user links it to (from an invite link). It sends that hub only what the user chooses to share. See the [privacy policy](../PRIVACY.md) for exactly what's read, sent and stored.
+In particular, the agent connects only to the game on the same PC and to the fleet hubs the user links it to (each from an invite link). It sends each hub only what the user chooses to share with that fleet. See the [privacy policy](../PRIVACY.md) for exactly what's read, sent and stored.
 
 ## Reporting
 

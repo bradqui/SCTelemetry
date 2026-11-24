@@ -140,10 +140,10 @@ async def serve(args, *, stop=None, on_ready=None, say=print) -> None:
         uplink_wanted=args.uplink if playhead is not None else not args.no_uplink,
         announce=say,
     )
-    if control.uplink_wanted and not control.start_uplink():
+    if control.uplink_wanted and not control.start_uplinks():
         say(
-            "Fleet: not linked. Local view only. To join a fleet: Settings -> Agent in the "
-            "cockpit view, or starglance link <invite link>."
+            "Fleet: not sending to any. Local view only. To join a fleet: Settings -> Agent "
+            "in the cockpit view, or starglance link <invite link>."
         )
     say(f"Starglance agent: local view at http://127.0.0.1:{server.port}/")
     say(source)
@@ -155,7 +155,7 @@ async def serve(args, *, stop=None, on_ready=None, say=print) -> None:
         reader.stop()
         if tail is not None:
             tail.stop()
-        await control.stop_uplink()
+        await control.stop_uplinks()
         await server.stop()
 
 
@@ -171,16 +171,21 @@ def cmd_link(args) -> None:
             default = game_handle(install.game_log if install else None)
             name = args.name or _ask_name(default)
             print(f"Joining the fleet at {hub} as {name} ...")
-            settings = asyncio.run(join(hub, invite, name))
+            fleet = asyncio.run(join(hub, invite, name))
         else:
             print(f"Linking this PC to your account at {hub}.")
             print("A browser window opens: sign in if asked, check the code and confirm.")
-            settings = asyncio.run(link(hub, open_browser=not args.no_browser))
+            fleet = asyncio.run(link(hub, open_browser=not args.no_browser))
     except LinkError as exc:
         sys.exit(str(exc))
-    org = f" ({settings.org})" if settings.org else ""
-    print(f"Done: this PC sends to {settings.hub_url}{org} as {settings.member_name or 'you'}.")
-    print("Start the agent with: python -m starglance run    (open the fleet page: open)")
+    from .fleetlink import load_settings
+
+    org = f" ({fleet.org})" if fleet.org else ""
+    print(f"Done: this PC sends to {fleet.hub_url}{org} as {fleet.member_name or 'you'}.")
+    others = [f.label for f in load_settings().fleets if f.hub_url != fleet.hub_url]
+    if others:
+        print(f"It still sends to your other fleets too: {', '.join(others)}.")
+    print("Restart Starglance (or the agent) to start sending.")
 
 
 def _ask_name(default: str | None) -> str:
@@ -203,42 +208,59 @@ def cmd_open(args) -> None:
 
     from .fleetlink import LinkError, load_settings, load_token, login_link
 
-    settings = load_settings()
-    token = load_token(settings.hub_url) if settings.hub_url else None
-    if not settings.hub_url or not token:
-        sys.exit("Not linked to a fleet. Run: python -m starglance link <invite link>")
     try:
-        url = asyncio.run(login_link(settings.hub_url, token))
+        fleet = load_settings().pick(args.hub)
+        token = load_token(fleet.hub_url)
+        if not token:
+            sys.exit(f"This PC's key for {fleet.label} is missing: link it again.")
+        url = asyncio.run(login_link(fleet.hub_url, token))
     except LinkError as exc:
         sys.exit(str(exc))
     webbrowser.open(url)
-    print(f"Opened {settings.hub_url} in your browser.")
+    print(f"Opened {fleet.label} ({fleet.hub_url}) in your browser.")
 
 
 def cmd_unlink(args) -> None:
-    from .fleetlink import unlink
+    from .fleetlink import LinkError, load_settings, unlink
 
-    settings = unlink()
-    print(f"Done: this PC no longer sends to {settings.hub_url or 'a fleet'}.")
-    print("To remove it from the fleet's list too, unlink it on the hub's page (Your account).")
+    settings = load_settings()
+    try:
+        fleets = settings.fleets if args.all else [settings.pick(args.hub)]
+    except LinkError as exc:
+        sys.exit(str(exc))
+    for fleet in fleets:
+        unlink(fleet.hub_url)
+        print(f"Done: this PC no longer sends to {fleet.label} ({fleet.hub_url}).")
+    if fleets:
+        print("To remove it from a fleet's list too, unlink it on that hub's page (Your account).")
+        print("(Leave the fleet in Settings -> Agent does both.)")
 
 
 def cmd_share(args) -> None:
     from .control import SHARE_HELP
-    from .fleetlink import load_settings, save_settings
+    from .fleetlink import LinkError, load_settings, save_settings
 
     settings = load_settings()
     changes = [(c, False) for c in args.off or []] + [(c, True) for c in args.on or []]
-    for name, value in changes:
+    for name, _ in changes:
         if name not in SHARE_CATEGORIES:
             sys.exit(f"Unknown category {name!r}. Categories: {', '.join(SHARE_CATEGORIES)}")
-        settings.share[name] = value
+    try:
+        fleets = [settings.pick(args.hub)] if (changes or args.hub) else settings.fleets
+    except LinkError as exc:
+        sys.exit(str(exc))
     if changes:
+        for name, value in changes:
+            fleets[0].share[name] = value
         save_settings(settings)
-        print("Saved. Restart the agent for it to take effect.")
-    print(f"Sharing with {settings.hub_url or '(no fleet linked yet)'}:")
-    for c in SHARE_CATEGORIES:
-        print(f"  [{'on ' if settings.share[c] else 'off'}] {c:<9} {SHARE_HELP[c]}")
+        print("Saved. Restart Starglance (or the agent) for it to take effect.")
+    if not fleets:
+        print("Not in a fleet yet: nothing is shared.")
+    for fleet in fleets:
+        state = "" if fleet.enabled else "  (switched off: nothing sent)"
+        print(f"Sharing with {fleet.label} ({fleet.hub_url}){state}:")
+        for c in SHARE_CATEGORIES:
+            print(f"  [{'on ' if fleet.share[c] else 'off'}] {c:<9} {SHARE_HELP[c]}")
 
 
 def cmd_installs(args) -> None:
@@ -365,7 +387,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="No game: replay recordings with a timeline in the page (default: all fixtures)",
     )
     p.add_argument("--speed", type=float, default=1.0, help="Replay speed (default 1)")
-    p.add_argument("--hub", help="Hub address (default: the one you linked to)")
+    p.add_argument("--hub", help="Send only to this fleet (default: every fleet that's on)")
     p.add_argument("--no-uplink", action="store_true", help="Don't send to the fleet hub")
     p.add_argument(
         "--uplink", action="store_true", help="With --replay: send the replay to the hub too"
@@ -374,9 +396,14 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("target", help="The invite link from your admin, or the hub's address")
     p.add_argument("--name", help="Display name when joining (default: your in-game handle)")
     p.add_argument("--no-browser", action="store_true", help="Just print the address")
-    add("open", cmd_open, "Open the fleet page in your browser, signed in")
-    add("unlink", cmd_unlink, "Stop sending to the fleet hub and forget the token")
-    p = add("share", cmd_share, "Show or change what you share with the fleet")
+    which = "Which fleet (hub address or org name), when you're in more than one"
+    p = add("open", cmd_open, "Open a fleet's page in your browser, signed in")
+    p.add_argument("--hub", help=which)
+    p = add("unlink", cmd_unlink, "Stop sending to a fleet and forget its key")
+    p.add_argument("--hub", help=which)
+    p.add_argument("--all", action="store_true", help="Every fleet")
+    p = add("share", cmd_share, "Show or change what you share with each fleet")
+    p.add_argument("--hub", help=which)
     p.add_argument("--off", nargs="+", metavar="CATEGORY", help="Stop sharing these")
     p.add_argument("--on", nargs="+", metavar="CATEGORY", help="Share these again")
     add("installs", cmd_installs, "List Star Citizen installs and whether telemetry is on")

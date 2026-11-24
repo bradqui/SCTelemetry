@@ -15,8 +15,8 @@ export class LiveConnection {
   /** Trend history the agent sent on connect: [t, speed, alt, g][]. */
   trendSeed = $state.raw<[number, number | null, number | null, number | null][]>([]);
 
-  /** The agent's link to the fleet hub (null: not linked or not sending). */
-  uplink = $state.raw<UplinkStatus | null>(null);
+  /** The agent's links to its fleets' hubs, by hub (empty: not in a fleet, or not sending). */
+  uplinks = $state.raw<Record<string, UplinkStatus>>({});
 
   replay = $state(false);
   replayIndex = $state.raw<ReplayIndex | null>(null);
@@ -112,9 +112,14 @@ export class LiveConnection {
         this.events = [];
         this.resets++;
         break;
-      case "uplink":
-        this.uplink = msg as unknown as UplinkStatus;
+      case "uplink": {
+        const u = msg as unknown as UplinkStatus;
+        const next = { ...this.uplinks };
+        if (u.state === "unlinked") delete next[u.hub];
+        else next[u.hub] = u;
+        this.uplinks = next;
         break;
+      }
       case "replay_index":
         this.replayIndex = msg as unknown as ReplayIndex;
         break;

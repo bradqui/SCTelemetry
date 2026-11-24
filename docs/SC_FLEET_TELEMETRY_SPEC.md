@@ -357,8 +357,8 @@ Cog holds a reconnecting WebSocket to the hub's `/internal/events` and uses the 
 - [ ] Unsigned exe: distribute only via our GitHub releases; publish SHA-256.
 
 ## 11. Decisions (2026-11-22)
-1. **Repo:** `bradqui/SCTelemetry`, private for now (may go public later). Hub hostname: TBD.
-2. **Hosting:** Brad's public web server (Webmin/Virtualmin), hub in Docker on a `127.0.0.1` port. HTTPS via a Virtualmin subdomain (Let's Encrypt) with an Apache proxy path to the hub, WebSocket upgrade on. No separate proxy container.
+1. **Repo:** `bradqui/SCTelemetry`, private for now (may go public later). Hub hostname: `fleet.fridaynightclub.xyz` (a setting, `HUB_URL`, not hard-coded). Discord OAuth redirect: `https://<host>/auth/callback`.
+2. **Hosting:** Brad's public web server (Webmin/Virtualmin), hub in Docker on a `127.0.0.1` port. HTTPS via a Virtualmin subdomain (Let's Encrypt) with an Apache proxy path to the hub, WebSocket upgrade on. No separate proxy container. Ports (checked free 2026-11-23): **8100** public app (proxied), **8101** internal API (never proxied), both on `127.0.0.1`. Apache 2.4.58 with `proxy_http` and `proxy_wstunnel` enabled, so `ProxyPass ... upgrade=websocket` works.
 3. **Database:** SQLite. **No Redis** — the cog gets events from the hub's internal WebSocket. Deployment is one container plus the SQLite volume.
 4. **Discord:** server is configurable (Friday Night Club to start); access is a configurable org member role; admin commands and ops require server admin. Alerts channel is configurable: `#lab` while testing, later `#star-citizen`.
 5. **ButlerBot container:** same host as the hub, separate container. Red 3.5.24, Python 3.11, `phasecorex/red-discordbot`; custom cogs deploy by `git pull` of the ButlerBot repo. Docker setup is not in Git. ButlerBot runs with `network_mode: host` (checked 2026-11-23), so there is no network to join: the cog calls the hub's internal port on `127.0.0.1`. Server: Ubuntu 24.04, Docker 29, Compose v5.

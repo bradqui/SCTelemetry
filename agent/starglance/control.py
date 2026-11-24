@@ -82,6 +82,8 @@ class AgentControl:
         """Hub URL -> its running Uplink."""
         self._lock = asyncio.Lock()
         self._joining: str | None = None
+        self.lan = None
+        """Show on other devices (lanview.LanView), when the agent serves one."""
         server.control = self
         server.fleet_open = self.login_link
         server.fleet_view = self.fleet_view
@@ -202,7 +204,33 @@ class AgentControl:
                 for i in found
             ],
             "restart_note": switch.RESTART_NOTE,
+            "lan": self.lan.state() if self.lan is not None else None,
         }
+
+    # -- other devices (lanview): view only, on your network
+
+    def _lan(self):
+        if self.lan is None:
+            raise LinkError("Other devices aren't available here.")
+        return self.lan
+
+    async def set_lan(self, on: bool) -> dict:
+        await self._lan().set_enabled(on)
+        return self.state()
+
+    def lan_code(self, cancel: bool) -> dict:
+        lan = self._lan()
+        if cancel:
+            lan.cancel_code()
+        elif not lan.running:
+            raise LinkError("Switch on Show on other devices first.")
+        else:
+            lan.new_code()
+        return self.state()
+
+    async def lan_forget(self, device_id: str | None) -> dict:
+        await self._lan().forget(device_id)
+        return self.state()
 
     # -- changes
 

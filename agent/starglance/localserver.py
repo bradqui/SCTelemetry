@@ -8,6 +8,8 @@
 - ``/api/agent/settings`` GET, and POST ``/api/agent/share``, ``/fleet``, ``/join``,
   ``/leave``, ``/telemetry``: the cockpit's Agent settings (``control.AgentControl``);
   the fleet ones name a fleet by its ``hub``
+- ``/api/agent/lan``, ``/lan/code``, ``/lan/forget`` POST: Show on other devices
+  (``lanview``: a second, view-only server on your network, opt-in, paired devices only)
 - ``/api/app/show`` POST: the Windows app brings its window forward (a second launch)
 - ``/ws/fleet?hub=``  WebSocket: that fleet's stream from its hub, relayed (default: the
   first fleet this PC sends to). The agent
@@ -127,7 +129,7 @@ class LocalServer:
         self.app.add_routes(
             [
                 web.get("/ws", self._ws),
-                web.get("/api/state", self._api_state),
+                web.get("/api/state", self.api_state),
                 web.get("/api/mode", self._api_mode),
                 web.post("/api/fleet/open", self._fleet_open),
                 web.get("/ws/fleet", self._fleet_ws),
@@ -137,8 +139,11 @@ class LocalServer:
                 web.post("/api/agent/leave", self._agent_leave),
                 web.post("/api/agent/fleet", self._agent_fleet),
                 web.post("/api/agent/telemetry", self._agent_telemetry),
+                web.post("/api/agent/lan", self._agent_lan),
+                web.post("/api/agent/lan/code", self._agent_lan_code),
+                web.post("/api/agent/lan/forget", self._agent_lan_forget),
                 web.post("/api/app/show", self._app_show),
-                web.get("/{tail:.*}", self._static),
+                web.get("/{tail:.*}", self.static),
             ]
         )
         self._runner: web.AppRunner | None = None
@@ -182,10 +187,24 @@ class LocalServer:
         return web.json_response({"url": url})
 
     async def _fleet_ws(self, request: web.Request) -> web.WebSocketResponse:
-        """Relay the hub's fleet view to a local page. Hub -> page: everything; page ->
-        hub: only which member is open. Either side closing closes both."""
+        return await self.fleet_stream(request)
+
+    async def fleet_stream(self, request: web.Request, *, track=None) -> web.WebSocketResponse:
+        """Relay the hub's fleet view to a page (here, or another device: lanview). Hub ->
+        page: everything; page -> hub: only which member is open. Either side closing
+        closes both. ``track`` as for ``stream``."""
         ws = web.WebSocketResponse(heartbeat=20)
         await ws.prepare(request)
+        done = track(ws) if track else None
+        try:
+            return await self._fleet_relay(request, ws)
+        finally:
+            if done:
+                done()
+
+    async def _fleet_relay(
+        self, request: web.Request, ws: web.WebSocketResponse
+    ) -> web.WebSocketResponse:
         view = self.fleet_view(request.query.get("hub") or None) if self.fleet_view else None
         if view is None:
             await ws.send_json({"type": "unlinked"})
@@ -278,6 +297,19 @@ class LocalServer:
             lambda b: self.control.set_telemetry(str(b.get("channel", "")), bool(b.get("on"))),
         )
 
+    async def _agent_lan(self, request: web.Request) -> web.Response:
+        return await self._agent_call(request, lambda b: self.control.set_lan(bool(b.get("on"))))
+
+    async def _agent_lan_code(self, request: web.Request) -> web.Response:
+        return await self._agent_call(
+            request, lambda b: self.control.lan_code(bool(b.get("cancel")))
+        )
+
+    async def _agent_lan_forget(self, request: web.Request) -> web.Response:
+        return await self._agent_call(
+            request, lambda b: self.control.lan_forget(str(b["id"]) if b.get("id") else None)
+        )
+
     async def _app_show(self, _request: web.Request) -> web.Response:
         if self.on_show is None:
             return web.json_response({"error": "not the app"}, status=404)
@@ -287,7 +319,7 @@ class LocalServer:
     async def _api_mode(self, _request: web.Request) -> web.Response:
         return web.json_response({"mode": "local", "agent_version": __version__})
 
-    async def _api_state(self, _request: web.Request) -> web.Response:
+    async def api_state(self, _request: web.Request) -> web.Response:
         body = {
             "agent_version": __version__,
             "state": self.pipeline.state.as_dict(),
@@ -297,8 +329,24 @@ class LocalServer:
         return web.json_response(body)
 
     async def _ws(self, request: web.Request) -> web.WebSocketResponse:
+        return await self.stream(request)
+
+    async def stream(
+        self, request: web.Request, *, remote: bool = False, track=None
+    ) -> web.WebSocketResponse:
+        """The live feed. ``remote``: another device (lanview), which may only watch: the
+        page hides the controls and anything it sends is ignored. ``track(ws)`` is told
+        about the socket and returns a callback for when it ends."""
         ws = web.WebSocketResponse(heartbeat=20)
         await ws.prepare(request)
+        done = track(ws) if track else None
+        try:
+            return await self._stream(ws, remote=remote)
+        finally:
+            if done:
+                done()
+
+    async def _stream(self, ws: web.WebSocketResponse, *, remote: bool) -> web.WebSocketResponse:
         c = _Client(ws)
         await ws.send_str(
             json.dumps(
@@ -307,6 +355,7 @@ class LocalServer:
                     "mode": "local",
                     "agent_version": __version__,
                     "replay": self.playhead is not None,
+                    "remote": remote,
                 }
             )
         )
@@ -331,7 +380,7 @@ class LocalServer:
             async for msg in ws:
                 if msg.type == WSMsgType.ERROR:
                     break
-                if msg.type == WSMsgType.TEXT and self.playhead is not None:
+                if msg.type == WSMsgType.TEXT and self.playhead is not None and not remote:
                     self._replay_command(msg.data)
         finally:
             unsubscribe()
@@ -359,7 +408,8 @@ class LocalServer:
         except (ValueError, TypeError, KeyError):
             log.debug("Ignored replay command %r", text[:200])
 
-    async def _static(self, request: web.Request) -> web.StreamResponse:
+    async def static(self, request: web.Request) -> web.StreamResponse:
+        """The page and its files (any path not found: the page)."""
         index = self.web_dir / "index.html"
         if not index.exists():
             return web.Response(

@@ -7,6 +7,7 @@
   import type { MemberSummary } from "../../lib/types";
   import { footLine } from "../fleet/roster";
   import { fleetPick } from "../../lib/fleetpick.svelte";
+  import { view } from "../../lib/remote.svelte";
 
   let { ctx }: { ctx: PanelCtx } = $props();
 
@@ -47,7 +48,11 @@
 
 {#if !wing || wing.unlinked}
   <p class="muted">
-    Not in a fleet yet. <button class="join" onclick={joinFleet}>Join a fleet</button> with the invite link from your org's admin.
+    {#if view.remote}
+      Not in a fleet yet. Join one on the PC: Settings → Agent.
+    {:else}
+      Not in a fleet yet. <button class="join" onclick={joinFleet}>Join a fleet</button> with the invite link from your org's admin.
+    {/if}
   </p>
 {:else if wing.problem}
   <p class="muted">{wing.problem}</p>

@@ -5,6 +5,7 @@
   import { onMount } from "svelte";
   import { appWindow } from "../lib/appwin.svelte";
   import type { UplinkStatus } from "../lib/types";
+  import OtherDevices, { type Lan } from "./OtherDevices.svelte";
 
   let { uplinks = {} }: { uplinks?: Record<string, UplinkStatus> } = $props();
 
@@ -38,6 +39,7 @@
     suggested_name: string | null;
     installs: Install[];
     restart_note: string;
+    lan: Lan | null;
   }
 
   let info = $state<State | null>(null);
@@ -224,6 +226,10 @@
       </ul>
     {/if}
   </section>
+
+  {#if info.lan}
+    <OtherDevices lan={info.lan} {busy} {act} refresh={() => call("settings")} />
+  {/if}
 
   {#if appWindow.inApp && appWindow.state}
     {@const w = appWindow.state}

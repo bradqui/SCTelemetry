@@ -1,3 +1,4 @@
+import { checkPaired, view } from "./remote.svelte";
 import type { AgentState, ReplayIndex, ReplayStatus, Snapshot, TelemetryEvent, UplinkStatus } from "./types";
 
 const MAX_EVENTS = 60;
@@ -78,6 +79,7 @@ export class LiveConnection {
     ws.onmessage = (msg) => this.#handle(JSON.parse(msg.data));
     ws.onclose = () => {
       this.socket = "closed";
+      void checkPaired();
       if (!this.#stopped) {
         this.#timer = setTimeout(() => this.#connect(), this.#retry);
         this.#retry = Math.min(this.#retry * 2, 8000);
@@ -90,6 +92,7 @@ export class LiveConnection {
       case "hello":
         this.agentVersion = (msg.agent_version as string) ?? null;
         this.replay = msg.replay === true;
+        view.remote = msg.remote === true;
         break;
       case "state":
         this.agent = msg as unknown as AgentState;

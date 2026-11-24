@@ -140,6 +140,11 @@ async def serve(args, *, stop=None, on_ready=None, say=print) -> None:
         uplink_wanted=args.uplink if playhead is not None else not args.no_uplink,
         announce=say,
     )
+    from .lanview import LanView
+
+    lan = control.lan = LanView(server, announce=say)
+    if lan.settings.enabled:
+        await lan.start()
     if control.uplink_wanted and not control.start_uplinks():
         say(
             "Fleet: not sending to any. Local view only. To join a fleet: Settings -> Agent "
@@ -156,6 +161,7 @@ async def serve(args, *, stop=None, on_ready=None, say=print) -> None:
         if tail is not None:
             tail.stop()
         await control.stop_uplinks()
+        await lan.stop()
         await server.stop()
 
 

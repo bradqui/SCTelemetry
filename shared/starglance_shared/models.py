@@ -31,6 +31,37 @@ def version_tuple(version: str | None) -> tuple[int, ...] | None:
     return tuple(int(p) for p in parts)
 
 
+_SYSTEMS = (
+    ("iPhone", "iPhone"),
+    ("iPad", "iPad"),
+    ("Android", "Android"),
+    ("CrOS", "ChromeOS"),
+    ("Windows", "Windows"),
+    ("Macintosh", "Mac"),
+    ("Linux", "Linux"),
+)
+_BROWSERS = (
+    ("Edg", "Edge"),
+    ("OPR/", "Opera"),
+    ("Firefox/", "Firefox"),
+    ("FxiOS", "Firefox"),
+    ("CriOS", "Chrome"),
+    ("Chrome/", "Chrome"),
+    ("Safari/", "Safari"),
+)
+
+
+def device_label(user_agent: str) -> str | None:
+    """A rough name for a device from its User-Agent: "Safari on iPhone", "Edge on Windows"."""
+    if not user_agent:
+        return None
+    system = next((name for key, name in _SYSTEMS if key in user_agent), None)
+    browser = next((name for key, name in _BROWSERS if key in user_agent), None)
+    if browser and system:
+        return f"{browser} on {system}"
+    return browser or system or "A browser"
+
+
 SHARE_CATEGORIES = ("status", "ship", "weapons", "vitals", "uec", "location", "mission", "combat")
 """What a member can share with the fleet. All on by default; each can be switched off.
 

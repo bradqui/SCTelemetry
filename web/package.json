@@ -50,6 +50,7 @@
     "@fontsource/space-mono": "^5.3.0",
     "@fontsource/teko": "^5.3.0",
     "@fontsource/titillium-web": "^5.3.0",
-    "@fontsource/zen-kaku-gothic-new": "^5.3.1"
+    "@fontsource/zen-kaku-gothic-new": "^5.3.1",
+    "qrcode-generator": "2.0.4"
   }
 }

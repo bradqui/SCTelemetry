@@ -4,6 +4,7 @@
   import { FleetConnection } from "./lib/fleet.svelte";
   import { fleetPick } from "./lib/fleetpick.svelte";
   import { LiveConnection } from "./lib/live.svelte";
+  import { view } from "./lib/remote.svelte";
   import { PrefsStore } from "./lib/prefs.svelte";
   import { applyTheme, DEFAULT_THEME, forcedTheme, THEME_BY_ID, themeForShip } from "./lib/themes";
   import { Trends } from "./lib/trends.svelte";
@@ -68,7 +69,7 @@
   );
   function openSettings(tab: "dashboard" | "agent") {
     if (fleetOpen) showFleet(false);
-    settingsTab = tab;
+    settingsTab = view.remote ? "dashboard" : tab; // Agent settings: on the PC only
     customizing = true;
   }
   onMount(() => {
@@ -167,8 +168,13 @@
     <section class="waiting">
       <div class="radar" aria-hidden="true"><span></span><i></i></div>
       {#if live.socket !== "open"}
-        <h1>Can't reach the agent</h1>
-        <p>Start it with <code>python -m starglance run</code>. This page reconnects by itself.</p>
+        {#if view.remote}
+          <h1>Can't reach the PC</h1>
+          <p>Is Starglance running there, with Show on other devices on? This page reconnects by itself.</p>
+        {:else}
+          <h1>Can't reach the agent</h1>
+          <p>Start it with <code>python -m starglance run</code>. This page reconnects by itself.</p>
+        {/if}
       {:else if live.agent?.connected}
         <h1>Connected to Star Citizen</h1>
         <p>Load into the game and your telemetry will appear here.</p>
@@ -185,12 +191,12 @@
 
 {/if}
 
-{#if live.replay && !fleetOpen}
+{#if live.replay && !fleetOpen && !view.remote}
   <ReplayBar {live} />
 {/if}
 
 {#if customizing && !fleetOpen}
-  <Customize {store} {compact} agent uplinks={live.uplinks} tab={settingsTab} onClose={() => (customizing = false)} />
+  <Customize {store} {compact} agent={!view.remote} uplinks={live.uplinks} tab={settingsTab} onClose={() => (customizing = false)} />
 {/if}
 
 <style>

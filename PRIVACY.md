@@ -14,7 +14,8 @@ It never reads game memory, never touches Easy Anti-Cheat and never sends anythi
 
 **What it sends, and where**
 
-- **Your cockpit view** is served on `127.0.0.1` only and accepts connections from this PC only.
+- **Your cockpit view** is served on `127.0.0.1` and accepts connections from this PC only.
+- **Other devices**, only if you switch on *Show on other devices* (Settings → Agent): the same view, view only, on your home network (port 8741), to devices you've paired with a code shown on this PC. The connection is plain HTTP, so someone who can watch your network's traffic could see it too. Switching it off closes the port.
 - **To the hubs of the fleets you join, and nowhere else.** A hub's address is in the invite link from that org's admin. You can be in several fleets (one per org); each hub gets only what you share with that fleet, and nothing while you've switched that fleet off. To each, it sends:
   - when you join: your display name and your PC's name, so you can tell your PCs apart;
   - while it runs: what you choose to share with that fleet (Agent settings, or `starglance share --hub <fleet>`). The categories are status (in game, on foot or seated, your seat, your in-game handle), ship, weapons, vitals, uec, location, mission and combat. Everything is on by default. Anything you switch off never leaves your PC.
@@ -26,6 +27,7 @@ If you never join a fleet, the agent sends nothing anywhere.
 
 - The key that links this PC to your org's hub, in Windows Credential Manager.
 - Its settings (hub address, what you share, your display name), its window's size and position, the page's own storage (your dashboard layouts and theme), caches and a log file, all in `%LOCALAPPDATA%\Starglance`.
+- **Paired devices**, if you use *Show on other devices*: for each, a rough name ("Safari on iPad"), when it was paired and last seen, and a hash of its key, in `other-devices.json` in the same folder. The device keeps the key in a cookie.
 - **Start with Windows**, only if you switch it on (Settings → Agent, or the tray menu): one value named `Starglance` under `HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run`, which starts it in the tray when you sign in. Switching it off removes the value.
 - Recordings, only if you run the capture tool yourself (`tools/capture.py`, from the source code). They stay in a local folder, with aUEC amounts removed.
 

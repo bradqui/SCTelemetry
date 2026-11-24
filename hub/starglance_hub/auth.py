@@ -25,6 +25,7 @@ from urllib.parse import urlencode
 
 import aiohttp
 from aiohttp import web
+from starglance_shared import device_label
 
 from .config import Config
 from .db import Database, Member, now_ms
@@ -32,37 +33,6 @@ from .db import Database, Member, now_ms
 log = logging.getLogger(__name__)
 
 SESSION_COOKIE = "ft_session"
-
-_SYSTEMS = (
-    ("iPhone", "iPhone"),
-    ("iPad", "iPad"),
-    ("Android", "Android"),
-    ("CrOS", "ChromeOS"),
-    ("Windows", "Windows"),
-    ("Macintosh", "Mac"),
-    ("Linux", "Linux"),
-)
-_BROWSERS = (
-    ("Edg", "Edge"),
-    ("OPR/", "Opera"),
-    ("Firefox/", "Firefox"),
-    ("FxiOS", "Firefox"),
-    ("CriOS", "Chrome"),
-    ("Chrome/", "Chrome"),
-    ("Safari/", "Safari"),
-)
-
-
-def device_label(user_agent: str) -> str | None:
-    """A rough name for a device from its User-Agent: "Safari on iPhone", "Edge on Windows"."""
-    if not user_agent:
-        return None
-    system = next((name for key, name in _SYSTEMS if key in user_agent), None)
-    browser = next((name for key, name in _BROWSERS if key in user_agent), None)
-    if browser and system:
-        return f"{browser} on {system}"
-    return browser or system or "A browser"
-
 
 STATE_COOKIE = "ft_oauth"
 RECHECK_MS = 3_600_000

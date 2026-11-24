@@ -12,7 +12,7 @@ Play with others? Join your org's fleet and everyone sees everyone at a glance: 
 
 ## How it fits together
 
-- **Agent** (Windows, each player): reads the game's local telemetry gRPC stream and a few lines of `Game.log` (location, contracts, kills, quantum routes), turns them into a compact status, shows the cockpit view on `127.0.0.1`, and sends what the player shares to their org's hub.
+- **Agent** (Windows, each player): reads the game's local telemetry gRPC stream and a few lines of `Game.log` (location, contracts, kills, quantum routes), turns them into a compact status, shows the cockpit view on `127.0.0.1` (and, if you switch it on, view only to devices you pair on your home network), and sends what the player shares to their org's hub.
 - **Hub** (one Docker container per org): accounts and invites, the fleet page, and an API for bots and scripts. Each org runs its own; see [deploy/README.md](deploy/README.md).
 - **Web**: one page, two homes. The agent serves the cockpit view, which also shows the fleet: the agent signs in to the hub with the PC's link and relays it. The hub serves the fleet page to browsers and phones.
 
@@ -27,6 +27,8 @@ Then open **Settings → Agent** (the sliders button, top right):
 1. **Game telemetry → Switch on**, then restart the game. It reads the setting at startup. Switching it off later puts the game's `user.cfg` back exactly as it was.
 2. **Fleet**: paste the invite link from your org's admin and pick your display name (your in-game handle by default). Play with more than one org? **Join another fleet** with the other org's invite: Starglance sends to each, and the Fleet view and Wingmates panel have a picker.
 3. **What you share**, per fleet: everything is on by default; switch off anything you'd rather keep to yourself, for that org. A fleet's switch pauses sending to it without leaving.
+
+**On a tablet or another PC at home:** in **Settings → Agent → Other devices**, switch on *Show on other devices* and choose **Pair a device**. On the device, open the address shown (like `http://192.168.1.20:8741`) and type the code, or scan the QR code. The device then shows the cockpit view and the fleet, view only: it can't change settings or reach the game. It's off until you switch it on, only paired devices get in, and you can remove one at any time. Windows asks once whether Starglance may use your network: allow it on private networks. It's plain HTTP, so use it on your home network, not on public Wi-Fi.
 
 Everything there is also on the command line, from a terminal (`starglance.exe --help`, or `uv run python -m starglance` from the source):
 

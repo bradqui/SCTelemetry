@@ -97,9 +97,11 @@
       {:else if loc.monitored === false}
         <span class="z warn" title="Outside monitored space">Unmonitored</span>
       {/if}
-      {#if loc.system}<span class="j">{loc.system}</span>{/if}
-      {#if loc.jurisdiction}<span class="j" title="Jurisdiction">{loc.jurisdiction}</span>{/if}
-      {#if shard}<span class="s" title="Server {loc.shard}">{shard}</span>{/if}
+      {#if loc.system}<span class="kv sys" title="Star system"><b>System</b><span>{loc.system}</span></span>{/if}
+      {#if loc.jurisdiction}
+        <span class="kv jur" title="Jurisdiction: whose laws apply here"><b>Jurisdiction</b><span>{loc.jurisdiction}</span></span>
+      {/if}
+      {#if shard}<span class="kv srv" title="Server {loc.shard}"><b>Server</b><span class="mono">{shard}</span></span>{/if}
     </div>
   {/if}
 
@@ -370,15 +372,23 @@
     overflow: hidden;
     white-space: nowrap;
   }
+  .z,
+  .kv {
+    display: inline-flex;
+    align-items: center;
+    height: 20px;
+    box-sizing: border-box;
+    line-height: 1;
+    border-radius: 2px;
+    flex: none;
+  }
   .z {
     font-size: 0.64rem;
     font-weight: 800;
     letter-spacing: 0.1em;
     text-transform: uppercase;
-    padding: 2px 6px;
-    border-radius: 2px;
+    padding: 0 6px;
     border: 1px solid currentColor;
-    flex: none;
   }
   .z.good {
     color: var(--good);
@@ -392,31 +402,53 @@
     color: var(--bad);
     background: color-mix(in srgb, var(--bad) 14%, transparent);
   }
-  .j,
-  .s {
-    font-size: 0.74rem;
-    color: var(--text-2);
+  .kv {
+    border: 1px solid var(--line-2);
+    overflow: hidden;
+    min-width: 0;
+    flex: 0 1 auto;
+  }
+  .kv > b,
+  .kv > span {
+    display: flex;
+    align-items: center;
+    height: 100%;
+    padding: 0 6px;
+  }
+  .kv > b {
+    font-size: 0.58rem;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-3);
+    background: var(--bg-2);
+    border-right: 1px solid var(--line-2);
+    flex: none;
+  }
+  .kv > span {
+    font-size: 0.72rem;
+    font-weight: 650;
+    color: var(--text);
+    white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    min-width: 0;
+    display: block;
+    line-height: 18px;
   }
-  .j::before,
-  .s::before {
-    content: "·";
-    margin: 0 5px 0 2px;
-    color: var(--text-3);
-  }
-  .s {
+  .kv > span.mono {
     font-family: var(--mono);
     font-size: 0.68rem;
-    color: var(--text-3);
+    color: var(--text-2);
   }
   @media (max-width: 1100px) {
-    .s {
+    .srv {
       display: none;
     }
   }
   @media (max-width: 760px) {
-    .j {
+    .sys,
+    .jur {
       display: none;
     }
   }

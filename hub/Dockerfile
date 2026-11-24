@@ -2,7 +2,7 @@
 # Build from the repo root:  docker build -f hub/Dockerfile -t starglance-hub .
 # deploy/docker-compose.yml does this for you.
 
-FROM node:24-slim AS web
+FROM node:25-slim AS web
 WORKDIR /web
 COPY web/package.json web/package-lock.json ./
 RUN npm install --no-audit --no-fund

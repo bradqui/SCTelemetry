@@ -1,0 +1,56 @@
+name: Something's wrong
+description: Something in Starglance doesn't work or shows the wrong thing.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting it. Please don't paste invite links, tokens, API keys or your hub's address here: issues are public.
+        A security problem? Report it privately instead: see SECURITY.md.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you saw, and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: How to see it
+      description: What you were doing in game (ship, seat, quantum, landing...) or on the page when it happened.
+  - type: input
+    id: version
+    attributes:
+      label: Starglance version
+      description: Settings → Agent shows it at the bottom (or the tray icon's tooltip).
+      placeholder: "0.6.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: part
+    attributes:
+      label: Where
+      options:
+        - The app or cockpit view (on my PC)
+        - The fleet (cards, roster, fleet header)
+        - Another device (Show on other devices)
+        - The hub (running it, signing in, invites)
+        - Updating
+        - Something else
+    validations:
+      required: true
+  - type: input
+    id: game
+    attributes:
+      label: Star Citizen channel and patch
+      description: LIVE, PTU...; the patch number if you know it. Many problems start with a game update.
+      placeholder: "LIVE 4.x"
+  - type: textarea
+    id: logs
+    attributes:
+      label: Log or recording (optional)
+      description: |
+        The app's log is in %LOCALAPPDATA%\Starglance\logs (tray icon → Logs folder): the lines around the problem help.
+        For data that looks wrong, a recording helps most (README → Capturing telemetry); its aUEC amounts are removed, but check it before attaching.
+      render: text

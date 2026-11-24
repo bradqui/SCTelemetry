@@ -36,7 +36,7 @@ Everyone with a linked PC, as the fleet page's roster shows them:
 ```jsonc
 {
   "t": 1795496765924,               // ms since epoch
-  "org": "Friday Night Club",
+  "org": "Example Org",
   "members": [
     {
       "id": "m_3f2a9c1d4b5e6f70",   // stable member id

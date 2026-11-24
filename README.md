@@ -114,7 +114,7 @@ npm run dev          # live-reload on :5173, proxying to an agent on :8740
 npm run check        # type check
 ```
 
-Releases (the exe, the hub image, signing): [docs/RELEASING.md](docs/RELEASING.md). The field reference (what the game actually sends): [docs/FIELDS.md](docs/FIELDS.md). The original design and its decisions: [docs/SC_FLEET_TELEMETRY_SPEC.md](docs/SC_FLEET_TELEMETRY_SPEC.md).
+Releases (the exe, the hub image, signing): [docs/RELEASING.md](docs/RELEASING.md). The field reference (what the game actually sends): [docs/FIELDS.md](docs/FIELDS.md). The design and its decisions: [docs/SPEC.md](docs/SPEC.md). Contributing: [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ### Capturing telemetry
 

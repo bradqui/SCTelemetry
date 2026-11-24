@@ -64,14 +64,14 @@
     <p class="eyebrow">Star Citizen · ship and crew status</p>
     <h1 class="display">Starglance</h1>
     <p class="lede">
-      Live ship and crew status for our org, read from Star Citizen's own telemetry. Your own cockpit screen on a second
+      Live ship and crew status for your org, read from Star Citizen's own telemetry. Your own cockpit screen on a second
       monitor or VR overlay, and the whole fleet at a glance on one page: who's flying what, where, in which mode, with
       which warnings.
     </p>
     <ul class="facts">
       <li><b>Reads only what the game offers</b> its local telemetry stream and log file; no memory reading, nothing near Easy Anti-Cheat</li>
       <li><b>You choose what's shared</b> eight categories, each one yours to switch off</li>
-      <li><b>Runs on our own server</b> open source, and any org can run its own</li>
+      <li><b>Your org runs its own hub</b> open source and self-hosted: no central service</li>
     </ul>
   </header>
 
@@ -141,7 +141,7 @@
       <div class="arrow" aria-hidden="true">→</div>
       <div class="node accent"><b>Agent</b><span>On each player's PC: reads the game, shows your cockpit view, sends what you share</span></div>
       <div class="arrow" aria-hidden="true">→</div>
-      <div class="node accent"><b>Hub</b><span>On our server: accounts and invites, the fleet page, an API for bots</span></div>
+      <div class="node accent"><b>Hub</b><span>On your org's server: accounts and invites, the fleet page, an API for bots</span></div>
       <div class="arrow" aria-hidden="true">→</div>
       <div class="node"><b>Everyone</b><span>Fleet page in any browser or phone; Discord bots through the API</span></div>
     </div>
@@ -237,8 +237,8 @@
       <h2 class="display">For bots and tools</h2>
       <p>
         Admins make API keys on the page. With one, a Discord bot or script can read the roster and anyone's live state,
-        follow every event as it happens (warnings, kills, contracts, quantum jumps), and hand out invites. Our ButlerBot can
-        build <code>!fleet</code>, readiness checks and alerts on it.
+        follow every event as it happens (warnings, kills, contracts, quantum jumps), and hand out invites: enough to build a
+        <code>!fleet</code> command, readiness checks and alerts.
       </p>
     </div>
     <div>
@@ -256,19 +256,20 @@
       <div>
         <h3>Built and tested</h3>
         <ul>
-          <li>Agent, cockpit view, replay and capture tools</li>
+          <li>The Windows app: its own window and tray icon, one-click updates</li>
+          <li>The cockpit view, with the fleet and a Wingmates panel inside it, and on a tablet at home</li>
           <li>Hub with invites, admin tools, the fleet page and the bot API</li>
           <li>The sixteen themes</li>
-          <li>188 automated tests on recorded sessions; the server image builds and starts in CI</li>
+          <li>About 250 automated tests on recorded sessions; the server image builds and starts in CI</li>
         </ul>
       </div>
       <div>
         <h3>Next</h3>
         <ul>
-          <li>Put the hub on our server and fly with it on a Friday</li>
-          <li>A one-click Windows download for the agent</li>
+          <li>Code signing, so Windows stops warning about the download</li>
+          <li>Ops with after-action summaries</li>
           <li>Tune the themes from in-game screenshots of each maker's screens</li>
-          <li>A wingmates strip in your own cockpit view; ops with after-action summaries</li>
+          <li>More from the game as CIG adds it (hull and shield levels)</li>
         </ul>
       </div>
     </div>

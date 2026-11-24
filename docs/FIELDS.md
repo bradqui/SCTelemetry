@@ -236,7 +236,7 @@ So the fleet board's hull and shield bars, master mode and `hull_threshold` even
 
 **In the schema but never sent:** doors (`open_state`, `lock_state`).
 
-**Renamed vs. the spec's guesses:**
+**Renamed vs. the community notes' names:**
 - countermeasures `remaining` is actually `amount`.
 - weapons `powered` / "in active group" are `is_powered` / `contained_in_preset`.
 - boost `reserve` is `reserves`.

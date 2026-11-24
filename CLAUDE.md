@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Starglance: Star Citizen ship and crew status, open source (MIT): Windows agent → hub (one per org, Docker) → fleet page; bots use the hub's integration API. The original design and its numbered decisions are in [docs/SC_FLEET_TELEMETRY_SPEC.md](docs/SC_FLEET_TELEMETRY_SPEC.md); later decisions are appended there, so read the decisions list before changing behaviour.
+Starglance: Star Citizen ship and crew status, open source (MIT): Windows agent → hub (one per org, Docker) → fleet page; bots use the hub's integration API. The design and its numbered decisions are in [docs/SPEC.md](docs/SPEC.md) (code comments cite its sections, e.g. "spec §4": keep the numbering); new decisions are appended there, so read the decisions list before changing behaviour. Keep the repo generic: nothing about any particular org, server or person (examples use made-up names and `example.org`).
 
 ## Hard rules
 

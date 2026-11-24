@@ -171,7 +171,7 @@ def main() -> None:
         aboard = (by_id[member_id]["rows"][0].get("location") or {}).get("aboard")
         if aboard:
             aboard["owner_id"], aboard["ship_id"] = owner_id, ship_id
-    data = {"step_ms": STEP_MS, "me": "m_rook", "org": "Friday Night Club", "members": members}
+    data = {"step_ms": STEP_MS, "me": "m_rook", "org": "Demo Fleet", "members": members}
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(json.dumps(data, separators=(",", ":")), encoding="utf-8")
     print(f"wrote {OUT.relative_to(ROOT)} ({OUT.stat().st_size // 1024} KB)")

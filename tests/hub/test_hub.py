@@ -260,7 +260,7 @@ def test_invites_from_the_agent_and_the_browser(tmp_path):
     async def main():
         async with running_hub(tmp_path) as (hub, _srv), browser() as admin:
             await sign_in(admin, hub, "Admin")
-            code = await make_invite(admin, hub, uses=5, days=7, note="Friday crew")
+            code = await make_invite(admin, hub, uses=5, days=7, note="Weekend crew")
 
             # A player joins from their PC: account and link in one step, no browser.
             status, body = await agent_join(hub, code, "Kestrel")
@@ -284,7 +284,7 @@ def test_invites_from_the_agent_and_the_browser(tmp_path):
 
             invites = await (await admin.get(f"{hub.cfg.hub_url}/api/admin/invites")).json()
             (invite,) = invites
-            assert invite["uses"] == 2 and invite["note"] == "Friday crew"
+            assert invite["uses"] == 2 and invite["note"] == "Weekend crew"
             gone = await admin.delete(
                 f"{hub.cfg.hub_url}/api/admin/invites/{invite['id']}",
                 headers={"Origin": hub.cfg.origin},

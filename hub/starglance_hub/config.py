@@ -45,6 +45,9 @@ class Config:
     on an https hub."""
 
     stale_after_s: float = 10.0
+    """In game, an agent sends several times a second: this long silent is "Connection lost"."""
+    idle_stale_after_s: float = 40.0
+    """Not in game, an agent only sends a heartbeat (every 8 s; 25 s before 0.6.1)."""
     offline_after_s: float = 60.0
     event_retention_days: int = 30
 

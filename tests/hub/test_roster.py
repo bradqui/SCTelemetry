@@ -134,3 +134,24 @@ def test_alerts_are_held_like_alarms():
     assert at(2600, hit="major_flashing") == {"thr": "major"}, "one flash of the hit light"
     assert at(3700, thr="major") == {"thr": "major"}
     assert at(6800) == {}, "clear 3 s after the last"
+
+
+def test_not_in_game_is_not_connection_lost_between_heartbeats():
+    """An agent that isn't in game only sends a heartbeat now and then (25 s before 0.6.1):
+    that's "idle", not "Connection lost". In game, 10 s of silence is."""
+    from starglance_hub.config import Config
+    from starglance_hub.db import Member
+    from starglance_hub.fleet import MemberLive
+
+    cfg = Config()
+    m = MemberLive(Member("m1", "Rook", None, "member", 1, 0))
+    m.sockets[1] = object()  # connected
+    m.last_seen = 0
+    m.in_game = False
+    assert m.presence(5_000, cfg) == "idle"
+    assert m.presence(24_000, cfg) == "idle", "between an older agent's heartbeats"
+    assert m.presence(45_000, cfg) == "stale"
+    m.in_game = True
+    assert m.presence(5_000, cfg) == "live"
+    assert m.presence(12_000, cfg) == "stale"
+    assert m.presence(61_000, cfg) == "offline"

@@ -43,7 +43,8 @@ log = logging.getLogger(__name__)
 
 RATE_HZ = 10
 FULL_EVERY_S = 30.0
-HEARTBEAT_S = 25.0
+HEARTBEAT_S = 8.0
+"""Not in game: proof of life, well inside the hub's "Connection lost" (10 s on older hubs)."""
 EVENT_BUFFER = 500
 
 

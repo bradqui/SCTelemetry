@@ -120,7 +120,8 @@ class MemberLive:
             return "stale" if age < cfg.stale_after_s else "offline"
         if age >= cfg.offline_after_s:
             return "offline"
-        if age >= cfg.stale_after_s:
+        # Not in game, the agent only sends heartbeats: quiet is normal there.
+        if age >= (cfg.stale_after_s if self.in_game else cfg.idle_stale_after_s):
             return "stale"
         return "live" if self.in_game else "idle"
 

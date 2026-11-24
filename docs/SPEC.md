@@ -172,7 +172,7 @@ Admins create API keys (scopes `read`, `invites`) for bots: [HUB_API.md](HUB_API
 - Logs in `%LOCALAPPDATA%\Starglance\logs`, rotating. `tools/capture.py` records sessions for bug reports (aUEC scrubbed).
 
 ### 6.2 Hub
-- Live state in memory; a member is stale after 10 s without a message, offline after 60 s.
+- Live state in memory. A member is stale ("Connection lost") after 10 s without a message while in game, or 40 s while not in game (the agent then only sends a heartbeat, every 8 s), and offline after 60 s.
 - Events stored for 30 days (configurable); accounts, PCs, sessions, invites and API keys in SQLite (secrets as hashes only).
 - Roster summaries for the board, held warning lights for the fleet header, crews found from shared ships and "aboard" channels.
 - Rate limits per token and per visitor; oversized messages rejected. `/api/health` for monitoring.

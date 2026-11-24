@@ -200,7 +200,8 @@ WebSocket at `wss://<host>/ws/agent`, JSON messages, `Authorization: Bearer <age
 // on connect
 {"type":"hello","v":1,"agent_version":"0.1.0","channel":"LIVE","game_build":"<exe version or hash>","share":["ship","status","weapons","vitals","uec"]}
 
-// 2–4 Hz while in game (configurable); full normalized snapshot (it's small)
+// Full normalized snapshot on connect and every 30 s; in between, only the
+// fields that changed ("delta"), up to 10 Hz while in game (decision 13).
 {"type":"snapshot","v":1,"t":0,
  "status":{"in_game":true,"locomotion":"seated","seat":"pilot","crew_role":"pilot"},
  "ship":{"id":"<vehicle.state.name>","class":"ANVL_Asgard","manufacturer":"Anvil","hull":0.92,
@@ -223,7 +224,9 @@ WebSocket at `wss://<host>/ws/agent`, JSON messages, `Authorization: Bearer <age
 
 Agent-side derived events (computed from snapshot diffs): ship change, warning on/off per annunciator, hull crossing 75/50/25%, fuel crossing 25/10%, landed/takeoff, game start/exit.
 
-Hub → viewers (`/ws/view`): fleet state map keyed by Discord user ID, plus the event stream. Push on change, coalesced to ≤4 Hz per member.
+Hub → viewers (`/ws/view`): fleet state keyed by Discord user ID, plus the event stream. Each viewer subscribes to what it shows: a **summary** of every member (roster fields) at ≤2 Hz, and the **full** state of the member it has open at up to 10 Hz. Deltas after an initial full state, as on the uplink. Measured on the combat fixture: full snapshot ≈1.7 KB, a 250 ms delta ≈130 B (160 B at the 90th percentile).
+
+Transport is WebSocket over TLS throughout. UDP was considered and rejected (decision 13).
 
 Version handling: hub accepts `v` within a supported range; rejects older agents with a message telling the user to update.
 
@@ -231,13 +234,14 @@ Version handling: hub accepts `v` within a supported range; rejects older agents
 
 ## 5. Identity, linking, auth
 
-### 5.1 Agent linking (Discord-based)
-1. Member runs `[p]telemetry link` in Discord.
-2. Cog calls hub internal API `POST /internal/link-codes {discord_user_id}` → hub returns a short one-time code (e.g. `7K4-PQ9`, 10-min TTL, single use).
-3. Bot DMs the code.
-4. Member enters code in the agent → agent `POST /api/agent/link {code, machine_name}` → hub returns a long random `agent_token`.
-5. Agent stores token in Windows Credential Manager (`keyring`). Hub stores **only a hash** of the token.
-6. `[p]telemetry unlink` / hub admin can revoke tokens. One member may have multiple agents (multiple PCs).
+### 5.1 Agent linking (browser sign-in, no bot needed)
+Like signing a TV into an app (OAuth device authorization pattern):
+1. Member clicks **Join fleet** in the agent. Agent `POST /api/agent/link/start {machine_name}` → hub returns a short user code (e.g. `7K4-PQ9`, 10-min TTL, single use) and a secret device code.
+2. Agent shows the user code and opens the browser at `https://<host>/link?code=7K4-PQ9`.
+3. Member signs in with Discord (§5.2). Hub checks the guild and org member role, shows "Link *machine_name* to your account?", and on confirm binds the code to the member.
+4. Agent polls `POST /api/agent/link/poll {device_code}` (every 2–5 s) and receives a long random `agent_token` once confirmed.
+5. Agent stores the token in Windows Credential Manager (`keyring`). Hub stores **only a hash** of the token.
+6. Revoke from the web page (own devices; admins: anyone's) or `[p]telemetry unlink`. One member may have multiple agents (multiple PCs). Losing the org role disables the member's agents at the next check (on connect and hourly).
 
 ### 5.2 Viewer auth (web)
 - Discord OAuth2 login (`identify` + `guilds.members.read`).
@@ -270,14 +274,15 @@ Version handling: hub accepts `v` within a supported range; rejects older agents
 - Health endpoint for monitoring.
 
 ### 6.3 Web UI (PWA)
-- **Fleet board:** card per online member — name, ship class, role, hull bar, shield bar, fuel, master mode, warning icons, landed/flying, last-seen.
-- **Member detail:** everything that member shares, live.
+- **Fleet board:** a dense roster that is always visible, one row per member: online/in-game state, name, ship and seat, mode or QT destination, zone chip, hull/shield/fuel mini-bars, warning icon, last seen. Grouping: by **ship** (crews under their pilot, found automatically from a shared ship id), by **server** (same shard as you highlighted), or by **op wing**. Header: online/in-ship counts, op timer, fleet-wide alarms (any member's master warning, incapacitation, ship loss) that jump to that member. Fleet activity feed merged across members.
+- **Member detail:** clicking a roster row opens that member's live dashboard (the same panels as the local view) beside the roster, which stays visible. On a phone, the roster is the main screen and a member opens full screen.
+- **Wingmates panel** (local view): a compact strip with crew or wing status, fed by the agent's hub connection. A normal panel in Customize, so on/off and placement are per user; it can show crew, wing or everyone online.
 - **Local mode** (served by agent): single-pilot cockpit view, large type, dark, high contrast; compact VR variant.
 - Installable (manifest + service worker), works on phone/tablet.
 
 ### 6.4 ButlerBot cog (`telemetry`)
 Commands (prefix `[p]`):
-- `telemetry link` / `telemetry unlink`
+- `telemetry link` (optional shortcut: DMs a link to the browser flow) / `telemetry unlink`
 - `fleet` — embed of who's online, ship, role, hull/shield/fuel summary
 - `ready [@role]` — readiness check: lists members in-game, seated, shields up, gear/landing state; flags anyone not ready
 - `op start <name>` / `op stop` — marks an op window in the hub; `op stop` posts an after-action summary
@@ -317,7 +322,8 @@ Cog holds a reconnecting WebSocket to the hub's `/internal/events` and uses the 
 - Tests: normalizer against every fixture; cfg writer idempotency; quirk handling (§2.5).
 
 **Phase 2 — Hub MVP + linking**
-- Ingest WS, live state, viewer WS, fleet board, Discord OAuth, link-code flow (temporary admin endpoint to mint codes until cog exists).
+- Ingest WS (deltas), live state, viewer WS with subscriptions, Discord OAuth, browser link flow (§5.1), agent uplink and sharing toggles.
+- Fleet board and member detail first; then the Wingmates panel for the local view (decision 13).
 - docker-compose; deploy behind proxy. Test with 2–3 members on a Friday night.
 
 **Phase 3 — Cog**
@@ -360,4 +366,7 @@ Cog holds a reconnecting WebSocket to the hub's `/internal/events` and uses the 
 7. **Frontend:** Svelte 5 + Vite + TypeScript (see §3.1).
 8. **Code signing:** deferred until Phase 5.
 10. **Game.log and location (2026-11-23):** the agent also reads the game's Game.log (read-only) for location, quantum routes, contracts, kills, injuries and the server (docs/FIELDS.md, "Game.log"); comms/party chatter is left out. This is org-internal game data, so it goes to the fleet. Location is shared by default like everything else; members can opt out per category: `location` (zone, jurisdiction, server, system, quantum destination), `mission` (contracts), `combat` (kills, losses, session counts), alongside `status`, `ship`, `weapons`, `vitals` and `uec` (which also covers contract rewards).
+11. **One org per hub (2026-11-23):** a hub serves one org: the configured Discord server plus member role. No standing sub-fleets: an op has ad-hoc **wings** set up by the ops lead from the web page, and **crews** are found automatically (members reporting the same ship). Tables carry an `org_id` anyway so multi-org hosting stays possible.
+12. **Linking without the bot (2026-11-23):** agents link through browser sign-in with Discord (§5.1). ButlerBot is a side feature; nothing in the hub depends on it.
+13. **Rates and transport (2026-11-23):** WebSocket over TLS for agent→hub and hub→viewer. UDP rejected: browsers can't use it, the Apache proxy can't carry it, we'd rebuild encryption and auth, and status data doesn't need it. Instead the uplink sends deltas at up to 10 Hz (≈1.5 KB/s per member) and viewers subscribe to summaries for the board and full rate for the member they have open. Fleet board vs cockpit Wingmates panel is a per-user layout choice (the panel lives in Customize); the board is built first because the panel uses the same feed.
 9. **Hull/shield bars (2026-11-23):** LIVE doesn't send hull health or shield levels (see FIELDS.md). The fleet board keeps hull and shield bars in the design anyway, alongside shield power and warning lights. Final call near the end of the build.

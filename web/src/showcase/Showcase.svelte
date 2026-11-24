@@ -273,16 +273,6 @@
     </div>
   </section>
 
-  <section class="feedback">
-    <h2 class="display">Tell us what you think</h2>
-    <ul>
-      <li>Would you run it? What would make you switch any sharing category off?</li>
-      <li>What's missing from the fleet page for how we fly together?</li>
-      <li>Which themes feel right for their makers, and which feel off?</li>
-      <li>What should a Discord bot do with this: alerts, readiness checks, something else?</li>
-    </ul>
-  </section>
-
   <footer>
     <p>
       Not affiliated with Cloud Imperium Games. Star Citizen is a trademark of Cloud Imperium Rights LLC. Source:
@@ -590,15 +580,11 @@
     padding: 4px 0;
     border-bottom: 1px solid var(--line);
   }
-  .status,
-  .feedback {
+  .status {
     border: 1px solid var(--line);
     background: var(--panel);
     border-radius: 6px;
     padding: 18px 20px;
-  }
-  .feedback {
-    border-color: color-mix(in srgb, var(--accent) 55%, transparent);
   }
   footer p {
     font-size: 0.82rem;

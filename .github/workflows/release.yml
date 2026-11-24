@@ -165,7 +165,7 @@ jobs:
           {
             echo "## Agent (Windows)"
             echo
-            echo "Download **starglance.exe** below and double-click it: the cockpit view opens in your browser. Agent settings (the gear in its top bar) joins a fleet with your invite link and chooses what you share."
+            echo "Download **starglance.exe** below and double-click it: the cockpit view opens in your browser. **Settings → Agent** (the sliders button, top right) switches the game's telemetry on, joins a fleet with your invite link, and chooses what you share."
             echo
             if [ "${{ needs.agent.outputs.signed }}" = "true" ]; then
               echo "Signed: free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org)."

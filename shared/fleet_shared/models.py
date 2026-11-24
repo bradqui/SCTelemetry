@@ -362,14 +362,15 @@ FLEET_ALARM_OFF_MS = 3000
 """...and off this long before it clears (the hit light flickers between hits)."""
 
 
-def fleet_alarm_lights(lights: dict, master_mode: str | None) -> dict[str, str]:
-    """The warning lights worth telling the whole fleet about: light -> "major" | "minor".
+def fleet_alarm_lights(lights: dict) -> dict[str, str]:
+    """The warning lights worth telling the whole fleet about: light -> "major".
 
     The cockpit shows every light, as the game's panel does. The fleet only hears that
-    someone needs help: getting hit, radar warning (on for exactly the stretches hostiles
-    were about, in every recording so far), thruster damage (THR minor after taking hits;
-    THR in NAV is the quantum drive). Shields coming back after NAV, weapons not ready
-    while landed and proximity stay on that member's card and dashboard.
+    someone needs help now: getting hit, or a radar warning (on for exactly the stretches
+    hostiles were about, in every recording so far). No cautions: they last (thruster
+    damage stays minor for minutes after a fight) and aren't a call for help. Those, and
+    shields coming back after NAV, weapons not ready while landed and proximity, stay on
+    that member's card and dashboard.
     """
     out: dict[str, str] = {}
     hit = lights.get("hit")
@@ -377,9 +378,6 @@ def fleet_alarm_lights(lights: dict, master_mode: str | None) -> dict[str, str]:
         out["hit"] = "major"
     if lights.get("radr") in ("major", "major_flashing"):
         out["radr"] = "major"
-    thr = lights.get("thr")
-    if isinstance(thr, str) and thr.startswith(("major", "minor")) and master_mode != "NAV":
-        out["thr"] = "major" if thr.startswith("major") else "minor"
     return out
 
 

@@ -71,13 +71,13 @@ def test_model_names_match_channel_names():
 def test_fleet_alarm_lights():
     from fleet_shared import fleet_alarm_lights
 
-    assert fleet_alarm_lights({"hit": "major_flashing"}, "SCM") == {"hit": "major"}
-    assert fleet_alarm_lights({"radr": "major"}, "SCM") == {"radr": "major"}
-    assert fleet_alarm_lights({"thr": "minor"}, "SCM") == {"thr": "minor"}, "thruster damage"
-    assert fleet_alarm_lights({"thr": "major"}, "NAV") == {}, "the quantum drive"
-    # Routine: shields coming back, weapons not ready while landed, proximity.
-    quiet = {"shld": "major", "wpn": "minor", "prox": "major", "cool": "nominal"}
-    assert fleet_alarm_lights(quiet, "SCM") == {}
+    assert fleet_alarm_lights({"hit": "major_flashing"}) == {"hit": "major"}
+    assert fleet_alarm_lights({"radr": "major"}) == {"radr": "major"}
+    # No cautions (thruster damage lasts minutes); routine lights: shields coming back,
+    # weapons not ready while landed, proximity, the quantum drive's THR.
+    quiet = {"thr": "minor", "shld": "major", "wpn": "minor", "prox": "major", "cool": "nominal"}
+    assert fleet_alarm_lights(quiet) == {}
+    assert fleet_alarm_lights({"thr": "major"}) == {}
 
 
 def test_fleet_alarm_is_held():
@@ -98,5 +98,6 @@ def test_fleet_alarm_is_held():
     assert at(4000) == ("major", ["hit"]), "a gap between hits"
     assert at(4500, hit="major_flashing") == ("major", ["hit"])
     assert at(7600) == (None, []), "clear after 3 s"
-    assert at(8000, thr="minor") == (None, [])
-    assert at(9100, thr="minor") == ("minor", ["thr"])
+    assert at(8000, radr="major") == (None, [])
+    assert at(9100, radr="major") == ("major", ["radr"])
+    assert at(9200, radr="major", thr="minor") == ("major", ["radr"]), "no cautions"

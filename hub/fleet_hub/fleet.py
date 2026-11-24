@@ -137,7 +137,7 @@ def _worst(lights: dict, master_mode: str | None = None) -> tuple[str | None, li
 def _fleet_alarm(m: MemberLive, ship: dict, t: int) -> tuple[str | None, list[str]]:
     """``fleet_alarm_lights``, on for FLEET_ALARM_HOLD_MS before it counts and kept until
     off for FLEET_ALARM_OFF_MS. Timed by the member's snapshots, not the hub's clock."""
-    now_on = fleet_alarm_lights(ship.get("lights") or {}, ship.get("master_mode"))
+    now_on = fleet_alarm_lights(ship.get("lights") or {})
     for light, lvl in now_on.items():
         seen = m.alarms.get(light)
         if seen is None or t - seen[1] > FLEET_ALARM_OFF_MS:
@@ -216,7 +216,8 @@ def summarize(m: MemberLive, now: int, cfg: Config) -> dict:
             "h2_fuel": _r(flight.get("h2_fuel"), 2),
             "alarm": level,
             "lights": lit,
-            # What the whole fleet should hear about (the header): held, see fleet_alarm_lights.
+            # What the whole fleet should hear about (the header): getting hit, a radar
+            # warning; held, see fleet_alarm_lights. Never "minor": no fleet-wide cautions.
             "fleet_alarm": fleet_level,
             "fleet_lights": fleet_lit,
         }

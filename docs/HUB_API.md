@@ -68,8 +68,8 @@ Everyone with a linked PC, as the fleet page's roster shows them:
         "h2_fuel": 0.91,            // 0-1
         "alarm": "major",           // major | minor | null: the worst warning light
         "lights": ["hit"],          // which lights: pwr wpn thr shld cool qdrv radr prox hit misl
-        "fleet_alarm": "major",     // what the fleet should hear: getting hit, radar warning,
-        "fleet_lights": ["hit"]     //   thruster damage; on 1 s before it counts, off 3 s to clear
+        "fleet_alarm": "major",     // major | null: what the fleet should hear (getting hit, a
+        "fleet_lights": ["hit"]     //   radar warning); on 1 s before it counts, off 3 s to clear
       },
       "location": {                 // null when not shared
         "armistice": false,

@@ -37,9 +37,10 @@
   const inGame = $derived(rows.filter((m) => m.presence === "live" || m.presence === "stale"));
   const inShips = $derived(online.filter((m) => m.ship));
 
-  /** Fleet-wide alarms: someone getting hit, a radar warning, thruster damage (the hub's
-   * fleet_alarm, held a second), or a bad injury. Every other light stays on their card. */
-  const FLEET_LIGHT: Record<string, string> = { hit: "Taking hits", radr: "Radar", thr: "Thruster damage" };
+  /** Fleet-wide warnings only: someone getting hit or with a radar warning (the hub's
+   * fleet_alarm, held a second), or badly hurt. No cautions here: they last (thruster damage
+   * stays on for minutes) and stay on that member's card and dashboard. */
+  const FLEET_LIGHT: Record<string, string> = { hit: "Taking hits", radr: "Radar" };
   const said = (lights: string[]) => lights.map((l) => FLEET_LIGHT[l] ?? LIGHT_NAMES[l] ?? l).join(", ");
   const alarms = $derived.by(() => {
     const out: { id: string; name: string; text: string; level: "bad" | "warn" }[] = [];
@@ -49,8 +50,6 @@
         out.push({ id: m.id, name: m.name, text: said(m.ship!.fleet_lights), level: "bad" });
       } else if (m.vitals?.injury === "severe" || (m.vitals?.health != null && m.vitals.health < 0.3)) {
         out.push({ id: m.id, name: m.name, text: "Badly hurt", level: "bad" });
-      } else if (a === "minor") {
-        out.push({ id: m.id, name: m.name, text: said(m.ship!.fleet_lights), level: "warn" });
       }
     }
     return out.sort((a, b) => (a.level === b.level ? 0 : a.level === "bad" ? -1 : 1));

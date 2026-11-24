@@ -302,8 +302,11 @@ export interface HubMode {
 }
 
 export interface UplinkStatus {
-  state: "connecting" | "connected" | "offline" | "rejected";
+  state: "connecting" | "connected" | "offline" | "rejected" | "unlinked";
   hub: string;
   member: string | null;
   message?: string | null;
+  hub_version?: string | null;
+  /** The hub says a newer agent is out (agents are released with the hub). */
+  update?: { version: string; url: string } | null;
 }

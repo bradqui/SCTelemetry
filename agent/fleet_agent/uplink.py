@@ -26,6 +26,7 @@ from collections.abc import Callable
 
 import aiohttp
 from fleet_shared import (
+    RELEASES_URL,
     SCHEMA_VERSION,
     Event,
     Hello,
@@ -33,6 +34,7 @@ from fleet_shared import (
     apply_sharing,
     event_shared,
     make_patch,
+    version_tuple,
 )
 
 from . import __version__
@@ -52,6 +54,20 @@ def ws_url(hub_url: str, path: str = "/ws/agent") -> str:
     if base.startswith("http://"):
         return "ws://" + base[7:] + path
     return base + path
+
+
+def update_notice(welcome: dict) -> dict | None:
+    """The hub says which agent is current (it's released with the hub): newer than this
+    one -> {"version", "url"} for the cockpit's update chip. Only from the hub you linked
+    to: the agent never asks anyone else."""
+    latest = welcome.get("latest_agent")
+    mine, theirs = version_tuple(__version__), version_tuple(latest)
+    if mine is None or theirs is None or theirs <= mine:
+        return None
+    url = welcome.get("download")
+    if not (isinstance(url, str) and url.startswith("https://")):
+        url = RELEASES_URL
+    return {"version": latest, "url": url}
 
 
 class Uplink:
@@ -183,7 +199,13 @@ class Uplink:
                     kind = data.get("type")
                     if kind == "welcome":
                         member = (data.get("member") or {}).get("name")
-                        self._set_status(state="connected", member=member, message=None)
+                        self._set_status(
+                            state="connected",
+                            member=member,
+                            message=None,
+                            hub_version=data.get("hub_version"),
+                            update=update_notice(data),
+                        )
                     elif kind == "resync":
                         resync.set()
                     elif kind == "error":

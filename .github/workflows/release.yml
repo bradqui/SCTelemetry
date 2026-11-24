@@ -1,0 +1,192 @@
+name: Release
+
+# Push a tag v<version> (the version in pyproject.toml, fleet_agent and fleet_hub) to release:
+#   - fleet-agent.exe, built on GitHub's Windows runners from this commit, signed through
+#     SignPath when it's set up (docs/CODE_SIGNING.md; unsigned until then)
+#   - the hub image, ghcr.io/<owner>/sctelemetry-hub:<version> and :latest
+#   - a GitHub release with the exe and its SHA-256
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to release again, e.g. v0.2.0"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      tag: ${{ steps.v.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+      - id: v
+        name: The tag must match the versions in the code
+        run: |
+          tag="${{ inputs.tag || github.ref_name }}"
+          version="${tag#v}"
+          py=$(grep -m1 '^version = ' pyproject.toml | cut -d'"' -f2)
+          agent=$(grep -m1 '__version__ = ' agent/fleet_agent/__init__.py | cut -d'"' -f2)
+          hub=$(grep -m1 '__version__ = ' hub/fleet_hub/__init__.py | cut -d'"' -f2)
+          echo "tag=$tag pyproject=$py agent=$agent hub=$hub"
+          for v in "$py" "$agent" "$hub"; do
+            [ "$v" = "$version" ] || { echo "::error::Tag $tag doesn't match version $v"; exit 1; }
+          done
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+  agent:
+    needs: version
+    runs-on: windows-latest
+    timeout-minutes: 90 # includes waiting for the signing approval
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.version.outputs.tag }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: astral-sh/setup-uv@v5
+      - name: Tests
+        run: |
+          uv sync --python 3.12
+          uv run pytest -q
+      - name: Web UI
+        working-directory: web
+        run: |
+          npm install --no-audit --no-fund
+          npm run build
+      - name: fleet-agent.exe
+        run: uv run --with pyinstaller==6.22.3 pyinstaller packaging/fleet-agent.spec --noconfirm
+      - name: It starts
+        shell: bash
+        run: |
+          ./dist/fleet-agent.exe --help
+          ver=$(powershell -NoProfile -Command "(Get-Item dist/fleet-agent.exe).VersionInfo.ProductVersion")
+          [ "$(echo $ver | tr -d '\r')" = "${{ needs.version.outputs.version }}" ]
+
+      - id: upload-unsigned
+        uses: actions/upload-artifact@v4
+        with:
+          name: fleet-agent-unsigned
+          path: dist/fleet-agent.exe
+          if-no-files-found: error
+
+      # SignPath (docs/CODE_SIGNING.md): runs once the repo has the SIGNPATH_* variables
+      # and secret. Each release waits for a maintainer to approve it on SignPath.
+      - id: sign
+        if: vars.SIGNPATH_ORGANIZATION_ID != ''
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          artifact-configuration-slug: ${{ vars.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG }}
+          github-artifact-id: ${{ steps.upload-unsigned.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: signed
+      - name: Use the signed exe
+        if: steps.sign.outcome == 'success'
+        shell: bash
+        run: |
+          cp signed/fleet-agent.exe dist/fleet-agent.exe
+          powershell -NoProfile -Command "\$s = Get-AuthenticodeSignature dist/fleet-agent.exe; \$s | Format-List; if (\$s.Status -ne 'Valid') { exit 1 }"
+
+      - name: Checksum
+        shell: bash
+        run: cd dist && sha256sum fleet-agent.exe > SHA256SUMS.txt && cat SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fleet-agent
+          path: |
+            dist/fleet-agent.exe
+            dist/SHA256SUMS.txt
+          if-no-files-found: error
+    outputs:
+      signed: ${{ steps.sign.outcome == 'success' }}
+
+  hub-image:
+    needs: version
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.version.outputs.tag }}
+      - id: name
+        run: echo "image=ghcr.io/$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')/sctelemetry-hub" >> "$GITHUB_OUTPUT"
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: hub/Dockerfile
+          push: true
+          tags: |
+            ${{ steps.name.outputs.image }}:${{ needs.version.outputs.version }}
+            ${{ steps.name.outputs.image }}:latest
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.version=${{ needs.version.outputs.version }}
+            org.opencontainers.image.licenses=MIT
+    outputs:
+      image: ${{ steps.name.outputs.image }}
+
+  release:
+    needs: [version, agent, hub-image]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: fleet-agent
+          path: out
+      - name: Release notes
+        run: |
+          {
+            echo "## Agent (Windows)"
+            echo
+            echo "Download **fleet-agent.exe** below and double-click it: the cockpit view opens in your browser. Agent settings (the gear in its top bar) joins a fleet with your invite link and chooses what you share."
+            echo
+            if [ "${{ needs.agent.outputs.signed }}" = "true" ]; then
+              echo "Signed: free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org)."
+            else
+              echo "Not code-signed yet, so Windows SmartScreen may warn about it: choose *More info → Run anyway*. Check the file against SHA256SUMS.txt."
+            fi
+            echo
+            echo "## Hub (Docker)"
+            echo
+            echo '```'
+            echo "docker pull ${{ needs.hub-image.outputs.image }}:${{ needs.version.outputs.version }}"
+            echo '```'
+            echo
+            echo "See [deploy/README.md](https://github.com/${{ github.repository }}/blob/${{ needs.version.outputs.tag }}/deploy/README.md). Update the hub together with the agents: the hub tells agents when a newer one is out and refuses ones that are too old."
+            echo
+            echo "[Code signing policy](https://github.com/${{ github.repository }}/blob/main/docs/CODE_SIGNING.md) · [Privacy](https://github.com/${{ github.repository }}/blob/main/PRIVACY.md)"
+          } > notes.md
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ needs.version.outputs.tag }}" out/fleet-agent.exe out/SHA256SUMS.txt \
+            --repo "${{ github.repository }}" --title "${{ needs.version.outputs.tag }}" \
+            --notes-file notes.md --generate-notes --verify-tag

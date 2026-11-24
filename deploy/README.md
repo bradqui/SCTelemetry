@@ -9,7 +9,8 @@ git clone https://github.com/bradqui/SCTelemetry.git
 cd SCTelemetry/deploy
 cp .env.example .env
 nano .env                       # HUB_URL and HUB_ORG_NAME at least
-docker compose up -d --build
+docker compose pull             # the released hub image (ghcr.io/bradqui/sctelemetry-hub)
+docker compose up -d
 docker compose logs hub
 ```
 
@@ -93,10 +94,10 @@ Nothing requires Discord: without it, everything above works with invites and co
 ## Updating
 
 ```bash
-cd SCTelemetry && git pull && cd deploy && docker compose up -d --build
+cd SCTelemetry && git pull && cd deploy && docker compose pull && docker compose up -d
 ```
 
-The database upgrades itself on start. Agents reconnect by themselves.
+The database upgrades itself on start. Agents reconnect by themselves. Hub and agents are released together (same version): after updating the hub, agents that are behind show an **Update** button in their cockpit view, and agents older than the hub supports are told to update. To stay on a version, set `HUB_VERSION=0.2.0` in `.env`. To run your own changes, `docker compose up -d --build` builds from the checkout.
 
 ## Your data
 

@@ -26,6 +26,7 @@ from aiohttp import web
 from fleet_shared import (
     FLEET_ALARM_HOLD_MS,
     FLEET_ALARM_OFF_MS,
+    RELEASES_URL,
     SCHEMA_VERSION,
     SHARE_CATEGORIES,
     Event,
@@ -36,6 +37,7 @@ from fleet_shared import (
     expected_light,
     fleet_alarm_lights,
     make_patch,
+    version_tuple,
 )
 from pydantic import ValidationError
 
@@ -72,6 +74,20 @@ class ProtocolError(Exception):
 
 
 # ---------------------------------------------------------------- per member
+
+
+def too_old(agent_version: str) -> None:
+    """Refuse an agent older than MIN_AGENT_VERSION (development builds always pass)."""
+    from . import MIN_AGENT_VERSION
+
+    have, need = version_tuple(agent_version), version_tuple(MIN_AGENT_VERSION)
+    if have is not None and need is not None and have < need:
+        raise ProtocolError(
+            f"Your agent ({agent_version}) is older than this hub supports "
+            f"({MIN_AGENT_VERSION} or newer). Download the latest: {RELEASES_URL}",
+            code="version",
+            fatal=True,
+        )
 
 
 class MemberLive:
@@ -431,6 +447,7 @@ class Fleet:
         try:
             if kind == "hello":
                 hello = Hello.model_validate(data)
+                too_old(hello.agent_version)
                 m.share = {c for c in hello.share if c in SHARE_CATEGORIES}
                 m.agent_version, m.channel = hello.agent_version[:32], (hello.channel or None)
                 return None

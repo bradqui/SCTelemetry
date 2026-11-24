@@ -25,8 +25,9 @@ from pathlib import Path
 
 import aiohttp
 from aiohttp import WSMsgType, web
+from fleet_shared import RELEASES_URL
 
-from . import __version__
+from . import MIN_AGENT_VERSION, __version__
 from .auth import SESSION_COOKIE, Auth, Discord, page, valid_next
 from .config import Config
 from .db import API_SCOPES, ROLES, Database, Member, clean_name, now_ms
@@ -199,6 +200,7 @@ class Hub:
                 web.post("/api/agent/link/start", self.link_start),
                 web.post("/api/agent/link/poll", self.link_poll),
                 web.post("/api/agent/login-link", self.agent_login_link),
+                web.post("/api/agent/unlink", self.agent_unlink),
                 web.get("/ws/agent", self.ws_agent),
                 # the signed-in member
                 web.get("/api/link/{code}", self.link_info),
@@ -549,6 +551,13 @@ class Hub:
         await self.fleet.close_viewers(member.id, keep=self.db.session_public_id(here))
         return web.json_response({"ok": True, "ended": ended})
 
+    async def agent_unlink(self, request: web.Request) -> web.Response:
+        """A PC leaving the fleet (Agent settings: Leave the fleet): its key stops working."""
+        agent, member = self._agent_member(request)
+        self.db.revoke_agent(agent.id, member.id)
+        await self.fleet.drop_agent(member.id, agent.id, "This PC left the fleet.")
+        return web.json_response({"ok": True})
+
     async def revoke_agent(self, request: web.Request) -> web.Response:
         member = await self._member(request)
         agent_id = _int(request.match_info["id"])
@@ -762,6 +771,10 @@ class Hub:
             {
                 "type": "welcome",
                 "hub_version": __version__,
+                # Agents are released with the hub: this hub's version is the current agent.
+                "latest_agent": __version__,
+                "min_agent": MIN_AGENT_VERSION,
+                "download": RELEASES_URL,
                 "org": self.auth.org_name(),
                 "member": member.public(),
             }

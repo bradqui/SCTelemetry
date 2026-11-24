@@ -16,6 +16,21 @@ from pydantic import BaseModel, ConfigDict, Field
 
 SCHEMA_VERSION = 1
 
+RELEASES_URL = "https://github.com/bradqui/SCTelemetry/releases/latest"
+"""Where agents are downloaded (the hub's update notices point here)."""
+
+
+def version_tuple(version: str | None) -> tuple[int, ...] | None:
+    """ "0.2.0" -> (0, 2, 0); None for anything else (a development build: never refused)."""
+    if not version:
+        return None
+    core = version.strip().lstrip("v").split("+")[0].split("-")[0]
+    parts = core.split(".")
+    if not all(p.isdigit() for p in parts):
+        return None
+    return tuple(int(p) for p in parts)
+
+
 SHARE_CATEGORIES = ("status", "ship", "weapons", "vitals", "uec", "location", "mission", "combat")
 """What a member can share with the fleet. All on by default; each can be switched off.
 

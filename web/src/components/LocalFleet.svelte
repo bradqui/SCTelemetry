@@ -35,10 +35,10 @@
       <button class="back" onclick={onBack}>‹ Cockpit</button>
       {#if fleet.unlinked}
         <h1>Not in a fleet yet</h1>
-        <p>
-          Link this PC with the invite link from your org's admin:
-          <code>python -m fleet_agent link &lt;invite link&gt;</code>, then restart the agent.
-        </p>
+        <p>Paste the invite link from your org's admin in the agent's settings.</p>
+        <button class="join" onclick={() => dispatchEvent(new CustomEvent("ft:settings", { detail: "agent" }))}
+          >Join a fleet</button
+        >
       {:else if fleet.problem}
         <h1>Can't show the fleet</h1>
         <p>{fleet.problem} Trying again…</p>
@@ -78,5 +78,14 @@
   code {
     font-family: var(--mono);
     font-size: 0.85em;
+  }
+  .join {
+    border: 0;
+    border-radius: var(--radius-sm);
+    padding: 7px 16px;
+    font-weight: 700;
+    background: var(--accent);
+    color: var(--bg);
+    cursor: pointer;
   }
 </style>

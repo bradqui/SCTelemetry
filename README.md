@@ -16,36 +16,35 @@ Discord is optional: members join with invite links; a hub can also offer "Sign 
 
 ## For players
 
-You need [uv](https://docs.astral.sh/uv/) and this repo (a packaged `.exe` comes later).
+Download **fleet-agent.exe** from the [latest release](https://github.com/bradqui/SCTelemetry/releases/latest) and double-click it. Your cockpit view opens in the browser (`http://127.0.0.1:8740`); keep the agent's window open while you play.
+
+Then open **Settings → Agent** (the sliders button, top right):
+
+1. **Game telemetry → Switch on**, then restart the game. It reads the setting at startup. Switching it off later puts the game's `user.cfg` back exactly as it was.
+2. **Fleet**: paste the invite link from your org's admin and pick your display name (your in-game handle by default).
+3. **What you share**: everything is on by default; switch off anything you'd rather keep to yourself.
+
+Everything there is also on the command line (`fleet-agent.exe --help`, or `uv run python -m fleet_agent` from the source):
 
 ```
-uv sync --python 3.12
-uv run python -m fleet_agent on              # switch the game's telemetry on (backs up user.cfg)
-uv run python -m fleet_agent link <invite>   # the invite link from your org's admin
-uv run python -m fleet_agent run --open      # cockpit view at http://127.0.0.1:8740, and sends to the fleet
+fleet-agent on                 # switch the game's telemetry on (backs up user.cfg)
+fleet-agent link <invite>      # join with the invite link from your org's admin
+fleet-agent run --open         # cockpit view, and sends to the fleet
 ```
-
-Restart the game after `on`; it reads `user.cfg` at startup. `link` asks for your display name (your in-game handle by default).
 
 **Fleet** in the cockpit view's top bar shows the whole fleet in the same page, and the **Wingmates** panel (Pilot and Combat layouts, or add it in Customize) keeps everyone's ship, mode, speed and altitude next to your own dashboard. **Open on the hub** in the fleet view, or `fleet_agent open`, opens the hub's fleet page in your browser, signed in.
 
-**What you share** is up to you. Everything is on by default; anything switched off never leaves your PC:
-
-```
-uv run python -m fleet_agent share                  # list: status, ship, weapons, vitals, uec,
-                                                    #       location, mission, combat
-uv run python -m fleet_agent share --off vitals uec # stop sharing these
-```
-
-Whoever runs your org's hub can see what you share. `unlink` stops sending; **Your account** on the hub's fleet page can unlink PCs or delete your account and history.
+**What you share** is up to you (Settings → Agent, or `fleet-agent share --off vitals uec`). Anything switched off never leaves your PC. Whoever runs your org's hub can see what you share. The agent talks to the game on your PC and to your org's hub, nothing else: see [PRIVACY.md](PRIVACY.md). `unlink` stops sending; **Your account** on the hub's fleet page can unlink PCs or delete your account and history.
 
 **On your phone** (or any other device): on the hub's fleet page, open **Your account → Sign in on another device**. It shows a short code; on the phone, open the hub's address, choose "I have a code" and type it. The code works once, for 10 minutes. **Signed-in devices** on the same page lists every browser signed in as you; sign out a lost phone there, or all of them but the one you're on. If the hub offers Discord, "Sign in with Discord" works on any device too.
 
-To undo the game setting: `uv run python -m fleet_agent off`. It restores `user.cfg` exactly.
+To undo the game setting: Settings → Agent → Switch off, or `fleet-agent off`. It restores `user.cfg` exactly.
+
+**Code signing policy**: release builds of `fleet-agent.exe` are signed: free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org) (from the first release after the project is accepted). See [docs/CODE_SIGNING.md](docs/CODE_SIGNING.md) for what's signed, how it's built, and who approves it.
 
 ## For org admins
 
-Run a hub: [deploy/README.md](deploy/README.md). Docker, a domain, a reverse proxy with https, about ten minutes. The first start logs a one-time link that makes you admin; then create invite links for your members on the fleet page.
+Run a hub: [deploy/README.md](deploy/README.md). Docker (a released image, `ghcr.io/bradqui/sctelemetry-hub`), a domain, a reverse proxy with https, about ten minutes. The first start logs a one-time link that makes you admin; then create invite links for your members on the fleet page.
 
 ## The cockpit view
 
@@ -76,7 +75,7 @@ npm run dev          # live-reload on :5173, proxying to an agent on :8740
 npm run check        # type check
 ```
 
-The field reference (what the game actually sends): [docs/FIELDS.md](docs/FIELDS.md). The original design and its decisions: [docs/SC_FLEET_TELEMETRY_SPEC.md](docs/SC_FLEET_TELEMETRY_SPEC.md).
+Releases (the exe, the hub image, signing): [docs/RELEASING.md](docs/RELEASING.md). The field reference (what the game actually sends): [docs/FIELDS.md](docs/FIELDS.md). The original design and its decisions: [docs/SC_FLEET_TELEMETRY_SPEC.md](docs/SC_FLEET_TELEMETRY_SPEC.md).
 
 ### Capturing telemetry
 

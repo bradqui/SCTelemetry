@@ -3,8 +3,29 @@
   import { COMPACT_PRESETS, PANELS, PRESETS, SPANS, type Layout, type Span } from "../lib/panels";
   import type { PrefsStore } from "../lib/prefs.svelte";
   import { palette, THEMES } from "../lib/themes";
+  import type { UplinkStatus } from "../lib/types";
+  import AgentSettings from "./AgentSettings.svelte";
 
-  let { store, compact, onClose }: { store: PrefsStore; compact: boolean; onClose: () => void } = $props();
+  let {
+    store,
+    compact,
+    onClose,
+    agent = false,
+    uplink = null,
+    tab: startTab = "dashboard",
+  }: {
+    store: PrefsStore;
+    compact: boolean;
+    onClose: () => void;
+    /** The cockpit page: also the Agent tab (this PC's fleet link, sharing, telemetry). */
+    agent?: boolean;
+    uplink?: UplinkStatus | null;
+    tab?: "dashboard" | "agent";
+  } = $props();
+  let tab = $state<"dashboard" | "agent">("dashboard");
+  $effect.pre(() => {
+    tab = agent ? startTab : "dashboard";
+  });
 
   const prefs = $derived(store.value);
   const layout = $derived<Layout>(compact ? prefs.compact : prefs.full);
@@ -26,14 +47,29 @@
 
 <svelte:window onkeydown={onKey} />
 
-<aside class="drawer" transition:fly={{ x: 420, duration: 220 }} aria-label="Customize">
+<aside class="drawer" transition:fly={{ x: 420, duration: 220 }} aria-label="Settings">
   <header>
     <div>
-      <h2>Customize</h2>
-      <p>{compact ? "Compact view" : "Full view"} · saved in this browser</p>
+      <h2>{agent ? "Settings" : "Customize"}</h2>
+      <p>
+        {tab === "agent" ? "This PC's agent · saved by the agent" : `${compact ? "Compact" : "Full"} view · saved in this browser`}
+      </p>
     </div>
     <button class="done" onclick={onClose}>Done</button>
   </header>
+
+  {#if agent}
+    <div class="tabs" role="tablist">
+      <button role="tab" aria-selected={tab === "dashboard"} class:on={tab === "dashboard"} onclick={() => (tab = "dashboard")}
+        >Dashboard</button
+      >
+      <button role="tab" aria-selected={tab === "agent"} class:on={tab === "agent"} onclick={() => (tab = "agent")}>Agent</button>
+    </div>
+  {/if}
+
+  {#if tab === "agent"}
+    <AgentSettings {uplink} />
+  {:else}
 
   <section>
     <h3>Theme</h3>
@@ -147,6 +183,7 @@
   <footer>
     <button class="reset" onclick={() => store.reset()}>Reset everything</button>
   </footer>
+  {/if}
 </aside>
 
 <style>
@@ -200,6 +237,33 @@
   input:focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: 2px;
+  }
+  .tabs {
+    display: flex;
+    gap: 2px;
+    margin-top: -8px;
+  }
+  .tabs button {
+    flex: 1;
+    border: 1px solid var(--line-2);
+    background: var(--bg-2);
+    color: var(--text-3);
+    padding: 6px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .tabs button:first-child {
+    border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+  }
+  .tabs button:last-child {
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  }
+  .tabs button.on {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--bg);
   }
   .done {
     border: 0;

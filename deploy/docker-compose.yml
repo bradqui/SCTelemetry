@@ -1,18 +1,21 @@
 # The fleet hub (see deploy/README.md).
 #
 #   cp .env.example .env   # then fill it in
-#   docker compose up -d --build
+#   docker compose pull && docker compose up -d   # the released image
 #   docker compose logs hub   # the first time: the link that creates the admin account
+#
+# HUB_VERSION in .env pins a release (e.g. 0.2.0; default: latest). To build from this
+# checkout instead: docker compose up -d --build
 #
 # The port is published on 127.0.0.1 only: put a reverse proxy with https in front
 # (Caddy, nginx, Apache; examples in deploy/README.md).
 
 services:
   hub:
-    build:
+    image: ghcr.io/bradqui/sctelemetry-hub:${HUB_VERSION:-latest}
+    build: # only with --build: from this checkout
       context: ..
       dockerfile: hub/Dockerfile
-    image: fleet-telemetry-hub:latest
     container_name: fleet-hub
     restart: unless-stopped
     env_file: .env

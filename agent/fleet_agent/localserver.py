@@ -5,6 +5,8 @@
 - ``/api/state``  the latest of everything, as JSON
 - ``/api/mode``   ``{"mode": "local"}``: the same page is served by the hub in fleet mode
 - ``/api/fleet/open``  POST: a one-time link to the fleet page, signed in (when linked)
+- ``/api/agent/settings`` GET, and POST ``/api/agent/share``, ``/join``, ``/leave``,
+  ``/telemetry``: the cockpit's Agent settings (``control.AgentControl``)
 - ``/ws/fleet``  WebSocket: the hub's fleet stream, relayed (when linked). The agent
   connects to the hub with its own token; the page may only send ``focus``.
 
@@ -126,6 +128,11 @@ class LocalServer:
                 web.get("/api/mode", self._api_mode),
                 web.post("/api/fleet/open", self._fleet_open),
                 web.get("/ws/fleet", self._fleet_ws),
+                web.get("/api/agent/settings", self._agent_settings),
+                web.post("/api/agent/share", self._agent_share),
+                web.post("/api/agent/join", self._agent_join),
+                web.post("/api/agent/leave", self._agent_leave),
+                web.post("/api/agent/telemetry", self._agent_telemetry),
                 web.get("/{tail:.*}", self._static),
             ]
         )
@@ -134,6 +141,8 @@ class LocalServer:
         """Set when linked to a hub: async () -> one-time sign-in URL."""
         self.fleet_view = None
         """Set when linked to a hub: () -> async context giving the hub's fleet WebSocket."""
+        self.control = None
+        """The running agent's settings (control.AgentControl); None in tests."""
         self.uplink: dict | None = None
         """The hub link's latest status, for pages that open later (the Fleet chip)."""
         pipeline.subscribe(self._remember)
@@ -204,6 +213,52 @@ class LocalServer:
         if not ws.closed:
             await ws.close()
         return ws
+
+    # -- Agent settings (the cockpit page's Agent tab)
+
+    async def _agent_call(self, request: web.Request, action) -> web.Response:
+        from .fleetlink import LinkError
+
+        if self.control is None:
+            return web.json_response({"error": "settings aren't available here"}, status=404)
+        if request.method == "POST" and request.content_type != "application/json":
+            return web.json_response({"error": "expected JSON"}, status=415)
+        try:
+            body = (
+                await request.json() if request.method == "POST" and request.can_read_body else {}
+            )
+            result = action(body if isinstance(body, dict) else {})
+            if asyncio.iscoroutine(result):
+                result = await result
+        except LinkError as exc:
+            return web.json_response({"error": str(exc)}, status=400)
+        except Exception as exc:  # the hub is down, the file is locked...
+            log.warning("Agent settings: %s", exc)
+            return web.json_response({"error": str(exc) or exc.__class__.__name__}, status=502)
+        return web.json_response(result)
+
+    async def _agent_settings(self, request: web.Request) -> web.Response:
+        return await self._agent_call(request, lambda _b: self.control.state())
+
+    async def _agent_share(self, request: web.Request) -> web.Response:
+        return await self._agent_call(
+            request, lambda b: self.control.set_share(b.get("share") or {})
+        )
+
+    async def _agent_join(self, request: web.Request) -> web.Response:
+        return await self._agent_call(
+            request,
+            lambda b: self.control.join(str(b.get("target", "")), str(b.get("name", ""))),
+        )
+
+    async def _agent_leave(self, request: web.Request) -> web.Response:
+        return await self._agent_call(request, lambda _b: self.control.leave())
+
+    async def _agent_telemetry(self, request: web.Request) -> web.Response:
+        return await self._agent_call(
+            request,
+            lambda b: self.control.set_telemetry(str(b.get("channel", "")), bool(b.get("on"))),
+        )
 
     async def _api_mode(self, _request: web.Request) -> web.Response:
         return web.json_response({"mode": "local", "agent_version": __version__})

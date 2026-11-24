@@ -60,6 +60,21 @@
   }
   let compact = $state(initialCompact());
   let customizing = $state(new URLSearchParams(location.search).has("customize"));
+  // Which settings tab opens: "Join a fleet" buttons (Wingmates, the fleet view) ask for
+  // the Agent tab with a "ft:settings" event.
+  let settingsTab = $state<"dashboard" | "agent">(
+    new URLSearchParams(location.search).get("customize") === "agent" ? "agent" : "dashboard",
+  );
+  function openSettings(tab: "dashboard" | "agent") {
+    if (fleetOpen) showFleet(false);
+    settingsTab = tab;
+    customizing = true;
+  }
+  onMount(() => {
+    const onAsk = (e: Event) => openSettings((e as CustomEvent).detail === "agent" ? "agent" : "dashboard");
+    addEventListener("ft:settings", onAsk);
+    return () => removeEventListener("ft:settings", onAsk);
+  });
   function toggleCompact() {
     compact = !compact;
     try {
@@ -138,7 +153,7 @@
     caution={prefs.caution}
     uplink={live.uplink}
     onToggleCompact={toggleCompact}
-    onCustomize={() => (customizing = !customizing)}
+    onCustomize={() => (customizing ? (customizing = false) : openSettings("dashboard"))}
     onFleet={() => showFleet(true)}
   />
 
@@ -169,7 +184,7 @@
 {/if}
 
 {#if customizing && !fleetOpen}
-  <Customize {store} {compact} onClose={() => (customizing = false)} />
+  <Customize {store} {compact} agent uplink={live.uplink} tab={settingsTab} onClose={() => (customizing = false)} />
 {/if}
 
 <style>

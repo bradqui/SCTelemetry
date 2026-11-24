@@ -41,12 +41,13 @@
     return s.master_mode ? { text: s.master_mode, cls: s.master_mode.toLowerCase() } : null;
   }
   const openFleet = () => (location.hash = "#fleet");
+  const joinFleet = () => dispatchEvent(new CustomEvent("ft:settings", { detail: "agent" }));
 </script>
 
-{#if !wing}
-  <p class="muted">Not linked to a fleet. Join one with <code>fleet_agent link &lt;invite&gt;</code>.</p>
-{:else if wing.unlinked}
-  <p class="muted">This PC isn't linked to a fleet.</p>
+{#if !wing || wing.unlinked}
+  <p class="muted">
+    Not in a fleet yet. <button class="join" onclick={joinFleet}>Join a fleet</button> with the invite link from your org's admin.
+  </p>
 {:else if wing.problem}
   <p class="muted">{wing.problem}</p>
 {:else if !wing.me}
@@ -83,9 +84,15 @@
     color: var(--text-3);
     font-size: 0.85rem;
   }
-  code {
-    font-family: var(--mono);
-    font-size: 0.85em;
+  .join {
+    display: inline;
+    width: auto;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--accent);
+    font-weight: 700;
+    text-decoration: underline;
   }
   .wing {
     list-style: none;

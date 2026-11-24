@@ -770,3 +770,98 @@ def test_signed_in_devices_and_signing_them_out(tmp_path):
                 assert (await pc.get(f"{hub.cfg.hub_url}/api/me")).status == 401
 
     asyncio.run(main())
+
+
+def test_agents_hear_the_current_version_and_old_ones_are_refused(tmp_path):
+    from fleet_hub import MIN_AGENT_VERSION, __version__
+
+    async def main():
+        async with running_hub(tmp_path) as (hub, _srv), browser() as viewer:
+            await sign_in(viewer, hub, "Rook")
+            token = await link_agent(hub, viewer)
+            async with aiohttp.ClientSession() as http, agent_socket(http, hub, token) as agent:
+                welcome = await until(agent, lambda d: d["type"] == "welcome")
+                assert welcome["latest_agent"] == __version__
+                assert welcome["min_agent"] == MIN_AGENT_VERSION
+                assert welcome["download"].startswith("https://github.com/")
+                await agent.send_json({"type": "hello", "v": 1, "agent_version": "0.0.9"})
+                error = await until(agent, lambda d: d["type"] == "error")
+                assert error["code"] == "version" and "Download the latest" in error["message"]
+            # A development build (not a plain version number) is never refused.
+            async with aiohttp.ClientSession() as http, agent_socket(http, hub, token) as agent:
+                await until(agent, lambda d: d["type"] == "welcome")
+                await agent.send_json({"type": "hello", "v": 1, "agent_version": "dev"})
+                await agent.send_json(ship_snapshot())
+                with contextlib.suppress(asyncio.TimeoutError):
+                    bad = await until(agent, lambda d: d["type"] == "error", timeout=0.5)
+                    raise AssertionError(bad)
+
+    asyncio.run(main())
+
+
+def test_agent_settings_join_share_and_leave(tmp_path, monkeypatch):
+    """The cockpit's Agent tab: join a fleet with an invite link, stop sharing something
+    (the hub hears at once), leave (the hub forgets this PC). No restart."""
+    from fleet_agent.control import AgentControl
+    from fleet_agent.localserver import LocalServer
+    from fleet_agent.runtime import Pipeline
+
+    monkeypatch.setenv("FLEET_TELEMETRY_HOME", str(tmp_path / "agent"))
+    (tmp_path / "agent").mkdir()
+
+    async def main():
+        async with running_hub(tmp_path) as (hub, _srv), browser() as admin:
+            await sign_in(admin, hub, "Admin")
+            code = await make_invite(admin, hub)
+            invite = f"{hub.cfg.hub_url}/join/{code}"
+            pipeline = Pipeline()
+            server = LocalServer(pipeline, port=0, web_dir=tmp_path / "none")
+            control = AgentControl(pipeline, server, install=None, announce=lambda _m: None)
+            await server.start()
+            base = f"http://127.0.0.1:{server.port}/api/agent"
+            try:
+                async with aiohttp.ClientSession() as page:
+                    state = await (await page.get(f"{base}/settings")).json()
+                    assert state["linked"] is False and len(state["share"]) == 8
+
+                    r = await page.post(f"{base}/join", json={"target": invite, "name": ""})
+                    assert r.status == 400, "a name is needed (no Game.log to suggest one)"
+                    r = await page.post(f"{base}/join", json={"target": invite, "name": "Wren"})
+                    state = await r.json()
+                    assert r.status == 200, state
+                    assert state["linked"] and state["member"] == "Wren" and state["sending"]
+
+                    (member_id,) = [m.id for m in hub.db.members() if m.name == "Wren"]
+                    live = hub.fleet.members
+
+                    async def until_true(pred):
+                        for _ in range(100):
+                            if pred():
+                                return
+                            await asyncio.sleep(0.05)
+                        raise AssertionError("timed out")
+
+                    await until_true(lambda: member_id in live and live[member_id].connected)
+                    r = await page.post(f"{base}/share", json={"share": {"vitals": False}})
+                    shares = {s["id"]: s["on"] for s in (await r.json())["share"]}
+                    assert shares["vitals"] is False and shares["ship"] is True
+                    await until_true(
+                        lambda: live[member_id].connected and "vitals" not in live[member_id].share
+                    )
+
+                    # Not JSON (a form post from some other page): refused.
+                    r = await page.post(f"{base}/share", data="share=x")
+                    assert r.status == 415
+
+                    state = await (await page.post(f"{base}/leave", json={})).json()
+                    assert state["linked"] is False and state["sending"] is False
+                    assert hub.db.agents_of(member_id) == [], "the hub forgot this PC"
+                    assert control.uplink is None
+
+                    r = await page.post(f"{base}/telemetry", json={"channel": "NOPE", "on": True})
+                    assert r.status == 400
+            finally:
+                await control.stop_uplink()
+                await server.stop()
+
+    asyncio.run(main())

@@ -162,3 +162,21 @@ def test_join_with_an_invite_from_the_agent(tmp_path, monkeypatch):
                 raise AssertionError("a used invite should fail")
 
     asyncio.run(main())
+
+
+def test_update_notice_only_for_a_newer_agent():
+    from fleet_agent import __version__
+    from fleet_agent.uplink import update_notice
+    from fleet_shared import RELEASES_URL, version_tuple
+
+    assert version_tuple("0.2.0") == (0, 2, 0) and version_tuple("v1.10") == (1, 10)
+    assert version_tuple("dev") is None and version_tuple(None) is None
+    major, minor, patch = version_tuple(__version__)
+    newer = f"{major}.{minor}.{patch + 1}"
+    notice = update_notice({"latest_agent": newer, "download": "https://example.org/dl"})
+    assert notice == {"version": newer, "url": "https://example.org/dl"}
+    assert update_notice({"latest_agent": __version__}) is None
+    assert update_notice({"latest_agent": "0.0.1"}) is None
+    assert update_notice({}) is None
+    # Only an https link from the hub; else the project's releases page.
+    assert update_notice({"latest_agent": newer, "download": "javascript:x"})["url"] == RELEASES_URL

@@ -82,7 +82,6 @@ def cmd_run(args) -> None:
 
     async def run() -> None:
         tail = None
-        uplink = None
         pipeline = Pipeline()
         server = LocalServer(pipeline, port=args.ui_port, playhead=playhead)
         await server.start()
@@ -112,12 +111,20 @@ def cmd_run(args) -> None:
         if tail is not None:
             tail.start()
         # Live: send to the fleet when linked. Replay: only when asked (it isn't real play).
-        want_uplink = args.uplink if playhead is not None else not args.no_uplink
-        if want_uplink:
-            uplink = _start_uplink(args, pipeline, install=None if playhead else _find(args))
-            if uplink is not None:
-                server.fleet_open = uplink.login_link
-                server.fleet_view = uplink.fleet_view
+        from .control import AgentControl
+
+        control = AgentControl(
+            pipeline,
+            server,
+            install=None if playhead else _find(args),
+            hub_override=args.hub,
+            uplink_wanted=args.uplink if playhead is not None else not args.no_uplink,
+        )
+        if control.uplink_wanted and not control.start_uplink():
+            print(
+                "Fleet: not linked. Local view only. To join a fleet: Agent settings in the "
+                "cockpit view (the gear, top right), or fleet_agent link <invite link>."
+            )
         url = f"http://127.0.0.1:{server.port}/"
         print(f"Fleet Telemetry agent: local view at {url}")
         print(f"{source} Ctrl+C stops.")
@@ -129,43 +136,11 @@ def cmd_run(args) -> None:
             reader.stop()
             if tail is not None:
                 tail.stop()
-            if uplink is not None:
-                await uplink.stop()
+            await control.stop_uplink()
             await server.stop()
 
     with contextlib.suppress(KeyboardInterrupt):
         asyncio.run(run())
-
-
-def _start_uplink(args, pipeline, install: Install | None):
-    from .fleetlink import load_settings, load_token
-    from .uplink import Uplink
-
-    settings = load_settings()
-    hub = (args.hub or settings.hub_url or "").rstrip("/")
-    token = load_token(hub) if hub else None
-    if not token:
-        where = f" to {hub}" if hub else ""
-        print(
-            f"Fleet: not linked{where}. Local view only. To join a fleet, run "
-            "python -m fleet_agent link <invite link from your org's admin>."
-        )
-        return None
-    shared = settings.shared
-    off = sorted(set(SHARE_CATEGORIES) - shared)
-    print(f"Fleet: sending to {hub}" + (f" (not sharing: {', '.join(off)})" if off else ""))
-
-    def status(s: dict) -> None:
-        pipeline._notify("uplink", s)
-        if s.get("state") in ("connected", "rejected"):
-            who = f" as {s['member']}" if s.get("member") else ""
-            print(f"Fleet: {s['state']}{who}. {s.get('message') or ''}".rstrip())
-
-    uplink = Uplink(
-        pipeline, hub, token, shared, channel=install.channel if install else None, on_status=status
-    )
-    uplink.start()
-    return uplink
 
 
 def cmd_link(args) -> None:
@@ -233,6 +208,7 @@ def cmd_unlink(args) -> None:
 
 
 def cmd_share(args) -> None:
+    from .control import SHARE_HELP
     from .fleetlink import load_settings, save_settings
 
     settings = load_settings()
@@ -247,18 +223,6 @@ def cmd_share(args) -> None:
     print(f"Sharing with {settings.hub_url or '(no fleet linked yet)'}:")
     for c in SHARE_CATEGORIES:
         print(f"  [{'on ' if settings.share[c] else 'off'}] {c:<9} {SHARE_HELP[c]}")
-
-
-SHARE_HELP = {
-    "status": "in game, on foot or seated, your seat",
-    "ship": "ship, mode, warning lights, fuel, flight data",
-    "weapons": "guns ready, countermeasures",
-    "vitals": "health, oxygen, injuries",
-    "uec": "aUEC balance and contract rewards",
-    "location": "zone, jurisdiction, server, quantum destination (no coordinates)",
-    "mission": "current contracts and objectives",
-    "combat": "kills, ships lost, session counts",
-}
 
 
 def cmd_installs(args) -> None:
@@ -410,6 +374,8 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> None:
+    if argv is None and getattr(sys, "frozen", False) and len(sys.argv) == 1:
+        argv = ["run", "--open"]  # fleet-agent.exe double-clicked: start, show the cockpit
     args = build_parser().parse_args(argv)
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.WARNING)
     try:

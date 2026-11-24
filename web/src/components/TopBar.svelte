@@ -106,7 +106,7 @@
     {:else if ship && ship.powered === false}
       <span class="mode off">Powered down</span>
     {/if}
-    {#if uplink}
+    {#if uplink && uplink.state !== "unlinked"}
       <button
         class="fleet {uplink.state}"
         onclick={() => (onFleet ? onFleet() : openOnHub())}
@@ -114,6 +114,16 @@
           ? `Sending to the fleet${uplink.member ? ` as ${uplink.member}` : ""}. Click to see the fleet.`
           : (uplink.message ?? "Connecting to the fleet hub")}><span class="dot"></span>Fleet</button
       >
+      {#if uplink.update}
+        <a
+          class="fleet update"
+          href={uplink.update.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          title="Agent {uplink.update.version} is out. Download it from the project's releases page."
+          >Update {uplink.update.version}</a
+        >
+      {/if}
     {/if}
     <span class="conn" class:live title={agent?.message ?? ""}>
       <span class="dot"></span>{statusText}
@@ -262,6 +272,10 @@
   }
   .fleet.rejected {
     color: var(--bad);
+  }
+  .fleet.update {
+    color: var(--accent);
+    text-decoration: none;
   }
   .conn .dot {
     color: var(--warn);

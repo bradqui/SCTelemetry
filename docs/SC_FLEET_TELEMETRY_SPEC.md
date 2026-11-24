@@ -172,7 +172,7 @@ Key principles:
 | Hub | Python 3.12, FastAPI + uvicorn, SQLAlchemy 2 on **SQLite** (file on a Docker volume), Discord OAuth2. No Redis: events go to the cog over the hub's internal WebSocket. |
 | Web UI | **Svelte 5 + Vite + TypeScript**, hand-written CSS with design tokens (no UI kit), built to static files. Svelte's compiled, fine-grained reactivity keeps 17 Hz local updates cheap and the bundle small for phones. Same bundle served by hub (fleet mode) and agent (local mode). |
 | Cog | Red-DiscordBot cog on **Python 3.11** (ButlerBot's runtime), `aiohttp` (already a Red dependency) for the hub's internal REST and event WebSocket. Declare any extra deps in `info.json` `requirements`. |
-| Infra | `docker-compose.yml` with **one service: the hub**, plus a volume for the SQLite file. The hub publishes its port on `127.0.0.1` only and joins ButlerBot's Docker network so the cog can reach `/internal/*`. HTTPS is terminated by the Virtualmin-managed Apache vhost (Let's Encrypt) with a proxy path to the hub, WebSocket upgrade enabled. |
+| Infra | `docker-compose.yml` with **one service: the hub**, plus a volume for the SQLite file. The hub publishes two ports on `127.0.0.1` only: the public app (proxied by Apache) and the internal API (never proxied). ButlerBot uses host networking, so the cog reaches the internal port at `127.0.0.1` directly; no shared Docker network. HTTPS is terminated by the Virtualmin-managed Apache vhost (Let's Encrypt) with a proxy path to the hub, WebSocket upgrade enabled. |
 
 Single language (Python) across agent, hub, and cog so `shared/` models can be reused.
 
@@ -250,7 +250,7 @@ Like signing a TV into an app (OAuth device authorization pattern):
 - Session cookie, HttpOnly, Secure, SameSite=Lax.
 
 ### 5.3 Internal API (cog ↔ hub)
-- Bound to the Docker network only (not exposed via the proxy). Shared secret header as defense in depth.
+- Served on its own port, published on `127.0.0.1` only and never proxied by Apache (the public port has no `/internal` routes at all). Shared secret header as defense in depth, since anything on the host can reach loopback.
 
 ---
 
@@ -361,7 +361,7 @@ Cog holds a reconnecting WebSocket to the hub's `/internal/events` and uses the 
 2. **Hosting:** Brad's public web server (Webmin/Virtualmin), hub in Docker on a `127.0.0.1` port. HTTPS via a Virtualmin subdomain (Let's Encrypt) with an Apache proxy path to the hub, WebSocket upgrade on. No separate proxy container.
 3. **Database:** SQLite. **No Redis** — the cog gets events from the hub's internal WebSocket. Deployment is one container plus the SQLite volume.
 4. **Discord:** server is configurable (Friday Night Club to start); access is a configurable org member role; admin commands and ops require server admin. Alerts channel is configurable: `#lab` while testing, later `#star-citizen`.
-5. **ButlerBot container:** same host as the hub, separate container. Red 3.5.24, Python 3.11, `phasecorex/red-discordbot`; custom cogs deploy by `git pull` of the ButlerBot repo. Docker setup is not in Git. ButlerBot's Docker network name: open (needed for the hub's compose file).
+5. **ButlerBot container:** same host as the hub, separate container. Red 3.5.24, Python 3.11, `phasecorex/red-discordbot`; custom cogs deploy by `git pull` of the ButlerBot repo. Docker setup is not in Git. ButlerBot runs with `network_mode: host` (checked 2026-11-23), so there is no network to join: the cog calls the hub's internal port on `127.0.0.1`. Server: Ubuntu 24.04, Docker 29, Compose v5.
 6. **Default sharing:** everything on; each member can switch off any category (e.g. aUEC, vitals) in the agent, and switched-off data is never sent.
 7. **Frontend:** Svelte 5 + Vite + TypeScript (see §3.1).
 8. **Code signing:** deferred until Phase 5.

@@ -140,6 +140,7 @@ Useful kinds for alerts:
 | `injury` | `part`, `severity` (minor, moderate, severe), `tier` |
 | `incapacitated`, `healed` (a medical bed cleared their injuries) | |
 | `quantum_route`, `quantum_arrived`, `quantum_blocked` | `destination` |
+| `quantum_start` / `quantum_end` | `ship`. One trip can take several legs; with the route in Game.log, `quantum_start` comes once per trip and the trip ends with `quantum_arrived` (or `quantum_blocked`). `quantum_end` only comes without a route, once per leg |
 | `contract_accepted`, `contract_complete`, `contract_failed`, `contract_abandoned` | `title` |
 | `jurisdiction` | `name` |
 | `boarded`, `disembarked` | `ship`, `owner` (in-game handle). Leaving isn't always logged by the game |

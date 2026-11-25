@@ -10,6 +10,13 @@ Warning lights: a light that stays minor/major for ``WARNING_ON_HOLD_MS`` is
 Otherwise a ``hit`` light flashing through a fight would be dozens of events.
 The thruster light in NAV is the quantum drive locking the thrusters, not a
 fault (see ``expected_light``).
+
+Quantum: one trip to a destination comes as several legs (the first ones can be
+a second long, with 10-15 s of realigning between them), and the telemetry
+only shows the legs. With a route from Game.log, a trip is one jump:
+``quantum_start`` on the first leg, silence between legs while the route is
+under way, and the end is Game.log's own "arrived" (``quantum_arrived``), or
+``quantum_blocked``. Without a route, each leg's end is ``quantum_end``.
 """
 
 from __future__ import annotations
@@ -36,6 +43,8 @@ class EventDeriver:
         self.warnings_on: set[str] = set()
         self.calm_since: dict[str, int] = {}
         self.lit_since: dict[str, int] = {}
+        self.trip = False
+        """A quantum trip under way (Game.log route en route), between legs or in one."""
 
     def feed(self, snap: Snapshot, game_events: list[str] | None = None) -> list[Event]:
         out: list[Event] = []
@@ -67,9 +76,19 @@ class EventDeriver:
             assert ship and pship
             if ship.master_mode and pship.master_mode and ship.master_mode != pship.master_mode:
                 emit("mode_change", mode=ship.master_mode, previous=pship.master_mode)
+            # Game.log's route: "plotted" until the first leg, then "en_route" until it
+            # arrives (or is blocked, or a new route is plotted: "plotted" again).
+            route = snap.location.route if snap.location else None
+            en_route = route is not None and route.state == "en_route"
+            if not en_route:
+                self.trip = False  # arrived, blocked, gone, or a new route: next jump is news
             if pship.flight.quantum is not True and ship.flight.quantum is True:
-                emit("quantum_start", ship=ship.id)
-            if pship.flight.quantum is True and ship.flight.quantum is False:
+                if not self.trip:
+                    emit("quantum_start", ship=ship.id)
+                self.trip = en_route
+            # A leg ended. With a route that's between legs, or the end of a trip that
+            # "arrived" announces; without one, each leg is all we know.
+            if pship.flight.quantum is True and ship.flight.quantum is False and route is None:
                 emit("quantum_end", ship=ship.id)
             if pship.landed is True and ship.landed is False:
                 emit("takeoff", ship=ship.id)

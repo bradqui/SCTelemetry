@@ -155,3 +155,18 @@ def test_not_in_game_is_not_connection_lost_between_heartbeats():
     assert m.presence(5_000, cfg) == "live"
     assert m.presence(12_000, cfg) == "stale"
     assert m.presence(61_000, cfg) == "offline"
+
+
+def test_last_arrived_reaches_the_roster():
+    from starglance_hub.config import Config
+    from starglance_hub.db import Member
+    from starglance_hub.fleet import MemberLive, summarize
+
+    m = MemberLive(Member("m1", "Ace", None, "member", 1, 0))
+    m.sockets[1] = object()
+    m.in_game, m.last_seen = True, 1000
+    m.snapshot = {"location": {"last_arrived": {"destination": "Bounty Beacon", "since": 900}}}
+    row = summarize(m, 1000, Config())
+    assert row["location"]["last_arrived"] == {"destination": "Bounty Beacon", "since": 900}
+    m.snapshot = {"location": {"jurisdiction": "UEE"}}
+    assert summarize(m, 1000, Config())["location"]["last_arrived"] is None

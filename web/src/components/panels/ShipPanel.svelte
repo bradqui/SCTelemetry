@@ -20,19 +20,26 @@
   const gearDown = $derived(ship.gear === "deployed" || ship.gear === "deploying");
   const gearMoving = $derived(ship.gear === "deploying" || ship.gear === "retracting");
 
-  // Shield faces (when the game sends them) as arcs around the ship, front first.
+  // The shield ring: four faces (front, right, back, left) around an arrow for your ship,
+  // nose up. The game only says whether shields are powered, so the four light together;
+  // if it ever sends each face's level, each arc shows its own (as many as it sends).
   const CX = 80;
   const CY = 82;
-  const RX = 64;
-  const RY = 72;
+  const RX = 58;
+  const RY = 66;
   function faceArc(i: number, n: number): string {
-    const gap = 6;
-    const a0 = ((-90 + (360 / n) * i - 180 / n + gap / 2) * Math.PI) / 180;
-    const a1 = ((-90 + (360 / n) * (i + 1) - 180 / n - gap / 2) * Math.PI) / 180;
+    const step = 360 / n;
+    const gap = n <= 4 ? 10 : 8;
+    const a0 = ((-90 + step * i - step / 2 + gap / 2) * Math.PI) / 180;
+    const a1 = ((-90 + step * i + step / 2 - gap / 2) * Math.PI) / 180;
     const p = (a: number) => `${(CX + RX * Math.cos(a)).toFixed(1)} ${(CY + RY * Math.sin(a)).toFixed(1)}`;
     return `M${p(a0)} A${RX} ${RY} 0 0 1 ${p(a1)}`;
   }
-  const faceTone = (v: number) => (v < 0.25 ? "bad" : v < 0.5 ? "warn" : "good");
+  const faces = $derived<{ tone: string; level: number | null }[]>(
+    shields.faces?.length
+      ? shields.faces.map((v) => ({ tone: v < 0.25 ? "bad" : v < 0.5 ? "warn" : "good", level: v }))
+      : Array.from({ length: 4 }, () => ({ tone: shieldState, level: null })),
+  );
 </script>
 
 <div class="shipview">
@@ -45,35 +52,23 @@
       </radialGradient>
     </defs>
 
-    {#if shieldState === "faces" && shields.faces}
-      {#each shields.faces as v, i (i)}
-        <path class="face {faceTone(v)}" d={faceArc(i, shields.faces.length)} style:opacity={0.35 + v * 0.65} />
-      {/each}
-    {:else}
-      <ellipse class="shield {shieldState}" cx={CX} cy={CY} rx={RX} ry={RY} />
-      {#if shieldState === "up"}
-        <ellipse class="shimmer" cx={CX} cy={CY} rx={RX} ry={RY} pathLength="100" />
-      {/if}
-    {/if}
+    {#each faces as f, i (i)}
+      <path class="face {f.tone}" d={faceArc(i, faces.length)} style:opacity={f.level == null ? null : 0.35 + f.level * 0.65} />
+    {/each}
 
-    <g class="hull {hullTone}" transform="translate(30 22)">
-      <path
-        d="M50 2 L57 26 L60 48 L92 68 L96 84 L62 80 L58 98 L72 108 L70 116 L50 111 L30 116 L28 108 L42 98 L38 80 L4 84 L8 68 L40 48 L43 26 Z"
-      />
-      <path class="detail" d="M50 30 L50 96 M40 52 L40 80 M60 52 L60 80" />
-      <ellipse class="canopy" cx="50" cy="34" rx="4.5" ry="9" />
+    {#if engines}
+      <circle class="engine" class:boost cx="80" cy="108" r={boost ? 8 : 5} fill="url(#eng)" />
+    {/if}
+    <g class="hull {hullTone}">
+      <path d="M80 46 L104 112 L80 98 L56 112 Z" />
       {#if gearDown}
         <g class="gear" class:moving={gearMoving}>
-          <rect x="47.5" y="18" width="5" height="7" rx="1.5" />
-          <rect x="22" y="72" width="5" height="7" rx="1.5" />
-          <rect x="73" y="72" width="5" height="7" rx="1.5" />
+          <circle cx="80" cy="66" r="2.4" />
+          <circle cx="70" cy="98" r="2.4" />
+          <circle cx="90" cy="98" r="2.4" />
         </g>
       {/if}
     </g>
-    {#if engines}
-      <circle class="engine" class:boost cx="72" cy="140" r={boost ? 9 : 6} fill="url(#eng)" />
-      <circle class="engine" class:boost cx="88" cy="140" r={boost ? 9 : 6} fill="url(#eng)" />
-    {/if}
   </svg>
 
   <div class="side">
@@ -129,45 +124,16 @@
     gap: 4px;
   }
 
-  .shield {
-    fill: none;
-    stroke-width: 3;
-  }
-  .shield.up {
-    stroke: var(--accent);
-    fill: color-mix(in srgb, var(--accent) 7%, transparent);
-    filter: drop-shadow(0 0 var(--glow, 6px) var(--accent));
-  }
-  .shield.down {
-    stroke: var(--text-3);
-    stroke-dasharray: 3 6;
-    opacity: 0.6;
-  }
-  .shield.unknown {
-    stroke: var(--line-2);
-    stroke-dasharray: 2 5;
-  }
-  .shimmer {
-    fill: none;
-    stroke: #ffffff;
-    stroke-width: 3;
-    stroke-dasharray: 6 94;
-    stroke-linecap: round;
-    opacity: 0.55;
-    animation: orbit 4s linear infinite;
-  }
-  @keyframes orbit {
-    to {
-      stroke-dashoffset: -100;
-    }
-  }
   .face {
     fill: none;
     stroke-width: 5;
     stroke-linecap: round;
+    transition: stroke 0.3s;
   }
+  .face.up,
   .face.good {
     stroke: var(--accent);
+    filter: drop-shadow(0 0 var(--glow, 4px) color-mix(in srgb, var(--accent) 70%, transparent));
   }
   .face.warn {
     stroke: var(--warn);
@@ -175,43 +141,44 @@
   .face.bad {
     stroke: var(--bad);
   }
+  .face.down {
+    stroke: var(--text-3);
+    stroke-width: 3;
+    stroke-dasharray: 2 5;
+    opacity: 0.45;
+  }
+  .face.unknown {
+    stroke: var(--line-2);
+    stroke-width: 3;
+    stroke-dasharray: 2 5;
+  }
 
-  .hull path:first-child {
-    stroke-width: 1.6;
+  .hull path {
+    stroke-width: 1.8;
     stroke-linejoin: round;
-    transition: fill 0.3s;
+    transition: fill 0.3s, stroke 0.3s;
   }
-  .hull.unknown path:first-child {
-    fill: var(--panel-2);
-    stroke: var(--text-2);
+  .hull.unknown path {
+    fill: color-mix(in srgb, var(--accent) 16%, var(--panel));
+    stroke: var(--accent);
   }
-  .hull.good path:first-child {
+  .hull.good path {
     fill: color-mix(in srgb, var(--good) 22%, var(--panel));
     stroke: var(--good);
   }
-  .hull.warn path:first-child {
+  .hull.warn path {
     fill: color-mix(in srgb, var(--warn) 25%, var(--panel));
     stroke: var(--warn);
   }
-  .hull.bad path:first-child {
+  .hull.bad path {
     fill: color-mix(in srgb, var(--bad) 28%, var(--panel));
     stroke: var(--bad);
     animation: pulse 1s ease-in-out infinite;
   }
-  .detail {
-    fill: none;
-    stroke: var(--line-2);
-    stroke-width: 1;
-  }
-  .canopy {
-    fill: color-mix(in srgb, var(--accent) 35%, var(--bg));
-    stroke: var(--accent);
-    stroke-width: 1;
-  }
-  .gear rect {
+  .gear circle {
     fill: var(--text-2);
   }
-  .gear.moving rect {
+  .gear.moving circle {
     fill: var(--warn);
     animation: pulse 0.7s ease-in-out infinite;
   }

@@ -26,7 +26,7 @@ Game.log isn't copied: the game keeps it (and older ones in `logbackups`), and a
 
 A mark says "this moment": it doesn't have to be made at the time, since the last 30 minutes can be reported anyway, but a marked moment is kept longer.
 
-- **Ways to mark:** the flag button in the page's top bar, the tray menu (**Mark this moment**), or a global hotkey (off by default; Ctrl+Alt+M, Ctrl+Shift+F12 or Ctrl+Alt+F9), which plays a short sound since you're in the game. Not from other devices: that view stays view-only (decision 21).
+- **Ways to mark:** the flag button in the page's top bar, the tray menu (**Mark this moment**), or a global hotkey (off by default; Ctrl+Alt+M, Ctrl+Shift+F12 or Ctrl+Alt+F9), which plays a short sound since you're in the game. A paired device (Show on other devices) can mark too, with the flag in its top bar: `POST /api/mark` on lanview, which only adds a mark (decision 25). It sees the marks, but the report is made and sent on the PC, where the data is.
 - **The header shows it:** "⚑ 2 marked" next to the flag; clicking it opens the report.
 - **Kept:** the 10 minutes around a mark (8 before, 2 after) stay for 24 hours, or until a report is saved from it. At most 20 marks.
 

@@ -4,7 +4,9 @@ Off by default (Settings -> Agent -> Other devices). When on, a second server li
 your network (``http://<this PC>:8741``) beside the local one, which stays on 127.0.0.1.
 It serves the page, the live feed and the fleet view, and nothing else: no Agent
 settings, no telemetry switch, no fleet sign-in links, no replay controls. Anything a
-device sends is ignored except which fleet member it has open, as on the PC itself.
+device sends is ignored except which fleet member it has open, as on the PC itself, and
+one action: Mark this moment (``POST /api/mark``), which only tells this PC to keep the
+minutes around now for a problem report. The report itself is made and sent on the PC.
 Nothing reaches the game from here.
 
 Pairing: a device that isn't paired gets a page asking for a code. The PC shows one
@@ -167,6 +169,7 @@ class LanView:
                 web.get("/ws/fleet", self._fleet_ws),
                 web.get("/api/mode", self._mode),
                 web.get("/api/state", local.api_state),
+                web.post("/api/mark", self._mark),
                 web.route("*", "/api/{tail:.*}", self._not_here),
                 web.get("/{tail:.*}", local.static),
             ]
@@ -273,6 +276,20 @@ class LanView:
 
     async def _mode(self, _request: web.Request) -> web.Response:
         return web.json_response({"mode": "local", "remote": True, "agent_version": __version__})
+
+    async def _mark(self, request: web.Request) -> web.Response:
+        """Mark this moment for a problem report: the one thing a device may do. A page on
+        this server must say so (Origin), so another site can't post it."""
+        if request.headers.get("Origin") != f"http://{request.host}":
+            return web.json_response({"error": "Cross-origin access refused."}, status=403)
+        reports = getattr(self.local.control, "reports", None)
+        if reports is None:
+            return web.json_response({"error": "Problem reports aren't available."}, status=404)
+        try:
+            marked = reports.mark("device")
+        except ValueError as exc:
+            return web.json_response({"error": str(exc)}, status=400)
+        return web.json_response({"id": marked["id"], "t": marked["t"]})
 
     async def _not_here(self, _request: web.Request) -> web.Response:
         return web.json_response({"error": "Only on the PC itself."}, status=404)

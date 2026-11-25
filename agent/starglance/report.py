@@ -219,6 +219,14 @@ class Reports:
             "marks": [{"id": m.id, "t": m.t, "source": m.source} for m in self.buffer.marks],
         }
 
+    @staticmethod
+    def for_device(status: dict) -> dict:
+        """What a paired device (Show on other devices) sees: whether it can mark, and the
+        marks, so its top bar shows them. Reports themselves are made on this PC."""
+        return {k: status[k] for k in ("available", "keep", "keep_minutes", "marks")} | {
+            "remote": True
+        }
+
     def _notify(self) -> None:
         if self.notify is not None:
             self.notify(self.status())

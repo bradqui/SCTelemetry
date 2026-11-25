@@ -31,7 +31,7 @@ Every panel can be shown, hidden, resized and moved ([Customizing](/guide/custom
 |---|---|
 | **Heading** | A compass tape with your heading. In deep space, where the game has no heading, it says so. |
 | **Flight** | Speed dial with the mode, altitude and height above ground, vertical speed, G-force, atmosphere; flight assists (coupled, G-safe, cruise, proximity, boost); your quantum route and whether you've arrived. |
-| **Hull & shields** | A diagram of your ship, power and engines, landing gear. The game doesn't send hull or shield percentages today, so this shows what it does send. |
+| **Hull & shields** | Your ship as an arrow inside a ring of four shield faces (front, sides, back): lit when shields are powered, dashed when they're down. The arrow takes the hull's colour, the engines glow when they're on, and dots show the landing gear. The game doesn't send hull or shield percentages today, so the bars beside it say so. |
 | **Warnings** | The ten warning lights (power, weapons, thrusters, shields, cooling, quantum, radar, proximity, hit, missile), plus flying or landed and the gear. |
 | **Trends** | Speed, altitude and G-force over the last three minutes. |
 | **Fuel** | Hydrogen, quantum fuel and boost. |

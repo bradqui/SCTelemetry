@@ -278,6 +278,10 @@ def summarize(m: MemberLive, now: int, cfg: Config) -> dict:
             if route
             else None
         )
+        last = loc.get("last_arrived")
+        out["location"]["last_arrived"] = (
+            {"destination": last.get("destination"), "since": last.get("since")} if last else None
+        )
         aboard = loc.get("aboard")
         # owner_id / ship_id: filled in across the roster by resolve_aboard.
         out["location"]["aboard"] = (

@@ -42,6 +42,7 @@
   const spd = $derived(speedIn(s?.speed, prefs.speedUnit));
   const alt = $derived(altitude(s?.alt));
   const route = $derived(m.location?.route ?? null);
+  const lastArrived = $derived(m.location?.last_arrived ?? null);
   const mode = $derived.by(() => {
     if (!s) return null;
     if (s.quantum) return { text: "QT", cls: "qt" };
@@ -99,6 +100,12 @@
       <p class="route" class:qt={s.quantum}>
         <span>{s.quantum ? "Quantum to" : (ROUTE_STATE[route.state] ?? "Route")}</span>
         <b>{route.destination ?? "?"}</b>
+      </p>
+    {:else if lastArrived}
+      <p class="route last" title="Where their last quantum jump ended. They may have moved on since.">
+        <span>Arrived</span>
+        <b>{lastArrived.destination}</b>
+        <small>{ago(lastArrived.since, now)}</small>
       </p>
     {/if}
     <div class="flight">
@@ -327,6 +334,20 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+  .route.last {
+    border-left-color: var(--line-2);
+    background: transparent;
+  }
+  .route.last b {
+    color: var(--text-2);
+    font-weight: 600;
+  }
+  .route small {
+    margin-left: auto;
+    color: var(--text-3);
+    font-size: 0.7rem;
+    white-space: nowrap;
   }
   .flight {
     display: grid;

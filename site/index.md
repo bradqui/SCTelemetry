@@ -57,7 +57,7 @@ features:
 
 ## See it
 
-<Clip name="clip-replay" caption="The cockpit view, playing a recorded session: a quantum jump to Bounty Beacon." />
+<Clip name="clip-replay" caption="The cockpit view on the way to a quantum jump to Bounty Beacon." />
 
 <div class="shots">
   <figure><img src="/shots/fleet-cards.jpg" alt="The fleet page: everyone's ship, speed, altitude and fuel on cards, with the roster grouped by ship"><figcaption>The fleet page: everyone at a glance.</figcaption></figure>

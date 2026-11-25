@@ -1,6 +1,8 @@
 // Problem reports (docs/REPORTS.md): marking a moment and the agent's report calls. This
-// PC only: the view for other devices has none of these routes.
+// PC only, except marking: a paired device (Show on other devices) can mark a moment, and
+// the report is then made on the PC.
 import { appWindow } from "./appwin.svelte";
+import { view } from "./remote.svelte";
 
 export async function reportCall<T = Record<string, unknown>>(path: string, body: unknown = {}): Promise<T> {
   const r = await fetch(`/api/agent/report/${path}`, {
@@ -14,8 +16,12 @@ export async function reportCall<T = Record<string, unknown>>(path: string, body
 }
 
 /** Mark this moment (the top bar's flag). */
-export function markNow(): Promise<unknown> {
-  return reportCall("mark");
+export async function markNow(): Promise<unknown> {
+  if (!view.remote) return reportCall("mark");
+  const r = await fetch("/api/mark", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.error ?? `The PC said ${r.status}.`);
+  return data;
 }
 
 /** Open the Report a problem dialog (App listens). */

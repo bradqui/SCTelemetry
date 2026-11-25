@@ -42,6 +42,7 @@ from aiohttp import WSMsgType, web
 from starglance_shared import Event, Snapshot
 
 from . import __version__, paths
+from .report import Reports
 from .runtime import Pipeline
 
 if TYPE_CHECKING:
@@ -82,8 +83,8 @@ class _Client:
         elif kind == "updater":
             self.messages.append(json.dumps({"type": "updater", **payload}))  # type: ignore[dict-item]
         elif kind == "reports":
-            if self.remote:
-                return  # marks and reports are this PC's
+            if self.remote:  # another device: only the marks (reports are made on this PC)
+                payload = Reports.for_device(payload)  # type: ignore[arg-type]
             self.messages.append(json.dumps({"type": "reports", **payload}))  # type: ignore[dict-item]
         self.wake.set()
 
@@ -448,8 +449,9 @@ class LocalServer:
         if updater is not None:
             await ws.send_str(json.dumps({"type": "updater", **updater.status()}))
         reports = getattr(self.control, "reports", None)
-        if reports is not None and not remote:
-            await ws.send_str(json.dumps({"type": "reports", **reports.status()}))
+        if reports is not None:
+            status = Reports.for_device(reports.status()) if remote else reports.status()
+            await ws.send_str(json.dumps({"type": "reports", **status}))
         await ws.send_str(
             json.dumps(
                 {"type": "history", "events": [json.loads(_dump(e)) for e in self.pipeline.recent]}

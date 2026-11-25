@@ -8,7 +8,8 @@ Any of these marks it:
 
 - the **flag** button in the top bar;
 - **Mark this moment** in the tray menu;
-- a **hotkey**, from inside the game (below).
+- a **hotkey**, from inside the game (below);
+- the flag on a **tablet or other device** paired with *Show on other devices* ([Tablets, phones and VR](/guide/other-devices#a-tablet-or-another-pc-at-home)). The marks show there too; you make the report on the PC, where the data is.
 
 The top bar then shows **⚑ 1 marked**. A mark keeps the 10 minutes around it for a day, so you can finish your session first and report it later.
 

@@ -34,7 +34,16 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from starglance_shared import Aboard, Event, Injury, Location, Mission, Route, Session
+from starglance_shared import (
+    Aboard,
+    Event,
+    Injury,
+    LastArrived,
+    Location,
+    Mission,
+    Route,
+    Session,
+)
 
 from .normalize import model_name
 
@@ -282,6 +291,8 @@ def who(name: str) -> str:
 
 ARRIVED_SHOWN_MS = 120_000
 """How long "arrived at X" stays up."""
+LAST_ARRIVED_MS = 20 * 60_000
+"""How long "last arrived at X" is kept: after that it says too little."""
 ENDED_SHOWN_MS = 120_000
 """How long a finished, failed or abandoned contract stays up."""
 MAX_MISSIONS = 4
@@ -339,6 +350,7 @@ class LogState:
         self.route.reset()
         self.loc: dict = {}
         self.aboard: Aboard | None = None
+        self.last_arrived: LastArrived | None = None
         self.missions: list[Mission] = []
         self.injuries: dict[str, Injury] = {}
         self.session = Session()
@@ -354,6 +366,10 @@ class LogState:
         if k in ("route", "arrived", "blocked"):
             if k == "arrived":
                 self.session.quantum_trips += 1
+                if self.route.destination:
+                    self.last_arrived = LastArrived(destination=self.route.destination, since=t)
+            elif k == "route":
+                self.last_arrived = None  # off somewhere else
             return self.route.on_log(ev, t)
         if k == "handle":
             self.handle = d["handle"]
@@ -364,6 +380,7 @@ class LogState:
             self.loc["shard"] = d["shard"]
             if changed and before is not None:
                 self.aboard = None  # moved to another server: the ship didn't come along
+                self.last_arrived = None
             return event("shard_join", shard=d["shard"]) if changed else []
 
         # -- the ship you're aboard
@@ -524,12 +541,15 @@ class LogState:
     def respawned(self) -> None:
         self.injuries.clear()
         self.aboard = None
+        self.last_arrived = None
 
     # -- read
 
     def location(self, t: int, quantum: bool | None) -> Location | None:
         route = self.route.route(t, quantum)
-        if not self.loc and route is None and self.aboard is None:
+        if self.last_arrived and t - self.last_arrived.since > LAST_ARRIVED_MS:
+            self.last_arrived = None
+        if not self.loc and route is None and self.aboard is None and self.last_arrived is None:
             return None
         return Location(
             armistice=self.loc.get("armistice"),
@@ -541,6 +561,7 @@ class LogState:
             shard=self.loc.get("shard"),
             system=self.loc.get("system"),
             route=route,
+            last_arrived=self.last_arrived.model_copy() if self.last_arrived else None,
             aboard=self.aboard.model_copy() if self.aboard else None,
         )
 

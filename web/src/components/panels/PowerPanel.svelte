@@ -3,8 +3,9 @@
 
   let { ctx }: { ctx: ShipCtx } = $props();
 
+  // The power plant feeds a bus; each system hangs off it. A system that's on is a lit
+  // pill with a feed line from the bus; one that's off is a dashed outline with no feed.
   const ORDER: [string, string][] = [
-    ["powerplants", "Power plant"],
     ["engines", "Engines"],
     ["shield_generators", "Shield gen"],
     ["shield_emitters", "Emitters"],
@@ -14,6 +15,7 @@
     ["sensors", "Sensors"],
     ["gravity_generators", "Gravity"],
   ];
+  const plant = $derived(ctx.ship.power.powerplants);
   const systems = $derived(ORDER.filter(([k]) => ctx.ship.power[k] !== undefined));
 
   // The game has no quantum drive power flag. Its warning light is lit when the
@@ -25,13 +27,15 @@
       : qdrv === undefined
         ? null
         : qdrv === "off"
-          ? { on: false, state: "Off (SCM)", cls: "" }
+          ? { on: false, state: "SCM", cls: "" }
           : qdrv === "nominal"
             ? { on: true, state: "Ready", cls: "" }
             : { on: true, state: "Fault", cls: "fault" },
   );
-  const total = $derived(systems.length + (quantum ? 1 : 0));
-  const online = $derived(systems.filter(([k]) => ctx.ship.power[k]).length + (quantum?.on ? 1 : 0));
+  const total = $derived(systems.length + (plant === undefined ? 0 : 1) + (quantum ? 1 : 0));
+  const online = $derived(
+    systems.filter(([k]) => ctx.ship.power[k]).length + (plant ? 1 : 0) + (quantum?.on ? 1 : 0),
+  );
 </script>
 
 {#if total === 0}
@@ -40,20 +44,24 @@
   <div class="summary">
     <span class="count num"><b>{online}</b>/{total}</span>
     <span class="label">online</span>
-    <div class="seg" aria-hidden="true">
-      {#each systems as [k] (k)}<span class:on={ctx.ship.power[k]}></span>{/each}
-      {#if quantum}<span class:on={quantum.on} class:jump={quantum.cls === "jump"}></span>{/if}
-    </div>
   </div>
-  <div class="grid">
-    {#each systems as [key, name] (key)}
-      <div class="pw" class:on={ctx.ship.power[key]}><span class="led"></span>{name}</div>
-    {/each}
-    {#if quantum}
-      <div class="pw qd {quantum.cls}" class:on={quantum.on} title="Quantum drive: {quantum.state}">
-        <span class="led"></span>Quantum<em>{quantum.state}</em>
-      </div>
-    {/if}
+  <div class="bus" class:live={plant !== false}>
+    <div class="plant" class:on={plant}>
+      <span class="name">Power plant</span><em>{plant ? "On" : plant === false ? "Off" : "?"}</em>
+    </div>
+    <div class="feeds">
+      {#each systems as [key, name] (key)}
+        {@const on = ctx.ship.power[key] === true}
+        <div class="sys" class:on>
+          <span class="name">{name}</span><em>{on ? "On" : "Off"}</em>
+        </div>
+      {/each}
+      {#if quantum}
+        <div class="sys {quantum.cls}" class:on={quantum.on} title="Quantum drive: {quantum.state}">
+          <span class="name">Quantum</span><em>{quantum.state}</em>
+        </div>
+      {/if}
+    </div>
   </div>
 {/if}
 
@@ -73,86 +81,103 @@
     color: var(--text);
     font-weight: 750;
   }
-  .seg {
-    margin-left: auto;
-    display: flex;
-    gap: 2px;
-    align-self: center;
-  }
-  .seg span {
-    width: 7px;
-    height: 11px;
-    background: var(--line);
-  }
-  .seg span.on {
-    background: var(--good);
-    box-shadow: 0 0 5px color-mix(in srgb, var(--good) 60%, transparent);
-  }
-  .seg span.jump {
-    background: var(--nav);
-  }
-  .grid {
+  .bus {
+    --feed: var(--accent);
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(98px, 1fr));
-    gap: 3px;
+    gap: 0;
   }
-  .pw {
+  .plant,
+  .sys {
+    position: relative;
     display: flex;
     align-items: center;
+    justify-content: space-between;
     gap: 6px;
-    padding: 3px 6px;
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--line);
-    background: var(--bg-2);
-    color: var(--text-3);
+    min-width: 0;
+    padding: 2px 9px;
+    border-radius: 999px;
     font-size: 0.74rem;
     font-weight: 550;
+    color: var(--text-3);
+    border: 1px dashed var(--line-2);
+  }
+  .name {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  .pw.on {
-    color: var(--text);
-    border-color: color-mix(in srgb, var(--good) 25%, transparent);
-  }
-  .led {
-    width: 6px;
-    height: 6px;
-    background: var(--line-2);
+  em {
+    font-style: normal;
+    font-size: 0.6rem;
+    font-weight: 750;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
     flex: none;
   }
-  .pw.on .led {
-    background: var(--good);
-    box-shadow: 0 0 6px var(--good);
+  .on {
+    color: var(--text);
+    border: 1px solid var(--feed);
+    background: color-mix(in srgb, var(--feed) 18%, transparent);
   }
-  .qd {
-    grid-column: span 2;
+  .on em {
+    color: var(--feed);
   }
-  .qd em {
-    margin-left: auto;
-    font-style: normal;
-    font-size: 0.62rem;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--text-3);
+  .plant {
+    justify-self: start;
+    min-width: 150px;
+    margin-bottom: 6px;
   }
-  .qd.jump {
-    border-color: var(--nav);
-    color: var(--nav);
-    animation: pulse 1.2s ease-in-out infinite;
+  /* The bus: a spine down from the power plant, and a rail above each row of systems, so
+     every system is fed from the plant directly (never through the one above it). Rows are
+     22 px with 12 px between them: rails sit 5 px into each 34 px step. */
+  .feeds {
+    --rail: var(--line-2);
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(108px, 1fr));
+    grid-auto-rows: 22px;
+    gap: 12px 6px;
+    padding: 12px 0 0 14px;
+    background: repeating-linear-gradient(
+      to bottom,
+      transparent 0 5px,
+      var(--rail) 5px 8px,
+      transparent 8px 34px
+    );
   }
-  .qd.jump .led {
-    background: var(--nav);
-    box-shadow: 0 0 8px var(--nav);
+  .bus.live .feeds {
+    --rail: var(--feed);
   }
-  .qd.jump em {
-    color: var(--nav);
+  .feeds::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: -6px;
+    bottom: 26px;
+    width: 3px;
+    background: var(--rail);
   }
-  .qd.fault .led {
-    background: var(--warn);
+  /* Each powered system's feed from its rail. */
+  .sys.on::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: -5px;
+    width: 2px;
+    height: 5px;
+    background: var(--feed);
+  }
+  .sys {
+    height: 22px;
+    box-sizing: border-box;
+  }
+  .sys.jump {
+    --feed: var(--nav);
+  }
+  .sys.fault {
+    --feed: var(--bad);
   }
   .muted {
     color: var(--text-3);
-    margin: 0;
   }
 </style>

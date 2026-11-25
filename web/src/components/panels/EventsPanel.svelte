@@ -253,7 +253,7 @@
     padding: 0;
     display: grid;
     gap: 2px;
-    max-height: 150px;
+    max-height: 104px; /* about four rows: keeps the dashboard on one 1080p screen */
     overflow-y: auto;
     scrollbar-width: thin;
   }

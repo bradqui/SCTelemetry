@@ -69,6 +69,36 @@ const all = (...loads: Promise<unknown>[]) => Promise.all(loads);
 
 export const THEMES: Theme[] = [
   {
+    // Starglance's own look, not a ship maker's: the default, and what you wear on foot
+    // when your theme follows the ship you're in.
+    id: "SG",
+    name: "Starglance Deep Space",
+    short: "Starglance",
+    tagline: "Our own: ink blue, ice cyan, amber",
+    fonts: { display: "Chakra Petch", body: "IBM Plex Sans", mono: "IBM Plex Mono" },
+    load: () =>
+      all(
+        import("@fontsource/chakra-petch/latin-500.css"),
+        import("@fontsource/chakra-petch/latin-600.css"),
+        import("@fontsource/chakra-petch/latin-700.css"),
+        import("@fontsource/ibm-plex-sans/latin-400.css"),
+        import("@fontsource/ibm-plex-sans/latin-500.css"),
+        import("@fontsource/ibm-plex-sans/latin-600.css"),
+        import("@fontsource/ibm-plex-mono/latin-400.css"),
+        import("@fontsource/ibm-plex-mono/latin-500.css"),
+      ),
+    displayWeight: 600,
+    displaySpacing: "0.03em",
+    labelCase: "uppercase",
+    labelSpacing: "0.16em",
+    radius: "10px",
+    radiusChip: "5px",
+    border: "1px",
+    deco: "",
+    dark: { bg: "#090c11", bg2: "#0e131a", panel: "#121922", panel2: "#17202b", line: "#222d3a", line2: "#34424f", text: "#e7edf3", text2: "#a2afbd", text3: "#6a7888", accent: "#5fd4e8", accent2: "#f0b45c" },
+    light: { bg: "#eef2f6", bg2: "#e4eaf0", panel: "#f9fbfc", panel2: "#ffffff", line: "#d3dce5", line2: "#b5c3d0", text: "#0e151d", text2: "#3e4c5a", text3: "#6c7b8a", accent: "#0b7f97", accent2: "#a8661a" },
+  },
+  {
     id: "AEGS",
     name: "Aegis Dynamics",
     short: "Aegis",
@@ -500,7 +530,7 @@ export const THEMES: Theme[] = [
 ];
 
 export const THEME_BY_ID: Record<string, Theme> = Object.fromEntries(THEMES.map((t) => [t.id, t]));
-export const DEFAULT_THEME = "RSI";
+export const DEFAULT_THEME = "SG";
 
 /** Class-name prefixes that aren't a theme id of their own. */
 const ALIASES: Record<string, string> = { VNCL: "ESPR", XIAN: "AOPOA", XNAA: "AOPOA" };

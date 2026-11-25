@@ -1,7 +1,9 @@
 <script lang="ts">
   import type { ShipCtx } from "../../lib/context";
-  import { altitude, niceMax, num, pct, speedIn } from "../../lib/format";
+  import { niceMax, num, pct, speedIn } from "../../lib/format";
+  import AltTape from "../gauges/AltTape.svelte";
   import ArcGauge from "../gauges/ArcGauge.svelte";
+  import MiniArc from "../gauges/MiniArc.svelte";
 
   let { ctx }: { ctx: ShipCtx } = $props();
 
@@ -13,8 +15,6 @@
   const scale = $derived(
     niceMax(Math.max(ctx.trends.peakSpeed, f.speed ?? 0) * factor * 1.04, kmh ? 400 : 100),
   );
-  const alt = $derived(altitude(f.alt));
-  const radar = $derived(altitude(f.radar_alt));
   const mode = $derived(ctx.ship.master_mode);
 
   // Vertical speed as a bar either side of zero, on a log-ish scale (±500 m/s at the ends).
@@ -52,42 +52,27 @@
   </div>
 
   <div class="tiles">
-    <div class="tile">
-      <span class="label">Altitude</span>
-      <span class="big num" class:word={f.alt == null}>{alt.value}<small>{alt.unit}</small></span>
-      <span class="sub">
-        {#if f.radar_alt != null}AGL <b class="num">{radar.value}{radar.unit}</b>{:else}AGL —{/if}
-      </span>
-    </div>
-
-    <div class="tile">
-      <span class="label">Vert speed</span>
-      <div class="vsi-row">
-        <span class="big num">{quantum ? "—" : num(f.vsi, 0)}<small>m/s</small></span>
-        <div class="vsi" aria-hidden="true">
-          <span class="zero"></span>
-          <span
-            class="vbar"
-            class:down={vsiFrac < 0}
-            style:height="{Math.abs(vsiFrac) * 50}%"
-            style:bottom={vsiFrac >= 0 ? "50%" : `${50 - Math.abs(vsiFrac) * 50}%`}
-          ></span>
-        </div>
-      </div>
-    </div>
-
-    <div class="tile">
-      <span class="label">G-force</span>
-      <span class="big num {gTone}">{num(f.g, 1)}<small>g</small></span>
-      <div class="gbar" aria-hidden="true">
-        <span class="gfill {gTone}" style:width="{Math.min(1, (f.g ?? 0) / gScale) * 100}%"></span>
-        {#if f.g_max}<span class="gpeak" style:left="{Math.min(1, f.g_max / gScale) * 100}%"></span>{/if}
-      </div>
-    </div>
-
-    <div class="tile">
+    <div class="tape"><AltTape alt={f.alt} agl={f.radar_alt} /></div>
+    <div class="vsi"><MiniArc
+      label="Vert speed"
+      display={quantum ? "—" : num(f.vsi, 0)}
+      unit="m/s"
+      centred
+      frac={quantum ? null : vsiFrac}
+      tone={vsiFrac < 0 ? "warn" : "good"}
+    /></div>
+    <div class="g"><MiniArc
+      label="G-force"
+      display={num(f.g, 1)}
+      unit="g"
+      frac={f.g == null ? null : f.g / gScale}
+      peak={f.g_max ? f.g_max / gScale : null}
+      danger={9 / gScale}
+      tone={gTone === "bad" ? "bad" : gTone === "warn" ? "warn" : "accent"}
+    /></div>
+    <div class="atmo">
       <span class="label">Atmosphere</span>
-      <span class="big num" class:word={f.atmo_density != null && f.atmo_density < 0.005}>
+      <span class="num" class:word={f.atmo_density != null && f.atmo_density < 0.005}>
         {f.atmo_density == null ? "—" : f.atmo_density < 0.005 ? "VACUUM" : num(f.atmo_density, 2)}
         {#if f.atmo_density != null && f.atmo_density >= 0.005}<small>kg/m³</small>{/if}
       </span>
@@ -140,8 +125,49 @@
   .tiles {
     grid-area: tiles;
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 4px;
+    grid-template-columns: 62px repeat(2, minmax(0, 1fr));
+    grid-template-rows: auto auto;
+    grid-template-areas: "tape vsi g" "tape atmo atmo";
+    gap: 6px 10px;
+    align-items: start;
+  }
+  .tape {
+    grid-area: tape;
+    align-self: stretch;
+  }
+  .vsi {
+    grid-area: vsi;
+    min-width: 0;
+  }
+  .g {
+    grid-area: g;
+    min-width: 0;
+  }
+  .atmo {
+    grid-area: atmo;
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 4px 8px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--line);
+    background: color-mix(in srgb, var(--bg-2) 70%, transparent);
+    min-width: 0;
+  }
+  .atmo .num {
+    font-size: 0.95rem;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .atmo .num.word {
+    font-size: 0.78rem;
+    letter-spacing: 0.12em;
+    color: var(--text-2);
+  }
+  .atmo small {
+    font-size: 0.65em;
+    color: var(--text-3);
+    margin-left: 3px;
   }
   .chips {
     grid-area: chips;
@@ -157,111 +183,6 @@
     .dial {
       max-width: 180px;
     }
-  }
-  .tile {
-    display: grid;
-    gap: 1px;
-    padding: 5px 8px;
-    border-radius: var(--radius-sm);
-    background: color-mix(in srgb, var(--bg-2) 70%, transparent);
-    border: 1px solid var(--line);
-    min-width: 0;
-    align-content: start;
-  }
-  .big {
-    font-size: 1.2rem;
-    font-weight: 700;
-    line-height: 1.15;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .big.word {
-    font-size: 0.85rem;
-    letter-spacing: 0.12em;
-    line-height: 1.38rem;
-    color: var(--text-2);
-  }
-  .big small {
-    font-size: 0.55em;
-    color: var(--text-3);
-    margin-left: 3px;
-    font-weight: 600;
-    letter-spacing: 0.06em;
-  }
-  .big.warn {
-    color: var(--warn);
-  }
-  .big.bad {
-    color: var(--bad);
-  }
-  .sub {
-    font-size: 0.68rem;
-    color: var(--text-3);
-  }
-  .sub b {
-    color: var(--text-2);
-    font-weight: 600;
-  }
-  .vsi-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 6px;
-  }
-  .vsi {
-    position: relative;
-    width: 6px;
-    height: 24px;
-    background: var(--bg-2);
-    border: 1px solid var(--line);
-    flex: none;
-  }
-  .zero {
-    position: absolute;
-    left: -3px;
-    right: -3px;
-    top: 50%;
-    height: 1px;
-    background: var(--text-3);
-  }
-  .vbar {
-    position: absolute;
-    left: 0;
-    right: 0;
-    background: var(--good);
-    transition:
-      height 0.2s linear,
-      bottom 0.2s linear;
-  }
-  .vbar.down {
-    background: var(--warn);
-  }
-  .gbar {
-    position: relative;
-    height: 4px;
-    background: var(--bg-2);
-    border: 1px solid var(--line);
-    margin: 3px 0 1px;
-  }
-  .gfill {
-    position: absolute;
-    inset: 0 auto 0 0;
-    background: var(--accent);
-    transition: width 0.15s linear;
-  }
-  .gfill.warn {
-    background: var(--warn);
-  }
-  .gfill.bad {
-    background: var(--bad);
-  }
-  .gpeak {
-    position: absolute;
-    top: -3px;
-    bottom: -3px;
-    width: 2px;
-    background: var(--text-2);
   }
   .route {
     grid-area: route;

@@ -8,7 +8,7 @@ Open **Settings** with the sliders button at the top right. The **Dashboard** ta
 
 ## Themes
 
-Seventeen themes, one per ship maker: their colours, typefaces, corners and the details that make each brand recognisable, like Drake's hazard stripes or Argo's metal frame.
+Starglance's own **Deep Space** look (ink blue, ice cyan and amber) is the default. Then seventeen themes, one per ship maker: their colours, typefaces, corners and the details that make each brand recognisable, like Drake's hazard stripes or Argo's metal frame.
 
 <Clip name="clip-themes" caption="Switching themes: Drake, Anvil, Aegis, MISC, Origin." />
 
@@ -60,6 +60,6 @@ Handy for a shortcut or an overlay app:
 | Add to the address | Does |
 |---|---|
 | `?compact=1` | the compact layout |
-| `?theme=DRAK` | that maker's theme, without saving it (`AEGS`, `ANVL`, `ORIG`, `RSI`, `CRUS`, `DRAK`, `MISC`, `CNOU`, `ARGO`, `MRAI`, `KRIG`, `ESPR`, `AOPOA`, `GAMA`, `BANU`, `GRIN`, `TMBL`) |
+| `?theme=DRAK` | that theme, without saving it (`SG` for Deep Space, `AEGS`, `ANVL`, `ORIG`, `RSI`, `CRUS`, `DRAK`, `MISC`, `CNOU`, `ARGO`, `MRAI`, `KRIG`, `ESPR`, `AOPOA`, `GAMA`, `BANU`, `GRIN`, `TMBL`) |
 | `?scheme=light` | light or dark, without saving it |
 | `?customize` | opens Settings |

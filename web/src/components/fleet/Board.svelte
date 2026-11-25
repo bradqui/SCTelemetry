@@ -12,6 +12,7 @@
   import Cards from "./Cards.svelte";
   import FleetBar from "./FleetBar.svelte";
   import MemberView from "./MemberView.svelte";
+  import { keepAwake } from "../../lib/wakelock.svelte";
   import Overview from "./Overview.svelte";
   import Roster from "./Roster.svelte";
 
@@ -152,6 +153,9 @@
     if (!demo) store.save();
   });
   $effect(() => {
+    if (!demo) keepAwake(store.value.awake);
+  });
+  $effect(() => {
     if (fleet.signedOut) location.reload(); // back to the sign-in page
   });
 
@@ -219,7 +223,7 @@
           {#if view === "cards"}
             <Cards {rows} meId={me.id} {myShard} {prefs} {now} onOpen={open} orderKey={fleetHub ?? location.host} />
           {:else}
-            <Overview roster={fleet.roster} events={fleet.events} {now} onOpen={open} />
+            <Overview roster={fleet.roster} events={fleet.events} {now} destroyed={prefs.destroyed} onOpen={open} />
           {/if}
         {/if}
       </section>

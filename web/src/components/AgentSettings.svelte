@@ -247,8 +247,8 @@
       <p class="hint">
         Starglance {u.current}.
         {#if u.available}<b class="new">{u.available} is out.</b>
-        {:else if info.fleets.length}Up to date, as far as your fleet's hub knows.
-        {:else}Not in a fleet, so nothing tells it about new versions: check the
+        {:else if u.check || info.fleets.length}Up to date.
+        {:else}With the check off and no fleet, nothing tells it about new versions: look at the
           <a href={u.releases} target="_blank" rel="noopener noreferrer">releases page</a> now and then.{/if}
       </p>
       {#if u.available && u.can}
@@ -269,8 +269,19 @@
           {u.error} <a href={u.releases} target="_blank" rel="noopener noreferrer">Releases page</a>
         </p>
       {/if}
-      {#if u.can}
-        <ul class="share">
+      <ul class="share">
+        <li>
+          <label class="toggle">
+            <input type="checkbox" checked={u.check !== false} disabled={busy === "check"} onchange={(e) => act("check", "update/check", { on: e.currentTarget.checked })} />
+            <span
+              ><b>Check for new versions</b><small
+                >Asks this project's GitHub page which release is the latest, when Starglance starts and every few hours. Nothing about
+                you or your game goes with it.</small
+              ></span
+            >
+          </label>
+        </li>
+        {#if u.can}
           <li>
             <label class="toggle">
               <input type="checkbox" checked={u.auto} disabled={busy === "auto"} onchange={(e) => act("auto", "update/auto", { on: e.currentTarget.checked })} />
@@ -282,11 +293,11 @@
               >
             </label>
           </li>
-        </ul>
-      {/if}
+        {/if}
+      </ul>
       <p class="hint">
-        Your fleet's hub says when there's a new version; Starglance then downloads it from the project's GitHub releases only, and
-        checks it before replacing itself. Your settings stay.
+        GitHub or your fleet's hub says when there's a new version; Starglance then downloads it from the project's GitHub releases
+        only, and checks it before replacing itself. Your settings stay.
       </p>
     </section>
   {/if}

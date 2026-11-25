@@ -1,4 +1,5 @@
 import { defaultAlerts, loadAlerts, type Alerts } from "./alerts";
+import type { Destroyed } from "./format";
 import { COMPACT_PRESETS, PRESETS, repairLayout, type Layout } from "./panels";
 import { DEFAULT_THEME, THEME_BY_ID, type Scheme } from "./themes";
 
@@ -16,6 +17,10 @@ export interface Prefs {
   autoHide: boolean;
   /** Which warning lights go in your top bar and the fleet header (lib/alerts.ts). */
   alerts: Alerts;
+  /** Which ships destroyed show in Activity (lib/format destroyedShown). */
+  destroyed: Destroyed;
+  /** Ask the browser to keep the screen on while this page is open (lib/wakelock). */
+  awake: boolean;
   full: Layout;
   compact: Layout;
 }
@@ -31,6 +36,8 @@ export function defaultPrefs(): Prefs {
     speedUnit: "ms",
     autoHide: true,
     alerts: defaultAlerts(),
+    destroyed: "fleet",
+    awake: false,
     full: structuredClone(PRESETS[0].layout),
     compact: structuredClone(COMPACT_PRESETS[0].layout),
   };
@@ -49,6 +56,8 @@ function load(): Prefs {
       speedUnit: raw.speedUnit === "kmh" ? "kmh" : "ms",
       autoHide: typeof raw.autoHide === "boolean" ? raw.autoHide : d.autoHide,
       alerts: loadAlerts(raw.alerts, raw.caution),
+      destroyed: ["none", "fleet", "players", "all"].includes(raw.destroyed) ? raw.destroyed : d.destroyed,
+      awake: raw.awake === true,
       full: repairLayout(raw.full, d.full),
       compact: repairLayout(raw.compact, d.compact),
     };

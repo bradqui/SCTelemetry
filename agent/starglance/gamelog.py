@@ -249,6 +249,12 @@ def ship_name(cls: str) -> tuple[str, str | None]:
     )
 
 
+def vehicle_id(vehicle: str) -> str | None:
+    """'ANVL_Hawk_PU_AI_CRIM_950384366871' -> '950384366871' (the entity id at the end)."""
+    m = re.search(r"_(\d{6,})$", vehicle)
+    return m.group(1) if m else None
+
+
 def channel_ship(name: str) -> str:
     """A ship channel's name: 'RSI Constellation Taurus' as is; an untranslated one
     ('@vehicle_NameRSI_Perseus') -> 'RSI Perseus'."""
@@ -439,14 +445,24 @@ class LogState:
                 return []  # only count the final explosion, once
             name, kind = ship_name(d["cls"])
             killer = d["killer"]
+            # The game's id for the ship: the same in every fleet member's log, so the
+            # fleet page shows one explosion once however many of them saw it.
+            vid = vehicle_id(d["vehicle"])
             if my_ship and d["vehicle"] == my_ship:
                 self.session.ships_lost += 1
-                return event("ship_lost", ship=name, by=who(killer), reason=d["reason"])
+                return event(
+                    "ship_lost", ship=name, by=who(killer), reason=d["reason"], vehicle=vid
+                )
             if self.handle and killer == self.handle:
                 self.session.kills += 1
-                return event("kill", target=name, npc=kind, reason=d["reason"])
+                return event("kill", target=name, npc=kind, reason=d["reason"], vehicle=vid)
             return event(
-                "vehicle_destroyed", target=name, npc=kind, by=who(killer), reason=d["reason"]
+                "vehicle_destroyed",
+                target=name,
+                npc=kind,
+                by=who(killer),
+                reason=d["reason"],
+                vehicle=vid,
             )
         if k == "actor_death":
             if self.handle and d["victim"] == self.handle:
@@ -478,8 +494,11 @@ class LogState:
             )
             return event("injury", **d)
         if k == "healed":
+            # The game repeats this notice every couple of minutes near a bed, whether or
+            # not anything needed healing: only worth an event when it cleared injuries.
+            hurt = bool(self.injuries)
             self.injuries.clear()
-            return event("healed")
+            return event("healed") if hurt else []
         if k == "incapacitated":
             self.session.incaps += 1
             return event("incapacitated")

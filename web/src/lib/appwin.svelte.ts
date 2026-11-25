@@ -16,6 +16,7 @@ interface AppApi {
   toggle_maximize(): Promise<AppState>;
   hide(): Promise<void>;
   set_on_top(on: boolean): Promise<AppState>;
+  start_resize(edge: string): Promise<void>;
   set_frameless(on: boolean): Promise<AppState>;
   set_autostart(on: boolean): Promise<AppState>;
   open_external(url: string): Promise<boolean>;
@@ -33,7 +34,15 @@ class AppWindow {
 
   constructor() {
     if (typeof window === "undefined") return;
-    const init = () => void this.refresh();
+    const init = () => {
+      void this.refresh();
+      // Maximized by a double click, Win+Up or snapping: keep up (the resize edges hide).
+      let pending = 0;
+      window.addEventListener("resize", () => {
+        clearTimeout(pending);
+        pending = window.setTimeout(() => void this.refresh(), 250);
+      });
+    };
     if (window.pywebview?.api?.state) init();
     else window.addEventListener("pywebviewready", init, { once: true });
   }
@@ -51,6 +60,8 @@ class AppWindow {
   }
 
   minimize = () => void this.api?.minimize();
+  /** Frameless: an edge of the page was pressed; Windows resizes the window from it. */
+  startResize = (edge: string) => void this.api?.start_resize?.(edge);
   hide = () => void this.api?.hide();
   async toggleMaximize(): Promise<void> {
     if (this.api) this.state = await this.api.toggle_maximize();

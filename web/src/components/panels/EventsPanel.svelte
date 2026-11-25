@@ -1,7 +1,16 @@
 <script lang="ts">
   import { fly } from "svelte/transition";
   import type { PanelCtx } from "../../lib/context";
-  import { CATEGORIES, clock, eventCategory, eventText, eventTone, since, type EventCategory } from "../../lib/format";
+  import {
+    CATEGORIES,
+    clock,
+    eventCategory,
+    eventText,
+    eventTone,
+    destroyedShown,
+    since,
+    type EventCategory,
+  } from "../../lib/format";
   import EventIcon from "../EventIcon.svelte";
 
   // The Activity panel: session counts, the latest thing that happened, and a
@@ -13,7 +22,9 @@
   const label = (id: EventCategory) =>
     id === "you" && ctx.who ? ctx.who : (CATEGORIES.find((c) => c.id === id)?.label ?? id);
   const session = $derived(ctx.snap.session ?? null);
-  const events = $derived(ctx.events.filter((e) => e.kind !== "game_start"));
+  const events = $derived(
+    ctx.events.filter((e) => e.kind !== "game_start" && destroyedShown(e.kind, e.data, ctx.prefs.destroyed)),
+  );
   const latest = $derived(events[0] ?? null);
   const shown = $derived(
     (filter === "all" ? events.slice(1) : events.filter((e) => eventCategory(e.kind) === filter)).slice(0, 30),
@@ -90,7 +101,11 @@
 
     <ol>
       {#each shown as e (`${e.t}-${e.kind}-${JSON.stringify(e.data)}`)}
-        <li class="c-{eventCategory(e.kind)} {eventTone(e.kind, e.data)}" in:fly={{ y: -6, duration: 220 }}>
+        <li
+          class="c-{eventCategory(e.kind)} {eventTone(e.kind, e.data)}"
+          class:nearby={e.kind === "vehicle_destroyed"}
+          in:fly={{ y: -6, duration: 220 }}
+        >
           <span class="icon"><EventIcon kind={e.kind} size={12} /></span>
           <span class="text">{eventText(e.kind, e.data)}</span>
           <time class="num" title={clock(e.t)}>{since(e.t, ctx.now)}</time>
@@ -282,6 +297,12 @@
   time {
     color: var(--text-3);
     font-size: 0.7rem;
+  }
+  /* Ships destroyed nearby, by someone else: context, not your news. */
+  li.nearby {
+    font-size: 0.72rem;
+    opacity: 0.75;
+    --cat: var(--line-2);
   }
   li.none {
     border-left-color: var(--line);

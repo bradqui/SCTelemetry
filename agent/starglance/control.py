@@ -210,7 +210,7 @@ class AgentControl:
             "updates": self.updater.status() if self.updater is not None else None,
         }
 
-    # -- updates (selfupdate): only from the hub's word, only official releases
+    # -- updates (selfupdate): told by the hubs or GitHub, only official releases
 
     def update_now(self) -> dict:
         if self.updater is None:
@@ -228,6 +228,12 @@ class AgentControl:
         if self.updater is None:
             raise LinkError("Updates aren't available here.")
         self.updater.set_auto(on)
+        return self.state()
+
+    def set_check_updates(self, on: bool) -> dict:
+        if self.updater is None:
+            raise LinkError("Updates aren't available here.")
+        self.updater.set_check(on)
         return self.state()
 
     # -- other devices (lanview): view only, on your network

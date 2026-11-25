@@ -297,8 +297,19 @@ def test_injuries_and_healing():
         "Head": "moderate",
         "Torso": "minor",
     }
-    feed(s, note("Medical Bed: The bed has restored your health and reset your BDL."))
+    bed = note("Medical Bed: The bed has restored your health and reset your BDL.")
+    assert [e.kind for e in feed(s, bed)] == ["healed"]
     assert s.injuries == {}
+    assert feed(s, bed, bed) == [], "the game repeats it near a bed: nothing more to heal"
+
+
+def test_one_explosion_has_the_same_id_everywhere():
+    s = LogState()
+    feed(s, LOGIN)
+    [near] = feed(s, destroyed("ANVL_Hawk_PU_AI_CRIM_950384366871", "Someone"))
+    assert near.kind == "vehicle_destroyed" and near.data["vehicle"] == "950384366871"
+    [kill] = feed(s, destroyed("ANVL_Hawk_PU_AI_CRIM_950384366872", ME))
+    assert kill.kind == "kill" and kill.data["vehicle"] == "950384366872"
 
 
 def test_jump_drive_counts_system_jumps_not_quantum():

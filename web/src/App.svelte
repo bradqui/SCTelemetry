@@ -12,7 +12,9 @@
   import Dashboard from "./components/Dashboard.svelte";
   import LocalFleet from "./components/LocalFleet.svelte";
   import ReplayBar from "./components/ReplayBar.svelte";
+  import ResizeEdges from "./components/ResizeEdges.svelte";
   import TopBar from "./components/TopBar.svelte";
+  import { keepAwake } from "./lib/wakelock.svelte";
 
   const live = new LiveConnection();
   const trends = new Trends();
@@ -104,6 +106,7 @@
     JSON.stringify(store.value); // track every preference
     store.save();
   });
+  $effect(() => keepAwake(store.value.awake));
   // The theme: the maker of the ship you're in (when matching is on), else your default.
   const forced = forcedTheme();
   const theme = $derived(
@@ -146,6 +149,8 @@
     snap ? { snap, ship, events: live.events, trends, prefs, compact, now, wing } : null,
   );
 </script>
+
+<ResizeEdges />
 
 {#if fleetOpen}
   <LocalFleet {store} onBack={() => showFleet(false)} />

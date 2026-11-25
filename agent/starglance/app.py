@@ -36,6 +36,11 @@ log = logging.getLogger(__name__)
 APP_NAME = "Starglance"
 BG = "#0b0f14"  # the page's dark background, so the window doesn't flash white
 FRAMELESS_DEFAULT = True
+MIN_SIZE = (420, 320)
+RESIZE_EDGES = frozenset(
+    ["left", "right", "top", "bottom", "top-left", "top-right", "bottom-left", "bottom-right"]
+)
+"""The page's resize edges (ResizeEdges.svelte)."""
 """No Windows title bar unless switched back on (Settings -> Agent -> Window, or the tray)."""
 
 
@@ -210,6 +215,11 @@ class Api:
             self._app.window.hide()
             self._app.hidden = True
 
+    def start_resize(self, edge: str) -> None:
+        """Frameless: the page's edge was pressed; Windows resizes from there."""
+        if self._app and edge in RESIZE_EDGES:
+            self._app.start_resize(edge)
+
     def set_on_top(self, on: bool) -> dict:
         if self._app:
             self._app.set_on_top(bool(on))
@@ -287,7 +297,7 @@ class App:
             height=int(p.get("height", 800)),
             x=p.get("x"),
             y=p.get("y"),
-            min_size=(420, 320),
+            min_size=MIN_SIZE,
             on_top=bool(p.get("on_top", False)),
             frameless=bool(p.get("frameless", FRAMELESS_DEFAULT)),
             easy_drag=False,  # only the top bar drags (dragging panels must still work)
@@ -342,6 +352,68 @@ class App:
         window.hide()  # to the tray: the agent keeps running
         self.hidden = True
         return False
+
+    def start_resize(self, edge: str) -> None:
+        """Without a title bar the window has no border at all (and Windows won't resize
+        a window without one), so the page has thin edges of its own (ResizeEdges.svelte).
+        Pressing one: follow the mouse from here until the button comes up."""
+        if sys.platform != "win32" or self.window is None or self.maximized:
+            return
+        if getattr(self, "_resizing", False):
+            return
+        try:
+            hwnd = int(self.window.native.Handle.ToInt64())
+        except Exception:  # noqa: BLE001 (no native window yet)
+            return
+        self._resizing = True
+        threading.Thread(
+            target=self._follow_resize, args=(hwnd, edge), name="resize", daemon=True
+        ).start()
+
+    def _follow_resize(self, hwnd: int, edge: str) -> None:
+        import ctypes
+        import time
+        from ctypes import wintypes
+
+        user32 = ctypes.windll.user32
+        ints = [ctypes.c_int] * 4
+        user32.SetWindowPos.argtypes = (wintypes.HWND, wintypes.HWND, *ints, wintypes.UINT)
+        user32.GetWindowRect.argtypes = (wintypes.HWND, ctypes.POINTER(wintypes.RECT))
+        try:
+            rect, pt = wintypes.RECT(), wintypes.POINT()
+            user32.GetWindowRect(hwnd, ctypes.byref(rect))
+            user32.GetCursorPos(ctypes.byref(pt))
+            left, top, right, bottom = rect.left, rect.top, rect.right, rect.bottom
+            x0, y0 = pt.x, pt.y
+            scale = 1.0
+            with contextlib.suppress(Exception):
+                scale = (user32.GetDpiForWindow(wintypes.HWND(hwnd)) or 96) / 96
+            min_w, min_h = int(MIN_SIZE[0] * scale), int(MIN_SIZE[1] * scale)
+            # The physical button (GetAsyncKeyState), so the primary one for left-handers.
+            button = 0x02 if user32.GetSystemMetrics(23) else 0x01  # SM_SWAPBUTTON
+            last = None
+            deadline = time.monotonic() + 120
+            while user32.GetAsyncKeyState(button) & 0x8000 and time.monotonic() < deadline:
+                user32.GetCursorPos(ctypes.byref(pt))
+                dx, dy = pt.x - x0, pt.y - y0
+                x, t, r, b = left, top, right, bottom
+                if "left" in edge:
+                    x = min(left + dx, right - min_w)
+                if "right" in edge:
+                    r = max(right + dx, left + min_w)
+                if "top" in edge:
+                    t = min(top + dy, bottom - min_h)
+                if "bottom" in edge:
+                    b = max(bottom + dy, top + min_h)
+                if (x, t, r, b) != last:
+                    last = (x, t, r, b)
+                    flags = 0x0014  # SWP_NOZORDER | SWP_NOACTIVATE
+                    user32.SetWindowPos(hwnd, None, x, t, r - x, b - t, flags)
+                time.sleep(0.01)
+        except Exception:  # noqa: BLE001 (never take the app down over a resize)
+            log.exception("Resizing the window failed")
+        finally:
+            self._resizing = False
 
     def set_on_top(self, on: bool) -> None:
         self.prefs["on_top"] = on

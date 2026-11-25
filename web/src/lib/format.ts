@@ -94,7 +94,7 @@ const EVENT_TEXT: Record<string, (d: Record<string, unknown>) => string> = {
   objective_failed: (d) => `Objective failed: ${d.text}`,
   reward: (d) => `+${Number(d.auec).toLocaleString()} aUEC`,
   kill: (d) => `Destroyed ${d.npc === "hostile" ? "hostile " : ""}${d.target}`,
-  vehicle_destroyed: (d) => `${d.target} destroyed by ${d.by}`,
+  vehicle_destroyed: (d) => `Nearby: ${d.target} destroyed by ${d.by}`,
   ship_lost: (d) => `Ship destroyed by ${d.by}`,
   death: (d) => `Killed by ${d.by}`,
   injury: (d) => `${titleCase(String(d.severity))} injury: ${d.part} (tier ${d.tier})`,
@@ -107,6 +107,30 @@ const EVENT_TEXT: Record<string, (d: Record<string, unknown>) => string> = {
   disembarked: (d) => `Left ${d.owner}'s ${d.ship}`,
   blueprint: (d) => `Blueprint: ${d.name}`,
 };
+
+/** Which ships destroyed show in Activity, each step adding to the one before:
+ * none; the fleet's own (kills by members, members' ships lost); ships destroyed near
+ * members where a player shot or lost one; every one the game logged near them. */
+export type Destroyed = "none" | "fleet" | "players" | "all";
+
+const NOT_A_PLAYER = new Set(["an NPC", "a defence turret", "unknown"]);
+
+/** Whether an event shows, by the viewer's choice of ships destroyed (other kinds always do). */
+export function destroyedShown(kind: string, data: Record<string, unknown>, mode: Destroyed): boolean {
+  if (!["kill", "ship_lost", "vehicle_destroyed"].includes(kind)) return true;
+  if (mode === "none") return false;
+  if (kind !== "vehicle_destroyed" || mode === "all") return true;
+  if (mode === "fleet") return false;
+  // "players": a player's ship (no npc kind) or a player shooting (a handle, not an NPC).
+  return data.npc == null || !NOT_A_PLAYER.has(String(data.by));
+}
+
+/** Events about the same ship explosion (several members saw it, or one shot it): the key
+ * they share, from the game's id for the ship. Null for anything else, or an older agent's. */
+export function explosionKey(kind: string, data: Record<string, unknown>): string | null {
+  if (!["kill", "ship_lost", "vehicle_destroyed"].includes(kind)) return null;
+  return typeof data.vehicle === "string" ? data.vehicle : null;
+}
 
 export function eventText(kind: string, data: Record<string, unknown>): string {
   return (EVENT_TEXT[kind] ?? (() => titleCase(kind)))(data);

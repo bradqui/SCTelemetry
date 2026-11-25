@@ -5,19 +5,22 @@ The hub and the agent share one version number. A release consists of:
 - `starglance.exe`, attached to the GitHub release;
 - the hub image, `ghcr.io/bradqui/starglance-hub:<version>` and `:latest`.
 
-The hub tells agents which version is current, using its own version, so an agent that's behind shows **Update** in the cockpit. The hub refuses agents older than `MIN_AGENT_VERSION` (in `hub/starglance_hub/__init__.py`). Raise that only when an older agent would break or mislead the fleet.
+Agents learn of the release from GitHub's "latest release" (they check at start and every few hours), and from hubs, which announce their own version: an agent that's behind shows **Update** in the cockpit. Publish the release only once its assets are attached: the moment it's "latest", agents may download it. The hub refuses agents older than `MIN_AGENT_VERSION` (in `hub/starglance_hub/__init__.py`). Raise that only when an older agent would break or mislead the fleet.
 
 ## Cutting a release
 
-1. Set the new version in all three places:
+`main` only changes through pull requests whose checks pass, so the version bump goes through one too.
+
+1. On a branch, set the new version in all three places:
    - `pyproject.toml`
    - `agent/starglance/__init__.py`
    - `hub/starglance_hub/__init__.py`
    
-   Commit it with `uv lock` if it changed anything.
-2. Tag the commit and push the tag:
+   Commit it with `uv lock` if it changed anything (it can go in the pull request with the changes it releases), open a pull request, and merge it once the checks pass.
+2. Tag the merged commit on `main` and push the tag:
 
    ```
+   git switch main && git pull
    git tag v0.2.0
    git push origin v0.2.0
    ```

@@ -199,7 +199,7 @@ The game's own debug log (`<channel>/Game.log`, a new file each launch; older on
 | Ships destroyed | `<Vehicle Destroyed> Vehicle '<id>' ... class '<class>' ... destroyed: reason [Combat] level [0] -> [2] ... killer '<name>'` | Level 2 = destroyed (1 = disabled). Lists ships near you too, so: yours (lost), by you (kill), by others (nearby). NPC classes end `_PU_AI_CRIM` (hostile), `_AI_CIV` (civilian)... |
 | Injuries | `Minor / Moderate / Severe Injury Detected - <body part> - Tier <n> Treatment Required` | Cleared by a medical bed or respawn. |
 | Incapacitated | `Incapacitated: ...` | |
-| Medical bed | `Medical Bed: The bed has restored your health ...` | |
+| Medical bed | `Medical Bed: The bed has restored your health ...` | The game repeats it every couple of minutes near a bed, with or without anything to heal: `healed` only when it cleared injuries. |
 | Hangar | `Hangar Request Completed`, `Joined hangar queue.` | |
 | Blueprints | `Received Blueprint: <name>` | |
 | Player deaths (old) | `<Actor Death> CActor::Kill: '<victim>' ... killed by '<killer>' using '<weapon>' ... damage type '<type>'` | Parsed in case it returns. |

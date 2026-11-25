@@ -12,6 +12,7 @@
   import Dashboard from "./components/Dashboard.svelte";
   import LocalFleet from "./components/LocalFleet.svelte";
   import ReplayBar from "./components/ReplayBar.svelte";
+  import ReportProblem from "./components/ReportProblem.svelte";
   import ResizeEdges from "./components/ResizeEdges.svelte";
   import TopBar from "./components/TopBar.svelte";
   import { keepAwake } from "./lib/wakelock.svelte";
@@ -78,6 +79,18 @@
     const onAsk = (e: Event) => openSettings((e as CustomEvent).detail === "agent" ? "agent" : "dashboard");
     addEventListener("ft:settings", onAsk);
     return () => removeEventListener("ft:settings", onAsk);
+  });
+  // Report a problem (the header's mark chip, Settings -> Agent, the tray): this PC only.
+  let reporting = $state(false);
+  onMount(() => {
+    const onReport = () => {
+      if (view.remote) return;
+      if (fleetOpen) showFleet(false);
+      customizing = false;
+      reporting = true;
+    };
+    addEventListener("ft:report", onReport);
+    return () => removeEventListener("ft:report", onReport);
   });
   function toggleCompact() {
     compact = !compact;
@@ -165,6 +178,7 @@
     alerts={prefs.alerts.self}
     uplinks={Object.values(live.uplinks)}
     updater={live.updater}
+    reports={live.reports}
     onToggleCompact={toggleCompact}
     onCustomize={() => (customizing ? (customizing = false) : openSettings("dashboard"))}
     onFleet={() => showFleet(true)}
@@ -199,6 +213,10 @@
 
 {#if live.replay && !fleetOpen && !view.remote}
   <ReplayBar {live} />
+{/if}
+
+{#if reporting}
+  <ReportProblem reports={live.reports} onClose={() => (reporting = false)} />
 {/if}
 
 {#if customizing && !fleetOpen}

@@ -2,10 +2,11 @@
   import { alertLights, chosen, defaultAlerts, type AlertPick } from "../lib/alerts";
   import { LIGHT_NAMES, ROLE_NAMES as ROLE } from "../lib/format";
   import { openOnHub } from "../lib/hub";
+  import { markNow, openReport } from "../lib/reports";
   import { view } from "../lib/remote.svelte";
   import WindowButtons from "./WindowButtons.svelte";
   import LocationChips from "./LocationChips.svelte";
-  import type { AgentState, Snapshot, UpdaterStatus, UplinkStatus } from "../lib/types";
+  import type { AgentState, ReportsStatus, Snapshot, UpdaterStatus, UplinkStatus } from "../lib/types";
 
   let {
     socket,
@@ -16,6 +17,7 @@
     alerts = defaultAlerts().self,
     uplinks = [],
     updater = null,
+    reports = null,
     onFleet,
     onToggleCompact,
     onCustomize,
@@ -32,6 +34,8 @@
     uplinks?: UplinkStatus[];
     /** The app updating itself (selfupdate.py): one click instead of a download. */
     updater?: UpdaterStatus | null;
+    /** Problem reports: the mark button, and how many moments are marked. */
+    reports?: ReportsStatus | null;
     /** Show the fleet in this page (else the chip opens the hub's page). */
     onFleet?: () => void;
     onToggleCompact: () => void;
@@ -86,6 +90,26 @@
       () => {},
     );
   }
+  // Marking a moment for a problem report (docs/REPORTS.md): the flag marks; once something
+  // is marked, a chip says so and opens the report. A new mark makes it pulse for a moment.
+  const canMark = $derived(!!reports?.available && reports.keep && !view.remote && !replay);
+  const marked = $derived(reports?.marks.length ?? 0);
+  let fresh = $state(false);
+  let lastMark: string | null = null;
+  $effect(() => {
+    const newest = reports?.marks.reduce<string | null>((a, m) => (a && a > m.id ? a : m.id), null) ?? null;
+    if (newest && lastMark !== null && newest !== lastMark) {
+      fresh = true;
+      setTimeout(() => (fresh = false), 2500);
+    }
+    lastMark = newest ?? "";
+  });
+  let markError = $state("");
+  async function mark() {
+    markError = "";
+    await markNow().catch((e: Error) => (markError = e.message));
+  }
+
   // The ship you're aboard on foot (its comms channel): yours, or someone else's.
   const aboard = $derived.by(() => {
     const a = loc?.aboard;
@@ -171,6 +195,25 @@
           >Update {update.version}</a
         >
       {/if}
+    {/if}
+    {#if canMark}
+      {#if marked}
+        <button
+          class="fleet marked"
+          class:fresh
+          onclick={openReport}
+          title="Moments marked for a problem report, kept for a day. Click to report one.">⚑ {marked} marked</button
+        >
+      {/if}
+      <button
+        class="toggle icon"
+        onclick={mark}
+        title={markError ||
+          `Mark this moment for a problem report${reports?.hotkey_on && reports.hotkey ? ` (or ${reports.hotkeys.find((h) => h.id === reports?.hotkey)?.label ?? reports.hotkey} in game)` : ""}`}
+        aria-label="Mark this moment"
+      >
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 14.5V2 M3.5 2.5h9l-2 3 2 3h-9" /></svg>
+      </button>
     {/if}
     <span class="conn" class:live title={agent?.message ?? ""}>
       <span class="dot"></span>{statusText}
@@ -324,6 +367,13 @@
   .fleet.update {
     color: var(--accent);
     text-decoration: none;
+  }
+  .fleet.marked {
+    color: var(--warn);
+  }
+  .fleet.marked.fresh {
+    animation: pulse 0.8s ease-in-out 3;
+    background: color-mix(in srgb, var(--warn) 18%, transparent);
   }
   .fleet.update.busy {
     cursor: progress;

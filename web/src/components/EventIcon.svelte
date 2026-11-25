@@ -57,7 +57,7 @@
     if (k.startsWith("objective")) return "objective";
     if (k === "reward") return "reward";
     if (k.startsWith("armistice")) return "armistice";
-    if (k === "jurisdiction") return "flag";
+    if (k === "jurisdiction" || k === "mark") return "flag";
     if (k.startsWith("monitored")) return "eye";
     if (k.startsWith("comms")) return "comms";
     if (k.startsWith("restricted")) return "restricted";

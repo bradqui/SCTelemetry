@@ -106,6 +106,7 @@ const EVENT_TEXT: Record<string, (d: Record<string, unknown>) => string> = {
   boarded: (d) => `Boarded ${d.owner}'s ${d.ship}`,
   disembarked: (d) => `Left ${d.owner}'s ${d.ship}`,
   blueprint: (d) => `Blueprint: ${d.name}`,
+  mark: () => "Marked for a problem report",
 };
 
 /** Which ships destroyed show in Activity, each step adding to the one before:

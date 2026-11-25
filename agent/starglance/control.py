@@ -86,6 +86,8 @@ class AgentControl:
         """Show on other devices (lanview.LanView), when the agent serves one."""
         self.updater = None
         """Updating the app in place (selfupdate.Updater)."""
+        self.reports = None
+        """Problem reports: the recent buffer, marks, the hotkey (report.Reports)."""
         server.control = self
         server.fleet_open = self.login_link
         server.fleet_view = self.fleet_view
@@ -208,7 +210,15 @@ class AgentControl:
             "restart_note": switch.RESTART_NOTE,
             "lan": self.lan.state() if self.lan is not None else None,
             "updates": self.updater.status() if self.updater is not None else None,
+            "reports": self.reports.status() if self.reports is not None else None,
         }
+
+    # -- problem reports (report.py): made here, attached to a GitHub issue by the player
+
+    def _reports(self):
+        if self.reports is None:
+            raise LinkError("Problem reports aren't available here.")
+        return self.reports
 
     # -- updates (selfupdate): told by the hubs or GitHub, only official releases
 

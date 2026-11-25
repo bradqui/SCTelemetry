@@ -3,6 +3,7 @@ import type {
   AgentState,
   ReplayIndex,
   ReplayStatus,
+  ReportsStatus,
   Snapshot,
   TelemetryEvent,
   UpdaterStatus,
@@ -29,6 +30,7 @@ export class LiveConnection {
 
   /** Updates: available, downloading, failed (the packaged app). */
   updater = $state.raw<UpdaterStatus | null>(null);
+  reports = $state.raw<ReportsStatus | null>(null);
 
   replay = $state(false);
   replayIndex = $state.raw<ReplayIndex | null>(null);
@@ -136,6 +138,9 @@ export class LiveConnection {
       }
       case "updater":
         this.updater = msg as unknown as UpdaterStatus;
+        break;
+      case "reports":
+        this.reports = msg as unknown as ReportsStatus;
         break;
       case "replay_index":
         this.replayIndex = msg as unknown as ReplayIndex;

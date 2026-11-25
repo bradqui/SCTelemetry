@@ -9,6 +9,7 @@
   //   ?at=combat      the start of a chapter (its title, any part of it)
   //   &pause          paused there (screenshots)
   //   &badge=0        without the Demo badge (screenshots)
+  //   &live           as in a live session: no replay bar, "Live" in the top bar (screenshots)
   // plus the app's own: ?theme=DRAK&scheme=light, ?compact=1, ?customize.
   const q = new URLSearchParams(location.search);
   const badge = q.get("badge") !== "0";
@@ -29,7 +30,7 @@
     try {
       const r = await fetch("./demo-cockpit.json");
       const data = (await r.json()) as DemoCockpitData;
-      live = new DemoLive(data, { at: startAt(data), paused: q.has("pause") });
+      live = new DemoLive(data, { at: startAt(data), paused: q.has("pause"), live: q.has("live") });
       setTimeout(() => (open = false), 12_000); // then just the tag, out of the way
     } catch {
       error = "The demo recording didn't load. Reload the page to try again.";

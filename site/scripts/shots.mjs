@@ -89,7 +89,9 @@ async function ready(page) {
   await sleep(1500); // fonts, gauges settling
 }
 
-const cockpit = (q) => `${BASE}/demo/cockpit.html?badge=0&${q}`;
+// As in a live session (no replay bar), except where the replay bar is the subject.
+const cockpit = (q) => `${BASE}/demo/cockpit.html?badge=0&live&${q}`;
+const replay = (q) => `${BASE}/demo/cockpit.html?badge=0&${q}`;
 
 // -- the demos
 
@@ -102,9 +104,7 @@ async function demoShots(browser) {
   await page.goto(cockpit("at=192"));
   await ready(page);
   await sleep(12_000);
-  await page.keyboard.press("Space");
-  await sleep(300);
-  await shot(page, "cockpit-pilot");
+  await shot(page, "cockpit-pilot"); // still playing: a still is a still
   await shot(page, "cockpit-topbar", { el: "header.top" });
 
   await page.goto(cockpit("at=15&pause"));
@@ -122,6 +122,8 @@ async function demoShots(browser) {
   await page.locator("aside.drawer button.done").click();
   await sleep(800);
   await shot(page, "cockpit-combat");
+  await page.goto(replay("at=600&pause"));
+  await ready(page);
   await page.getByRole("button", { name: /Events/ }).first().click();
   await sleep(500);
   await shot(page, "replay-events");

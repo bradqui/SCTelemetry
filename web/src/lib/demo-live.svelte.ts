@@ -42,13 +42,15 @@ export class DemoLive extends LiveConnection {
   #base = 0; // clock ms at recording time 0, at the current speed's pace
   #last = 0;
 
-  constructor(data: DemoCockpitData, opts: { at?: number; paused?: boolean } = {}) {
+  /** ``live``: look like a live session (no replay bar, "Live" in the top bar), for the
+   * docs' screenshots; it still plays the recording. */
+  constructor(data: DemoCockpitData, opts: { at?: number; paused?: boolean; live?: boolean } = {}) {
     super("ws://demo.invalid/ws");
     this.#data = data;
     this.#pos = Math.max(0, Math.min(opts.at ?? 0, data.index.duration));
     this.#paused = opts.paused ?? false;
     this.agentVersion = "demo";
-    this.replay = true;
+    this.replay = !opts.live;
     this.replayIndex = data.index;
   }
 

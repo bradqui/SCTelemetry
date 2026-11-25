@@ -207,7 +207,18 @@ Bots live in their own projects and use the integration API (decision 16). Ideas
 
 **Phase 4, done:** releases: `starglance.exe` and the hub image from tags, update notices and one-click updates. Releases are unsigned, with a build attestation for each exe (decision 8).
 
-**Next:** after-action summaries and op windows on the hub; more Game.log lines as the game adds them; hull and shield levels if CIG starts sending them.
+**Next** (not designed yet; open questions below each):
+
+- **Wings.** A small group inside a fleet that flies together: someone starts a wing ("Alpha"), others join it, one member leads. Members see their wing first: a wing section at the top of the roster, a wing filter on the cards, the Wingmates panel showing the wing before the rest of the fleet, and the wing's alarms in the header. A wing lasts until its lead closes it or everyone leaves.
+  - Who may start one: any member, or officers only? Does joining need the lead's OK?
+  - Does a wing see more than the fleet does (for example location when someone shares it only with their wing), or exactly the same? Sharing stays per fleet unless we decide otherwise.
+  - Is a wing tied to a Discord voice channel (a link on the wing), or kept separate?
+- **Events (ops).** Admins or officers schedule an op on the hub: title, time, meeting point, notes. Members sign up with a role and a ship. When it starts, wings form from the sign-ups, and the page has an event view of just the people in it. When it ends, an **after-action summary**: who flew, how long, kills, ships lost, contracts, quantum trips, and the timeline, from the events the hub already logs.
+  - Officers as a role between member and admin, or admins only to begin with?
+  - Reminders: through the bot API (an `event_starting` event a Discord bot can post), rather than the hub sending anything itself?
+  - How long are summaries kept (the event log keeps 30 days by default)?
+- **Where you are, in more detail.** Today location is the server, jurisdiction, armistice and the quantum route. Game.log also names the planet or moon whose ground is loaded (`planet cells: … name: OOC_Stanton_2b_Daymar`), the landing area you're at (`<RequestLocationInventory> … Location[Stanton1_Lorville]`), the game's own number for the place you're in (`<Update Inventory Location>`), and where a route starts (`Projected Start Location is Aberdeen`). From these, a "Flying at Daymar" or "At Lorville" readout, built from the game's own names rather than a hand-made place list. Needs real sessions to settle the rules (planet cells load in bursts while streaming), so it comes with problem reports from players.
+- More Game.log lines as the game adds them; hull and shield levels if CIG starts sending them (the normalizer and the Hull & shields panel already show them when they're there).
 
 **Maybe:** the button box (§7).
 

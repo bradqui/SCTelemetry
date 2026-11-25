@@ -15,6 +15,11 @@ updates:
     groups:
       web:
         patterns: ["*"]
+    # svelte-check (npm run check) supports TypeScript 5 and 6 only. Lift this once its
+    # peerDependencies take TypeScript 7, or the whole web group fails along with it.
+    ignore:
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
@@ -23,3 +28,8 @@ updates:
     directory: /hub
     schedule:
       interval: weekly
+    # Node's odd-numbered majors never get long-term support: move the hub (and the
+    # workflows' node-version) to the next even one by hand when it becomes LTS.
+    ignore:
+      - dependency-name: node
+        update-types: ["version-update:semver-major"]

@@ -27,6 +27,8 @@ Session totals (kills, contracts, quantum trips, aUEC earned, ships lost, downed
 
 Everyone's numbers side by side, for flying together: speed, altitude, climb rate, heading, G, fuel and quantum destination in a ship; health, oxygen, food, water and injuries on foot. Drag a card to reorder; **Hide offline** keeps it tidy.
 
+After a quantum jump, a card shows where it ended, dimmed: **Arrived Bounty Beacon · 6m ago**. That's where they arrived, not necessarily where they are now: the game logs arriving, but not leaving. It goes away when they plot a new route, change server or die, or after 20 minutes.
+
 ![Cards](/shots/fleet-cards.jpg)
 
 ## Anyone's dashboard

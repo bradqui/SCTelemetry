@@ -336,6 +336,29 @@ def test_route_states():
     assert r.route(5000 + ARRIVED_SHOWN_MS + 1, False) is None
 
 
+def test_last_arrived_is_remembered_for_a_while():
+    from starglance.gamelog import LAST_ARRIVED_MS
+
+    s = LogState()
+    feed(s, JOIN, SELECTED, t=1000)
+    assert s.location(1100, False).last_arrived is None, "not there yet"
+    feed(s, ARRIVED, t=5000)
+    last = s.location(5000 + ARRIVED_SHOWN_MS + 1, False).last_arrived
+    assert last.destination == "Aberdeen" and last.since == 5000, "outlasts the arrived route"
+    assert s.location(5000 + LAST_ARRIVED_MS + 1, False) is not None
+    assert s.location(5000 + LAST_ARRIVED_MS + 1, False).last_arrived is None, "too old"
+
+    for forget in (
+        lambda: feed(s, SELECTED, t=7000),  # a new route: off somewhere else
+        lambda: feed(s, JOIN.replace("13165946", "99999999"), t=7000),  # another server
+        lambda: s.respawned(),
+    ):
+        feed(s, SELECTED, ARRIVED, t=6000)
+        assert s.location(6500, False).last_arrived is not None
+        forget()
+        assert s.location(7100, False).last_arrived is None
+
+
 def test_pipeline_merges_log_state_and_quiet_history_has_no_events():
     p = Pipeline()
     events = []

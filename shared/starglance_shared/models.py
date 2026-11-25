@@ -216,6 +216,15 @@ class Route(_Model):
     """ms since epoch the state began."""
 
 
+class LastArrived(_Model):
+    """Where your last quantum jump ended, and when. Not where you are: you may have moved
+    on since, and the log doesn't say. Forgotten on a new route, a server change, death,
+    or after a while (gamelog.LAST_ARRIVED_MS)."""
+
+    destination: str
+    since: int
+
+
 class Aboard(_Model):
     """The ship you're aboard, seated or not, from its comms channel: boarding a ship
     joins "<Manufacturer Model> : <owner handle>". Leaving isn't always logged, so this
@@ -245,6 +254,7 @@ class Location(_Model):
     system: str | None = None
     """Star system, when the game names it (jump drive lines)."""
     route: Route | None = None
+    last_arrived: LastArrived | None = None
     aboard: Aboard | None = None
 
 

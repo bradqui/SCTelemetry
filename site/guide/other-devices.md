@@ -20,7 +20,7 @@ http://127.0.0.1:8740/?compact=1
 
 ## A tablet or another PC at home
 
-Starglance can show the cockpit view, and your fleet, to devices on your home network. It's **view only**: those devices can't change settings or reach the game.
+Starglance can show the cockpit view, and your fleet, to devices on your home network. It's **view only**: those devices can't change settings or reach the game. The one thing they can do is **mark a moment** for a [problem report](/guide/problem-reports), with the flag in the top bar; you finish the report on the PC.
 
 1. **Settings → Agent → Other devices**: switch on **Show on other devices**.
 2. Choose **Pair a device**.

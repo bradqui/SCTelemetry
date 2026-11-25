@@ -211,3 +211,62 @@ def test_the_setting_survives_a_restart():
 
     asyncio.run(_agent(first))
     assert lanview.load_settings().enabled is True
+
+
+def test_a_paired_device_can_mark_a_moment_and_nothing_more():
+    from starglance.recent import RecentBuffer
+    from starglance.report import Reports
+
+    async def work(server, lan):
+        pipeline = server.pipeline
+        reports = Reports(
+            pipeline,
+            buffer=RecentBuffer(Path(lanview.paths.data_dir()) / "recent"),
+            notify=lambda status: pipeline._notify("reports", status),
+        )
+        server.control.reports = reports
+        local = aiohttp.ClientSession()
+        device = aiohttp.ClientSession(cookie_jar=aiohttp.CookieJar(unsafe=True))
+        out = {}
+        try:
+            await _settings(local, server, "lan", {"on": True})
+            url = f"http://127.0.0.1:{lan.port}"
+            code = (await _settings(local, server, "lan/code", {}))["code"]["code"]
+            async with device.post(f"{url}/pair", data={"code": code}, allow_redirects=False):
+                pass
+            ws = await device.ws_connect(f"{url}/ws")
+
+            async def reports_msg():
+                while True:
+                    msg = json.loads((await asyncio.wait_for(ws.receive(), 5)).data)
+                    if msg["type"] == "reports":
+                        return msg
+
+            out["hello"] = await reports_msg()
+            async with device.post(f"{url}/api/mark", json={}) as r:
+                out["no_origin"] = r.status
+            async with device.post(
+                f"{url}/api/mark", json={}, headers={"Origin": "http://evil.example"}
+            ) as r:
+                out["other_origin"] = r.status
+            async with device.post(f"{url}/api/mark", json={}, headers={"Origin": url}) as r:
+                out["marked"] = (r.status, await r.json())
+            out["after"] = await reports_msg()
+            for path in ("/api/agent/report/mark", "/api/agent/report/preview"):
+                async with device.post(f"{url}{path}", json={}, headers={"Origin": url}) as r:
+                    out.setdefault("blocked", []).append(r.status)
+        finally:
+            reports.stop()
+            await local.close()
+            await device.close()
+        return out
+
+    out = asyncio.run(_agent(work))
+    assert out["hello"]["remote"] is True and out["hello"]["marks"] == []
+    assert "hotkeys" not in out["hello"], "only the marks, not the PC's report settings"
+    assert out["no_origin"] == 403 and out["other_origin"] == 403
+    status, body = out["marked"]
+    assert status == 200 and set(body) == {"id", "t"}
+    [mark] = out["after"]["marks"]
+    assert mark["source"] == "device" and out["after"]["remote"] is True
+    assert out["blocked"] == [404, 404]

@@ -256,7 +256,7 @@
             <li class:on={isPick(pick, "mark", m.t)}>
               <button type="button" onclick={() => (pick = { kind: "mark", id: m.id, t: m.t })}>
                 <span class="icon"><EventIcon kind="mark" size={12} /></span>
-                <span class="text">Marked{m.source === "hotkey" ? " (hotkey)" : ""}</span>
+                <span class="text">Marked{m.source === "hotkey" ? " (hotkey)" : m.source === "device" ? " (other device)" : ""}</span>
                 <time class="num">{clock(m.t)}</time>
               </button>
               <button type="button" class="x" title="Forget this mark" aria-label="Forget this mark" disabled={busy === `forget-${m.id}`} onclick={() => forget(m.id)}>×</button>

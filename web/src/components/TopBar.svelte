@@ -92,7 +92,8 @@
   }
   // Marking a moment for a problem report (docs/REPORTS.md): the flag marks; once something
   // is marked, a chip says so and opens the report. A new mark makes it pulse for a moment.
-  const canMark = $derived(!!reports?.available && reports.keep && !view.remote && !replay);
+  // A paired device can mark too; the report is then made on the PC.
+  const canMark = $derived(!!reports?.available && reports.keep && !replay);
   const marked = $derived(reports?.marks.length ?? 0);
   let fresh = $state(false);
   let lastMark: string | null = null;
@@ -197,7 +198,14 @@
       {/if}
     {/if}
     {#if canMark}
-      {#if marked}
+      {#if marked && view.remote}
+        <span
+          class="fleet marked"
+          class:fresh
+          title="Moments marked for a problem report, kept on the PC for a day. Report one on the PC: click this there, or Report a problem in the tray menu."
+          >⚑ {marked} marked</span
+        >
+      {:else if marked}
         <button
           class="fleet marked"
           class:fresh

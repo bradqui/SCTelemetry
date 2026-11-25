@@ -73,7 +73,7 @@ class Mark:
     id: str
     t: int
     source: str
-    """"app" (the page or the tray) or "hotkey"."""
+    """"app" (the page or the tray), "hotkey", or "device" (a paired tablet or PC)."""
     until: int
 
 

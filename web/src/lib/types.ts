@@ -105,6 +105,8 @@ export interface Location {
   shard: string | null;
   system: string | null;
   route: Route | null;
+  /** Where the last quantum jump ended (not necessarily where they are now). */
+  last_arrived?: { destination: string; since: number } | null;
   /** The ship you're aboard, seated or on foot (its comms channel). */
   aboard?: Aboard | null;
 }
@@ -330,6 +332,8 @@ export interface ReportsStatus {
   hotkey_error: string | null;
   hotkeys: { id: string; label: string }[];
   marks: { id: string; t: number; source: string }[];
+  /** Sent to a paired device: only availability and the marks (reports are made on the PC). */
+  remote?: boolean;
 }
 
 export interface UpdaterStatus {

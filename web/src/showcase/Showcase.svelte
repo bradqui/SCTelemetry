@@ -11,7 +11,7 @@
   let fleet = $state.raw<DemoFleet | null>(null);
   let loadError = $state("");
   const store = new PrefsStore();
-  store.value.theme = "RSI";
+  store.value.theme = "SG";
   store.value.scheme = "dark";
   store.value.matchShip = true;
   const prefs = $derived(store.value);

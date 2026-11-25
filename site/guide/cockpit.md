@@ -30,13 +30,13 @@ Every panel can be shown, hidden, resized and moved ([Customizing](/guide/custom
 | Panel | What it shows |
 |---|---|
 | **Heading** | A compass tape with your heading. In deep space, where the game has no heading, it says so. |
-| **Flight** | Speed dial with the mode, altitude and height above ground, vertical speed, G-force, atmosphere; flight assists (coupled, G-safe, cruise, proximity, boost); your quantum route and whether you've arrived. |
+| **Flight** | Speed dial with the mode and boost reserve; a slim altitude tape that hatches in the ground when it's near; climb rate as a needle either side of zero; G-force on an arc with the highest G this flight marked; atmosphere; flight assists (coupled, G-safe, cruise, proximity, boost); your quantum route and whether you've arrived. |
 | **Hull & shields** | Your ship as an arrow inside a ring of four shield faces (front, sides, back): lit when shields are powered, dashed when they're down. The arrow takes the hull's colour, the engines glow when they're on, and dots show the landing gear. The game doesn't send hull or shield percentages today, so the bars beside it say so. |
 | **Warnings** | The ten warning lights (power, weapons, thrusters, shields, cooling, quantum, radar, proximity, hit, missile), plus flying or landed and the gear. |
 | **Trends** | Speed, altitude and G-force over the last three minutes. |
-| **Fuel** | Hydrogen, quantum fuel and boost. |
-| **Power** | Which of the ship's systems are powered. |
-| **Weapons** | Each gun and whether it's ready, gimbals, and your decoys and noise countermeasures. |
+| **Fuel** | Hydrogen, quantum fuel and boost, and roughly how long the hydrogen lasts at the burn of the last minute. |
+| **Power** | The power plant feeding each system: a powered system is lit and fed from the bus; one that's off is a dashed outline with no feed. |
+| **Weapons** | A pip per gun around a reticle (lit when ready), gimbals, decoys and noise as dials that empty, and each gun by name. |
 | **Vitals** | Health, oxygen, hunger and thirst, heart rate, body temperature, and injuries. |
 | **Environment** | Temperature, gravity, pressure and air outside. |
 | **Contract** | Your current contracts, with the objective and the reward. |

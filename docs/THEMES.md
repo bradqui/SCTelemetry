@@ -6,7 +6,7 @@ Settings (Customize → Theme, saved per browser):
 
 - **Scheme**: dark or light.
 - **Match the ship I'm in**: the theme follows the maker of the vehicle you're in, from the vehicle class prefix (`DRAK_Cutlass_Black` → Drake; `VNCL_*` → Esperia, `XIAN_*`/`XNAA_*` → Aopoa). Out of a vehicle, or with matching off, your default applies.
-- **Default theme** (on foot): any of the 16.
+- **Default theme** (on foot): **Starglance Deep Space**, our own house look (ink blue, ice cyan, amber; Chakra Petch and IBM Plex), or any of the 17 maker themes.
 
 On the fleet page your default themes the page; with matching on, the member you open is shown in their own ship's theme.
 
@@ -14,7 +14,7 @@ On the fleet page your default themes the page; with matching on, the member you
 
 ## How it works
 
-Everything lives in [web/src/lib/themes.ts](../web/src/lib/themes.ts): the 17 themes and `applyTheme(element, theme, scheme)`, which sets CSS custom properties on the page (or on one member's panel) and `data-deco` for the details. Components only ever read tokens:
+Everything lives in [web/src/lib/themes.ts](../web/src/lib/themes.ts): the house theme (`SG`, the default), the 17 maker themes and `applyTheme(element, theme, scheme)`, which sets CSS custom properties on the page (or on one member's panel) and `data-deco` for the details. Components only ever read tokens:
 
 | Token | What |
 |---|---|

@@ -29,7 +29,8 @@ Agents learn of the release from GitHub's "latest release" (they check at start 
    - checks the tag matches the versions;
    - runs the tests;
    - builds the web UI and `starglance.exe`;
-   - signs the exe (once SignPath is set up, below);
+   - signs the exe (only if SignPath is set up, below; releases are unsigned for now);
+   - records a build attestation for the exe (`actions/attest`), so anyone can check where it came from;
    - pushes the hub image;
    - publishes the GitHub release with the exe and `SHA256SUMS.txt`.
 
@@ -50,16 +51,28 @@ uv run --extra app --with pyinstaller==6.22.3 pyinstaller packaging/starglance.s
 dist\starglance.exe --help
 ```
 
-## Code signing with SignPath
+After a release, check it end to end: download `starglance.exe` and `SHA256SUMS.txt` from the release, then `sha256sum -c SHA256SUMS.txt` and `gh attestation verify starglance.exe --repo bradqui/starglance`.
 
-SignPath Foundation signs open-source projects for free, using its own certificate. The public side of it is [CODE_SIGNING.md](CODE_SIGNING.md), and the README links to it.
+## Code signing
 
-### Before applying
+Releases are unsigned for now; [CODE_SIGNING.md](CODE_SIGNING.md) says so publicly and explains how to verify a download instead. The options, for when signing is worth it:
+
+- **SignPath Foundation** (below): free, with its certificate, for open-source projects that already have a public following (stars, forks, contributors, articles or discussions elsewhere). Apply again once Starglance has that.
+- **Azure Artifact Signing**: $9.99 a month (Basic). Individuals must be in the US or Canada and pass an ID check; the certificate shows the publisher's legal name, city, state and country. Microsoft has a GitHub Action for it.
+- **Certum Open Source Code Signing**: about €69 a year, for individuals, "Open Source Developer, *your name*". The key is in Certum's SimplySign cloud, which wants a one-time code per session, so it's awkward to run unattended in Actions.
+
+Pick one and keep it: once a release is signed, the app's updater only installs updates signed by the same publisher, so moving to another certificate later would stop automatic updates for everyone on the signed version.
+
+### SignPath
+
+SignPath Foundation signs open-source projects for free, using its own certificate. Its rules ask for a public code signing policy page: rewrite [CODE_SIGNING.md](CODE_SIGNING.md) to say which certificate signs releases, with its credit line ("Free code signing provided by SignPath.io, certificate by SignPath Foundation") at the top, roles for approvers, and SignPath's contact for reports.
+
+#### Before applying
 
 - Turn on two-factor authentication on GitHub (Settings → Password and authentication). SignPath requires it for everyone in the signing roles.
 - Have at least one unsigned release out, so they can see the project ships an exe.
 
-### Apply
+#### Apply
 
 Apply at https://signpath.org/apply with:
 - the repository: https://github.com/bradqui/starglance;
@@ -69,7 +82,7 @@ Apply at https://signpath.org/apply with:
 
 They review each project by hand, and no turnaround time is published. If they ask about the PyInstaller bootloader: it's PyInstaller's own open-source bootloader, unmodified, which every PyInstaller exe contains.
 
-### Once accepted
+#### Once accepted
 
 In SignPath (they set up the organization and usually the project with you):
 

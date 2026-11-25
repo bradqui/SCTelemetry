@@ -1,12 +1,13 @@
 name: Release
 
 # Push a tag v<version> (the version in pyproject.toml, starglance and starglance_hub) to release:
-#   - starglance.exe, built on GitHub's Windows runners from this commit, signed through
-#     SignPath when it's set up (docs/CODE_SIGNING.md; unsigned until then)
+#   - starglance.exe, built on GitHub's Windows runners from this commit, with a build
+#     attestation (gh attestation verify) that says so; unsigned, unless SignPath is set
+#     up (docs/CODE_SIGNING.md)
 #   - the hub image, ghcr.io/<owner>/starglance-hub:<version> and :latest
 #   - a GitHub release with the exe and its SHA-256
 # Run it by hand with dry_run to try a change to this workflow: everything is built, nothing
-# is signed, pushed or published.
+# is signed, attested, pushed or published.
 
 on:
   push:
@@ -54,6 +55,11 @@ jobs:
     needs: version
     runs-on: windows-latest
     timeout-minutes: 90 # includes waiting for the signing approval
+    permissions:
+      contents: read
+      id-token: write # the attestation's signing certificate (Sigstore)
+      attestations: write
+      artifact-metadata: write
     steps:
       - uses: actions/checkout@v7
         with:
@@ -112,6 +118,13 @@ jobs:
       - name: Checksum
         shell: bash
         run: cd dist && sha256sum starglance.exe > SHA256SUMS.txt && cat SHA256SUMS.txt
+      # A signed record that this exact file was built by this workflow, from this repo and
+      # tag: anyone can check a download with gh attestation verify (docs/CODE_SIGNING.md).
+      - name: Build attestation
+        if: ${{ !inputs.dry_run }}
+        uses: actions/attest@v4
+        with:
+          subject-path: dist/starglance.exe
       - uses: actions/upload-artifact@v7
         with:
           name: starglance
@@ -177,8 +190,10 @@ jobs:
             if [ "${{ needs.agent.outputs.signed }}" = "true" ]; then
               echo "Signed: free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org)."
             else
-              echo "Not code-signed yet, so Windows SmartScreen may warn about it: choose *More info → Run anyway*. Check the file against SHA256SUMS.txt."
+              echo "Not code-signed, so Windows SmartScreen may warn the first time you run it: choose *More info → Run anyway*. (Updates installed from inside Starglance don't show it.)"
             fi
+            echo
+            echo "To check that the file was built by this repository's release workflow from this tag: \`gh attestation verify starglance.exe --repo ${{ github.repository }}\`, or compare its SHA-256 with SHA256SUMS.txt."
             echo
             echo "## Hub (Docker)"
             echo
@@ -188,7 +203,7 @@ jobs:
             echo
             echo "See [deploy/README.md](https://github.com/${{ github.repository }}/blob/${{ needs.version.outputs.tag }}/deploy/README.md). Update the hub together with the agents: the hub tells agents when a newer one is out and refuses ones that are too old."
             echo
-            echo "[Code signing policy](https://github.com/${{ github.repository }}/blob/main/docs/CODE_SIGNING.md) · [Privacy](https://github.com/${{ github.repository }}/blob/main/PRIVACY.md)"
+            echo "[Code signing and verifying downloads](https://github.com/${{ github.repository }}/blob/main/docs/CODE_SIGNING.md) · [Privacy](https://github.com/${{ github.repository }}/blob/main/PRIVACY.md)"
           } > notes.md
       - name: Publish
         if: ${{ !inputs.dry_run }}

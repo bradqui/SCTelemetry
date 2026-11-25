@@ -1,0 +1,16 @@
+{
+  "name": "starglance-site",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vitepress dev",
+    "build": "vitepress build",
+    "preview": "vitepress preview",
+    "demo": "node scripts/demo.mjs",
+    "shots": "node scripts/shots.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.65.1",
+    "vitepress": "^1.6.4"
+  }
+}

@@ -1,0 +1,67 @@
+name: Docs site
+
+# The docs and live demos on GitHub Pages (https://bradqui.github.io/starglance/), from
+# site/ (VitePress) and the demo pages in web/ (docs/RELEASING.md, "Docs site"). On a pull
+# request it's built to check it still works; on main it's published. The demo screenshots
+# and clips are taken fresh each time from the demos; the app ones are committed
+# (site/public/shots/app/, from npm run shots -- app on a PC).
+
+on:
+  push:
+    branches: [main]
+    paths: [site/**, web/**, tools/demo_*.py, fixtures/**, agent/**, shared/**, hub/**, .github/workflows/pages.yml]
+  pull_request:
+    paths: [site/**, web/**, tools/demo_*.py, fixtures/**, .github/workflows/pages.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - uses: astral-sh/setup-uv@v10.4.0
+      - run: uv sync --python 3.12
+      - name: Install
+        run: |
+          npm install --prefix web --no-audit --no-fund
+          cd site
+          npm ci --no-audit --no-fund
+          npx playwright install --with-deps chromium
+      - name: Demos
+        working-directory: site
+        run: npm run demo
+      - name: Screenshots and clips
+        working-directory: site
+        run: npm run shots -- demo clips
+      - name: Site
+        working-directory: site
+        run: npm run build
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: site/.vitepress/dist
+
+  deploy:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

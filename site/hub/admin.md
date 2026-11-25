@@ -1,0 +1,46 @@
+# Admin
+
+Admins manage the fleet from the hub's page: **your name → Admin**.
+
+## Members
+
+Everyone in the fleet, with their linked PCs and whether they're live. Make someone an admin, **Suspend** them (they can't sign in or send until restored), or **Remove** them, which deletes their PCs and history.
+
+![Admin → Members](/shots/app/hub-admin-members.jpg)
+
+## Invites
+
+Pick how many people can use an invite and how long it lasts, and whether it makes them a member or an admin. **Create** gives you a link to send. Revoke any invite that's still open.
+
+![Admin → Invites](/shots/app/hub-admin-invites.jpg)
+
+What a new member sees, and what they do with it: [Joining a fleet](/fleet/joining).
+
+## Problem reports
+
+When a member sends a [problem report](/guide/problem-reports) to the fleet's admins, it shows up here, with a count of new ones on the tab.
+
+- **View** shows what they wrote and every file in the report.
+- **Download** saves the report's `.zip`.
+- **Open a GitHub issue** opens the project's bug form, filled in from the report, and marks it as forwarded. Attach the downloaded file to the issue.
+- Set a status to keep track, or **Delete** it. Reports are deleted after 30 days anyway (`HUB_REPORT_RETENTION_DAYS`).
+
+![Admin → Reports](/shots/app/hub-admin-reports.jpg)
+
+The hub never sends anything to GitHub by itself: an issue is only opened when you do it, from your own browser and GitHub account.
+
+## Integrations
+
+API keys for a Discord bot, a stream overlay or a script: read the roster and anyone's live state, follow every event as it happens (warnings, kills, contracts, quantum jumps), and hand out invites. Enough to build a `!fleet` command, readiness checks and alerts. The key is shown once; delete it to cut it off. See the [API reference](https://github.com/bradqui/starglance/blob/main/docs/HUB_API.md).
+
+## Settings
+
+The org's name, and Discord options.
+
+### Discord
+
+Discord is optional; without it, everything works with invites and codes. Fill in the `DISCORD_*` settings in `.env` (the comments there say where to find each one) and restart the hub. Then:
+
+- invite pages offer **Join with Discord**, and members can connect Discord under **Your account** and sign in with it anywhere;
+- members who connected Discord are suspended if they lose your server's member role, and restored if they get it back;
+- **Admin → Settings** can let holders of the role join without an invite.

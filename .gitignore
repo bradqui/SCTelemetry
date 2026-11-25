@@ -17,6 +17,7 @@ dist/
 web/dist/
 web/dist-showcase/
 web/showcase/demo-fleet.json
+web/showcase/demo-cockpit.json
 node_modules/
 
 # Local data / secrets
@@ -39,3 +40,10 @@ captures/
 .sfdx/
 .DS_Store
 Thumbs.db
+site/node_modules/
+site/public/demo/
+site/.vitepress/cache/
+site/.vitepress/dist/
+# Docs screenshots: the Pages workflow makes these; only the app ones are committed.
+site/public/shots/*
+!site/public/shots/app/

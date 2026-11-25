@@ -134,11 +134,11 @@ Useful kinds for alerts:
 |---|---|
 | `warning_on` / `warning_off` | `light` (pwr, wpn, thr, shld, cool, qdrv, radr, prox, hit, misl), `level` |
 | `hull_threshold` / `fuel_threshold` | `ship`, `below` (the threshold crossed), `hull` / `fuel` |
-| `kill` | `target` (ship model), `npc` (hostile, civilian, security, npc; null for a player), `reason` |
-| `ship_lost` | `ship`, `by`, `reason` |
-| `vehicle_destroyed` (near them, by someone else) | `target`, `npc`, `by`, `reason` |
+| `kill` | `target` (ship model), `npc` (hostile, civilian, security, npc; null for a player), `reason`, `vehicle` |
+| `ship_lost` | `ship`, `by`, `reason`, `vehicle` |
+| `vehicle_destroyed` (a ship destroyed near them, by someone else: usually not fleet business) | `target`, `npc`, `by`, `reason`, `vehicle`. Every member who saw it reports it: `vehicle` (the game's id for the ship, the same in every report and in the shooter's `kill`) tells them apart. Older agents leave it out |
 | `injury` | `part`, `severity` (minor, moderate, severe), `tier` |
-| `incapacitated`, `healed` | |
+| `incapacitated`, `healed` (a medical bed cleared their injuries) | |
 | `quantum_route`, `quantum_arrived`, `quantum_blocked` | `destination` |
 | `contract_accepted`, `contract_complete`, `contract_failed`, `contract_abandoned` | `title` |
 | `jurisdiction` | `name` |

@@ -1,5 +1,15 @@
 <script lang="ts">
-  import { CATEGORIES, eventCategory, eventText, eventTone, since, type EventCategory } from "../../lib/format";
+  import {
+    CATEGORIES,
+    eventCategory,
+    eventText,
+    eventTone,
+    explosionKey,
+    destroyedShown,
+    since,
+    type EventCategory,
+    type Destroyed,
+  } from "../../lib/format";
   import type { FleetEvent, MemberSummary } from "../../lib/types";
   import EventIcon from "../EventIcon.svelte";
   import { crews } from "./roster";
@@ -9,11 +19,14 @@
     roster,
     events,
     now,
+    destroyed = "fleet",
     onOpen,
   }: {
     roster: Record<string, MemberSummary>;
     events: FleetEvent[];
     now: number;
+    /** Which ships destroyed show (Customize → Activity). */
+    destroyed?: Destroyed;
     onOpen: (id: string) => void;
   } = $props();
 
@@ -46,9 +59,32 @@
   ]);
 
   let filter = $state<EventCategory | "all">("all");
+  /** One explosion once: drop "destroyed nearby" when a member's own kill or loss says it,
+   * or another member already reported it (same ship id; older agents: same ship and shooter). */
+  function oncePerExplosion(list: FleetEvent[]): FleetEvent[] {
+    const own = new Set<string>();
+    for (const e of list) {
+      const k = explosionKey(e.kind, e.data);
+      if (k && e.kind !== "vehicle_destroyed") own.add(k);
+    }
+    const seen = new Set<string>();
+    return list.filter((e) => {
+      if (e.kind !== "vehicle_destroyed") return true;
+      const k = explosionKey(e.kind, e.data) ?? `${e.data.target}|${e.data.by}|${Math.floor(e.t / 15000)}`;
+      if (own.has(k) || seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+  }
   const feed = $derived(
-    events
-      .filter((e) => e.kind !== "game_start" && (filter === "all" || eventCategory(e.kind) === filter))
+    oncePerExplosion(
+      events.filter(
+        (e) =>
+          e.kind !== "game_start" &&
+          (filter === "all" || eventCategory(e.kind) === filter) &&
+          destroyedShown(e.kind, e.data, destroyed),
+      ),
+    )
       .slice(-80)
       .reverse(),
   );
@@ -93,7 +129,7 @@
     </div>
     <ol>
       {#each feed as e (`${e.member}-${e.t}-${e.kind}`)}
-        <li class="{eventTone(e.kind, e.data)} cat-{eventCategory(e.kind)}">
+        <li class="{eventTone(e.kind, e.data)} cat-{eventCategory(e.kind)}" class:nearby={e.kind === "vehicle_destroyed"}>
           <span class="icon"><EventIcon kind={e.kind} size={13} /></span>
           <button class="name" onclick={() => onOpen(e.member)}>{roster[e.member]?.name ?? "Someone"}</button>
           <span class="text">{eventText(e.kind, e.data)}</span>
@@ -265,6 +301,13 @@
   }
   li + li {
     margin-top: 2px;
+  }
+  /* Ships destroyed near a member, by outsiders: worth knowing, not fleet news. */
+  li.nearby {
+    padding-block: 1px;
+    font-size: 0.74rem;
+    opacity: 0.75;
+    --rail: var(--line-2);
   }
   li.cat-flight {
     --rail: var(--accent);

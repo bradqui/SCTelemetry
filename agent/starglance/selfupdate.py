@@ -1,6 +1,11 @@
 """Updating the Windows app in place: one click on Update, or by itself (spec decision 22).
 
-The hub says which agent version is current (``uplink.update_notice``). Updating to it:
+Knowing there's a new version: the hubs you're linked to say which agent is current
+(``uplink.update_notice``), and the agent asks GitHub itself, at start and every few hours,
+which release is the latest (``latest_release``: one request to this project's
+"latest release" address, which answers with a redirect to its tag; nothing about you or
+your game goes with it). Switch that off in Settings -> Agent (``updates.json`` "check").
+Updating to it:
 
 1. downloads that version's ``starglance.exe`` and ``SHA256SUMS.txt`` from this project's
    GitHub release. The address is fixed here, built from the version number: never one a
@@ -14,7 +19,7 @@ The hub says which agent version is current (``uplink.update_notice``). Updating
 
 Only in the packaged app (``starglance.exe``); from source, Update opens the releases page.
 Automatic updates are off unless switched on, and then only happen while the game isn't
-running. Nothing here asks GitHub whether there's an update: only the hub says so.
+running.
 """
 
 from __future__ import annotations
@@ -28,7 +33,7 @@ import os
 import re
 import subprocess
 import sys
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from pathlib import Path
 
 import aiohttp
@@ -42,6 +47,9 @@ DOWNLOAD = "https://github.com/bradqui/starglance/releases/download/v{version}/{
 EXE_NAME = "starglance.exe"
 SUMS_NAME = "SHA256SUMS.txt"
 AUTO_EVERY_S = 60
+LATEST = "https://github.com/bradqui/starglance/releases/latest"
+CHECK_FIRST_S = 15
+CHECK_EVERY_S = 6 * 3600
 _VERSION = re.compile(r"\d{1,4}\.\d{1,4}\.\d{1,4}")
 _NO_WINDOW = 0x08000000  # CREATE_NO_WINDOW: no console flashing up from the windowed app
 
@@ -72,6 +80,37 @@ def load_auto() -> bool:
 
 def save_auto(on: bool) -> None:
     _save(auto=on)
+
+
+def load_check() -> bool:
+    """Ask GitHub for the latest release (on unless switched off)."""
+    return _load().get("check", True) is not False
+
+
+def save_check(on: bool) -> None:
+    _save(check=on)
+
+
+def version_from_redirect(location: str | None) -> str | None:
+    """GitHub's "latest release" redirect -> its version:
+    ``.../bradqui/starglance/releases/tag/v0.6.2`` -> ``0.6.2``. Anything else: None."""
+    m = re.fullmatch(
+        r"https://github\.com/bradqui/starglance/releases/tag/v(\d{1,4}\.\d{1,4}\.\d{1,4})",
+        location or "",
+    )
+    return m.group(1) if m else None
+
+
+async def latest_release() -> str | None:
+    """This project's latest release on GitHub, from the redirect alone (no API, no
+    account, nothing sent but the request)."""
+    timeout = aiohttp.ClientTimeout(total=30)
+    headers = {"User-Agent": f"starglance/{__version__}"}
+    async with (
+        aiohttp.ClientSession(timeout=timeout, headers=headers) as http,
+        http.get(LATEST, allow_redirects=False) as r,
+    ):
+        return version_from_redirect(r.headers.get("Location"))
 
 
 def download_url(version: str, name: str) -> str:
@@ -182,7 +221,7 @@ def game_running() -> bool:
 
 
 class Updater:
-    """The agent's updates: what's available (from the hubs), and installing it."""
+    """The agent's updates: what's available (from the hubs and GitHub), and installing it."""
 
     def __init__(
         self,
@@ -207,6 +246,9 @@ class Updater:
         self.progress: float | None = None
         self.error: str | None = None
         self.auto = load_auto()
+        self.check = load_check()
+        self.latest: Callable[[], Awaitable[str | None]] = latest_release
+        self._check_now = asyncio.Event()
         self.tried = _load().get("installed")
         """The last version installed by updating: automatic mode never installs it twice
         (a release whose exe still says the old version would otherwise loop)."""
@@ -219,7 +261,10 @@ class Updater:
         if kind != "uplink" or not isinstance(payload, dict):
             return
         update = payload.get("update")
-        version = update.get("version") if isinstance(update, dict) else None
+        self.offer(update.get("version") if isinstance(update, dict) else None)
+
+    def offer(self, version: object) -> None:
+        """A hub or GitHub names the current version: remember it when it's newer."""
         if not isinstance(version, str) or not _VERSION.fullmatch(version):
             return
         if version_tuple(version) <= (version_tuple(__version__) or (0,)):
@@ -241,6 +286,7 @@ class Updater:
             "progress": self.progress,
             "error": self.error,
             "auto": self.auto,
+            "check": self.check,
             "releases": RELEASES_URL,
         }
 
@@ -257,6 +303,28 @@ class Updater:
         self.auto = on
         save_auto(on)
         self._notify()
+
+    def set_check(self, on: bool) -> None:
+        self.check = on
+        save_check(on)
+        if on:
+            self._check_now.set()
+        self._notify()
+
+    async def check_loop(self) -> None:
+        """Ask GitHub for the latest release soon after start, then every few hours."""
+        wait: float = CHECK_FIRST_S
+        while True:
+            with contextlib.suppress(TimeoutError):
+                await asyncio.wait_for(self._check_now.wait(), timeout=wait)
+            self._check_now.clear()
+            wait = CHECK_EVERY_S
+            if not self.check:
+                continue
+            try:
+                self.offer(await self.latest())
+            except (TimeoutError, aiohttp.ClientError, OSError) as exc:
+                log.info("Couldn't ask GitHub for the latest release: %s", exc)
 
     # -- updating
 

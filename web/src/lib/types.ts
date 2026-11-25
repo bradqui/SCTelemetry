@@ -326,5 +326,7 @@ export interface UpdaterStatus {
   progress: number | null;
   error: string | null;
   auto: boolean;
+  /** Ask GitHub for the latest release (at start and every few hours). */
+  check: boolean;
   releases: string;
 }

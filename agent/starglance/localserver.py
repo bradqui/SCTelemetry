@@ -146,6 +146,7 @@ class LocalServer:
                 web.post("/api/agent/lan/forget", self._agent_lan_forget),
                 web.post("/api/agent/update", self._agent_update),
                 web.post("/api/agent/update/auto", self._agent_update_auto),
+                web.post("/api/agent/update/check", self._agent_update_check),
                 web.post("/api/app/show", self._app_show),
                 web.get("/{tail:.*}", self.static),
             ]
@@ -320,6 +321,11 @@ class LocalServer:
     async def _agent_update_auto(self, request: web.Request) -> web.Response:
         return await self._agent_call(
             request, lambda b: self.control.set_auto_update(bool(b.get("on")))
+        )
+
+    async def _agent_update_check(self, request: web.Request) -> web.Response:
+        return await self._agent_call(
+            request, lambda b: self.control.set_check_updates(bool(b.get("on")))
         )
 
     async def _app_show(self, _request: web.Request) -> web.Response:

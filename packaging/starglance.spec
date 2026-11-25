@@ -70,6 +70,7 @@ a = Analysis(
         "pystray._win32",
         "webview.platforms.edgechromium",
         "webview.platforms.winforms",
+        "truststore",
     ],
     excludes=["tkinter", "starglance_hub"],
 )

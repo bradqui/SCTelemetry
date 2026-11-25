@@ -145,6 +145,7 @@ async def serve(args, *, stop=None, on_ready=None, say=print) -> None:
 
     updater = control.updater = Updater(pipeline, announce=say)
     auto_updates = asyncio.get_running_loop().create_task(updater.auto_loop())
+    update_checks = asyncio.get_running_loop().create_task(updater.check_loop())
     lan = control.lan = LanView(server, announce=say)
     if lan.settings.enabled:
         await lan.start()
@@ -164,6 +165,7 @@ async def serve(args, *, stop=None, on_ready=None, say=print) -> None:
         if tail is not None:
             tail.stop()
         auto_updates.cancel()
+        update_checks.cancel()
         await control.stop_uplinks()
         await lan.stop()
         await server.stop()
@@ -445,6 +447,20 @@ def _console_for_commands() -> None:
         sys.stderr = sys.stdout
 
 
+def _windows_certificates() -> None:
+    """HTTPS checked by Windows itself (truststore), as a browser would: Python alone only
+    trusts the roots already in the Windows store, and Windows adds roots when first
+    needed, so some of GitHub's servers (and some hubs' certificates) fail without it."""
+    if sys.platform != "win32":
+        return
+    try:
+        import truststore
+
+        truststore.inject_into_ssl()
+    except Exception:  # noqa: BLE001 (not installed, or too old a Windows: Python's own)
+        logging.getLogger(__name__).debug("truststore unavailable", exc_info=True)
+
+
 def main(argv: list[str] | None = None) -> None:
     if argv is None and getattr(sys, "frozen", False):
         if len(sys.argv) == 1:
@@ -452,6 +468,7 @@ def main(argv: list[str] | None = None) -> None:
         else:
             _console_for_commands()
     args = build_parser().parse_args(argv)
+    _windows_certificates()
     if args.command != "app":  # the app logs to a file
         logging.basicConfig(level=logging.DEBUG if args.verbose else logging.WARNING)
     try:

@@ -3,7 +3,9 @@
   import { COMPACT_PRESETS, PANELS, PRESETS, SPANS, type Layout, type Span } from "../lib/panels";
   import type { PrefsStore } from "../lib/prefs.svelte";
   import { palette, THEMES } from "../lib/themes";
+  import type { Destroyed } from "../lib/format";
   import type { UpdaterStatus, UplinkStatus } from "../lib/types";
+  import { awake, wakeSupport } from "../lib/wakelock.svelte";
   import AgentSettings from "./AgentSettings.svelte";
   import HeaderAlerts from "./HeaderAlerts.svelte";
 
@@ -34,6 +36,13 @@
   });
 
   const prefs = $derived(store.value);
+  const wake = wakeSupport();
+  const DESTROYED: { id: Destroyed; label: string }[] = [
+    { id: "none", label: "None" },
+    { id: "fleet", label: "Fleet" },
+    { id: "players", label: "Players" },
+    { id: "all", label: "All" },
+  ];
   const layout = $derived<Layout>(compact ? prefs.compact : prefs.full);
   const presets = $derived(compact ? COMPACT_PRESETS : PRESETS);
 
@@ -173,6 +182,20 @@
       <input type="checkbox" bind:checked={prefs.autoHide} />
       <span><b>Hide ship panels on foot</b><small>Otherwise they wait on standby</small></span>
     </label>
+    <label class="toggle">
+      <input type="checkbox" bind:checked={prefs.awake} disabled={wake !== "ok" && !prefs.awake} />
+      <span
+        ><b>Keep the screen awake</b><small
+          >{wake === "insecure"
+            ? "Needs the hub's https page; not available over your home network"
+            : wake === "unsupported"
+              ? "This browser can't (on iPhone and iPad: iOS 18.4 or later)"
+              : awake.status === "refused"
+                ? "The browser said no for now (low power mode?); tap the page to retry"
+                : "For a phone or tablet beside the game, while this page is open"}</small
+        ></span
+      >
+    </label>
     <div class="units">
       <span class="label">Speed in</span>
       <div class="seg">
@@ -180,6 +203,25 @@
         <button class:on={prefs.speedUnit === "kmh"} onclick={() => (prefs.speedUnit = "kmh")}>km/h</button>
       </div>
     </div>
+  </section>
+
+  <section>
+    <h3>Activity</h3>
+    <div class="units">
+      <span class="label">Ships destroyed</span>
+      <div class="seg" role="group" aria-label="Ships destroyed">
+        {#each DESTROYED as n (n.id)}
+          <button class:on={prefs.destroyed === n.id} onclick={() => (prefs.destroyed = n.id)} aria-pressed={prefs.destroyed === n.id}
+            >{n.label}</button
+          >
+        {/each}
+      </div>
+    </div>
+    <p class="hint">
+      <b>Fleet</b>: ships fleet members destroy, and members' own ships lost. <b>Players</b> adds ships destroyed near a
+      member where a player shot or lost one; <b>All</b> every one the game logs nearby, NPCs too. Nearby ones show small and
+      grey.
+    </p>
   </section>
 
   <HeaderAlerts alerts={prefs.alerts} self={selfAlerts} />

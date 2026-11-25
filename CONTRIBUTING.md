@@ -29,6 +29,6 @@ cd web && npm install && npm run check && npm run build
   - **What a player switches off never leaves their PC.**
 - Don't copy code from projects without a license (for example `TheBanjolorian/7hills-link`). Implement from documented behaviour instead.
 
-Open a pull request against `main`. CI runs the tests on Windows and Ubuntu, type-checks and builds the page, and builds and starts the hub image.
+Work on a branch and open a pull request against `main`; nothing is pushed to `main` directly, and a pull request merges once its checks pass. CI runs the tests on Windows and Ubuntu, type-checks and builds the page, and builds and starts the hub image.
 
 By contributing you agree that your contribution is licensed under the project's [MIT license](LICENSE).

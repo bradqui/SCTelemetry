@@ -254,3 +254,86 @@ def test_automatic_never_installs_the_same_version_twice(tmp_path, monkeypatch):
 
     started, u = asyncio.run(main())
     assert started == [] and u.auto is True
+
+
+def test_the_latest_release_comes_from_githubs_redirect_only():
+    tag = "https://github.com/bradqui/starglance/releases/tag/v0.6.2"
+    assert selfupdate.version_from_redirect(tag) == "0.6.2"
+    for bad in [
+        None,
+        "",
+        "https://github.com/bradqui/starglance/releases",  # no release yet
+        "https://github.com/someone/else/releases/tag/v9.9.9",
+        "https://evil.example/bradqui/starglance/releases/tag/v9.9.9",
+        tag + "-beta",
+        "https://github.com/bradqui/starglance/releases/tag/v1.2",
+    ]:
+        assert selfupdate.version_from_redirect(bad) is None, bad
+
+
+def test_asks_github_and_offers_only_newer(monkeypatch):
+    monkeypatch.setattr(selfupdate, "CHECK_FIRST_S", 0.01)
+    asked = []
+
+    async def main():
+        u = Updater(Pipeline(), announce=str, exe=None)
+        answers = iter([__version__, NEW])
+
+        async def latest():
+            asked.append(True)
+            return next(answers)
+
+        u.latest = latest
+        loop = asyncio.create_task(u.check_loop())
+        await asyncio.sleep(0.1)
+        first = u.available
+        u.set_check(True)  # switching it on asks again at once
+        await asyncio.sleep(0.1)
+        loop.cancel()
+        return first, u.available
+
+    assert asyncio.run(main()) == (None, NEW)
+    assert len(asked) == 2
+
+
+def test_the_check_can_be_switched_off(monkeypatch):
+    monkeypatch.setattr(selfupdate, "CHECK_FIRST_S", 0.01)
+    assert selfupdate.load_check() is True, "on unless switched off"
+
+    async def main():
+        u = Updater(Pipeline(), announce=str, exe=None)
+        u.set_check(False)
+        asked = []
+
+        async def latest():
+            asked.append(True)
+            return NEW
+
+        u.latest = latest
+        loop = asyncio.create_task(u.check_loop())
+        await asyncio.sleep(0.1)
+        loop.cancel()
+        return asked, u
+
+    asked, u = asyncio.run(main())
+    assert asked == [] and u.available is None and u.status()["check"] is False
+    assert selfupdate.load_check() is False
+
+
+def test_a_failed_check_is_quiet(monkeypatch):
+    monkeypatch.setattr(selfupdate, "CHECK_FIRST_S", 0.01)
+
+    async def main():
+        u = Updater(Pipeline(), announce=str, exe=None)
+
+        async def latest():
+            raise OSError("offline")
+
+        u.latest = latest
+        loop = asyncio.create_task(u.check_loop())
+        await asyncio.sleep(0.1)
+        assert not loop.done(), "keeps going for the next check"
+        loop.cancel()
+        return u
+
+    assert asyncio.run(main()).state == "idle"

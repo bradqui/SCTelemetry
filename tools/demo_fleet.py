@@ -17,8 +17,9 @@ import zlib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path[:0] = [str(ROOT / "agent"), str(ROOT / "hub"), str(ROOT / "shared")]
+sys.path[:0] = [str(ROOT / "agent"), str(ROOT / "hub"), str(ROOT / "shared"), str(ROOT / "tools")]
 
+from demo_places import add_places  # noqa: E402
 from starglance.replay import FIXTURES_DIR, Recording  # noqa: E402
 from starglance.runtime import Pipeline  # noqa: E402
 from starglance_hub.config import Config  # noqa: E402
@@ -100,6 +101,7 @@ def relative(obj, base_ms: int):
 def run(member_id, name, fixture, start, ship_label, role):
     rec = Recording.load([FIXTURES_DIR / f"{fixture}.jsonl.gz"])
     pipeline = Pipeline()
+    add_places(pipeline, fixture)
     events: list[tuple[float, Event]] = []
     pos_now = {"pos": 0.0}
     pipeline.subscribe(lambda kind, p: kind == "event" and events.append((pos_now["pos"], p)))

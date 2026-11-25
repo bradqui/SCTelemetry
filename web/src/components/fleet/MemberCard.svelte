@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ago, altitude, heading, LIGHT_NAMES, pct, ROLE_NAMES, speedIn, temp } from "../../lib/format";
+  import { ago, altitude, heading, LIGHT_NAMES, pct, placeText, ROLE_NAMES, speedIn, temp } from "../../lib/format";
   import type { Prefs } from "../../lib/prefs.svelte";
   import { applyTheme, DEFAULT_THEME, THEME_BY_ID, themeForShip, type Scheme, type Theme } from "../../lib/themes";
   import type { MemberSummary } from "../../lib/types";
@@ -43,6 +43,9 @@
   const alt = $derived(altitude(s?.alt));
   const route = $derived(m.location?.route ?? null);
   const lastArrived = $derived(m.location?.last_arrived ?? null);
+  const place = $derived(
+    placeText(m.location, { locomotion: m.locomotion, landed: s?.landed, quantum: s?.quantum }),
+  );
   const mode = $derived.by(() => {
     if (!s) return null;
     if (s.quantum) return { text: "QT", cls: "qt" };
@@ -94,6 +97,7 @@
     </span>
   </header>
   <p class="where">{where}</p>
+  {#if playing && place}<p class="place">{place}</p>{/if}
 
   {#if playing && s}
     {#if route && route.state !== "arrived"}
@@ -310,6 +314,15 @@
     margin: -3px 0 0;
     font-size: 0.78rem;
     color: var(--text-2);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .place {
+    margin: -6px 0 0;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;

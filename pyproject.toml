@@ -13,6 +13,7 @@ dependencies = [
     "protobuf>=5.28",
     "pydantic>=2.8",
     "truststore>=0.10; sys_platform == 'win32'",
+    "zstandard>=0.23",
 ]
 
 [dependency-groups]

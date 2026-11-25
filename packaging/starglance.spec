@@ -71,6 +71,7 @@ a = Analysis(
         "webview.platforms.edgechromium",
         "webview.platforms.winforms",
         "truststore",
+        "zstandard",
     ],
     excludes=["tkinter", "starglance_hub"],
 )

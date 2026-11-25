@@ -17,11 +17,13 @@
     loc,
     server = true,
     sameServer = false,
-  }: { loc: Where; server?: boolean; sameServer?: boolean } = $props();
+    place = null,
+  }: { loc: Where; server?: boolean; sameServer?: boolean; place?: string | null } = $props();
   const shard = $derived(shardLabel(loc.shard));
 </script>
 
 <div class="where" aria-label="Location">
+  {#if place}<span class="place" title="Where, from the game's log: the landing area, or the planet or moon">{place}</span>{/if}
   {#if loc.armistice}<span class="z good" title="Armistice zone: weapons are disabled">Armistice</span>{/if}
   {#if loc.restricted}<span class="z bad" title="Restricted area">Restricted</span>{/if}
   {#if loc.private}<span class="z warn" title="Private property">Private</span>{/if}
@@ -50,6 +52,14 @@
     flex: 0 1 auto;
     overflow: hidden;
     white-space: nowrap;
+  }
+  .place {
+    font-weight: 700;
+    color: var(--text);
+    margin-right: 4px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
   }
   .z,
   .kv {

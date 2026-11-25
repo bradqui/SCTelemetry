@@ -85,7 +85,7 @@ END_ABANDON = (
 @pytest.mark.parametrize(
     "line,kind,data",
     [
-        (SELECTED, "route", {"destination": "Aberdeen"}),
+        (SELECTED, "route", {"destination": "Aberdeen", "id": "OOC_Stanton_1b_Aberdeen"}),
         (ARRIVED, "arrived", {}),
         (BLOCKED, "blocked", {}),
         (LOGIN, "handle", {"handle": ME}),

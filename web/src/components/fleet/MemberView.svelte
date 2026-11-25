@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { PanelCtx } from "../../lib/context";
-  import { ago, ROLE_NAMES } from "../../lib/format";
+  import { ago, placeText, ROLE_NAMES } from "../../lib/format";
   import type { Prefs } from "../../lib/prefs.svelte";
   import type { Trends } from "../../lib/trends.svelte";
   import type { MemberSummary, Snapshot, TelemetryEvent } from "../../lib/types";
@@ -47,6 +47,9 @@
     snap ? { snap, ship, events, trends, prefs, compact: false, now, who: isMe ? undefined : member.name } : null,
   );
   const loc = $derived(snap?.location ?? null);
+  const place = $derived(
+    placeText(loc, { locomotion: snap?.status?.locomotion, landed: ship?.landed, quantum: ship?.flight.quantum }),
+  );
   const same = $derived(!isMe && !!myShard && loc?.shard === myShard);
   const where = $derived.by(() => {
     if (member.presence === "offline") return member.last_seen ? `Offline · seen ${ago(member.last_seen, now)}` : "Offline";
@@ -71,7 +74,7 @@
       <b class="display">{member.name}{#if isMe}<em>you</em>{/if}</b>
       <small class="p-{member.presence}">{where}</small>
     </div>
-    {#if loc}<LocationChips {loc} sameServer={same} />{/if}
+    {#if loc}<LocationChips {loc} {place} sameServer={same} />{/if}
     {#if mode}
       <span class="mode {mode.toLowerCase()}" title={mode === "QT" && loc?.route?.destination ? `Quantum to ${loc.route.destination}` : undefined}
         >{mode}{#if mode === "QT" && loc?.route?.destination}<small>{loc.route.destination}</small>{/if}</span

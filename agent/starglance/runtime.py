@@ -84,6 +84,8 @@ class Pipeline:
         self.schema_bytes: bytes | None = None
         """The game's message definitions in use (a serialized FileDescriptorSet)."""
         self.schema_source: str | None = None
+        self.names = None
+        """Place names (places.Names), read from the game's files in the background."""
 
     def subscribe(self, listener: Callable[[str, object], None]) -> Callable[[], None]:
         """``listener(kind, payload)``: kind "snapshot" | "event" | "state" | "reset" | "replay"."""
@@ -119,6 +121,11 @@ class Pipeline:
             self.state = new
             self._record({"state": new.as_dict()}, new.since)
             self._notify("state", new)
+
+    def set_names(self, names) -> None:
+        """Place names from the game's own files (places.load), once read."""
+        self.names = names
+        self._log.names = names
 
     def on_schema(self, file_set: bytes, source: str) -> None:
         """The game's message definitions were loaded (kept for problem reports)."""
@@ -193,6 +200,7 @@ class Pipeline:
         self._normalizer = Normalizer()
         self._deriver = EventDeriver()
         self._log = LogState()
+        self._log.names = self.names
         if clear_history:
             self.recent.clear()
             self.trend.clear()

@@ -190,6 +190,10 @@ The game's own debug log (`<channel>/Game.log`, a new file each launch; older on
 | Restricted area | `Restricted Area` + text (relocated, or "Vehicles Will Be Impounded"), `Leaving Restricted Area` | |
 | Private property | `Entering / Leaving Private Property` | |
 | Quantum route | `<Player Selected Quantum Target - Local> ... selected point <id> as their destination` | `OOC_Stanton_1b_Aberdeen` → "Aberdeen". |
+| Route start | `<Calculate Route> ... Projected Start Location is <name> for route to destination ...` | Where the ship is when you plot: already a display name ("Baijini Point", "Magda"); sometimes with a stray byte at the end. |
+| Landing area | `<RequestLocationInventory> Player[..] requested inventory for Location[<id>]` | The city, station, outpost or gateway you're in: `Stanton1_Lorville`, `RR_P6_LEO`, `RR_JP_StantonPyro`, `Stanton1_HurdynMining_HDMSPinewood`. Named from the game's own `global.ini` (places.py). `INVALID_LOCATION_ID` is ignored. |
+| Leaving a landing area | `<Update Inventory Location> Player [..] is changing location. Landing [a] -> [b]. Location [c] -> [d]` | `b` is 0 when you leave one. The numbers are the game's own ids for places, the same on every server; not used yet. |
+| Planet or moon | `planet cells: <n> [<cap>] meshes: ... name: <body>` | A block every 10 minutes, one line per body (`OOC_Stanton_2b_Daymar`, `pyro5`). The body with loaded cells (n > 0) is where you are; one you left keeps its capacity with n = 0. No body with cells: you're in space. |
 | Quantum arrival | `<Quantum Drive Arrived - Arrived at Final Destination>` | End of the whole route (after every leg). |
 | Quantum blocked | `Quantum Travel: Your destination is obstructed ...` | |
 | Party calibration | `Quantum Travel Calibration Started / Complete By <player>` | |

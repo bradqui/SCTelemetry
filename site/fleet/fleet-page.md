@@ -15,7 +15,7 @@ On the left, everyone, grouped your way:
 - **Status**: in a ship, on foot, not in game, offline.
 - **A–Z**.
 
-Each row has the things that matter at a glance: on your server, in an armistice zone, a warning, NAV/SCM/QT, fuel and health bars. Click anyone to open their dashboard.
+Each row says where someone is ("Pilot · Lorville") and has the things that matter at a glance: on your server, in an armistice zone, a warning, NAV/SCM/QT, fuel and health bars. Click anyone to open their dashboard.
 
 ## Overview
 

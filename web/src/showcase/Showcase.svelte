@@ -224,7 +224,7 @@
           <tr><th>weapons</th><td>guns ready, countermeasures</td></tr>
           <tr><th>vitals</th><td>health, oxygen, injuries</td></tr>
           <tr><th>uec</th><td>aUEC and contract rewards</td></tr>
-          <tr><th>location</th><td>zone, jurisdiction, server, quantum destination</td></tr>
+          <tr><th>location</th><td>zone, jurisdiction, server, planet or moon, landing area, quantum destination</td></tr>
           <tr><th>mission</th><td>current contracts and objectives</td></tr>
           <tr><th>combat</th><td>kills, ships lost, session counts</td></tr>
         </tbody>

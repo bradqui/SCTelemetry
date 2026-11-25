@@ -25,7 +25,7 @@ Each fleet only gets what you share with it. Everything is on by default; switch
 | **Weapons** | guns ready, countermeasures |
 | **Vitals** | health, oxygen, food and water, injuries |
 | **aUEC** | aUEC balance and contract rewards |
-| **Location** | zone, jurisdiction, server, star system, quantum destination, ship you're aboard |
+| **Location** | zone, jurisdiction, server, star system, planet or moon, landing area, quantum destination, ship you're aboard |
 | **Contracts** | current contracts and objectives |
 | **Combat** | kills, ships lost, session counts |
 

@@ -117,6 +117,7 @@ async def serve(args, *, stop=None, on_ready=None, say=print) -> None:
         reader = GameReader(pipeline, loop, install=install, port=args.game_port)
         if install is not None:
             pipeline.attach_log()
+            _load_place_names(pipeline, loop, install.path)
             tail = GameLogTail(
                 install.game_log,
                 lambda line, quiet: loop.call_soon_threadsafe(
@@ -403,6 +404,21 @@ def cmd_probe(args) -> None:
         print("Server reflection: not offered (using definitions from StarCitizen.exe)")
         schema = client.load_schema(channel, inst.exe, prefer_reflection=False)
     print(schema.describe())
+
+
+def _load_place_names(pipeline, loop, game_dir: Path) -> None:
+    """Place names from the game's own files, read in the background (a few seconds the
+    first time after a patch, then from the cache)."""
+    import threading
+
+    from . import places
+
+    def work() -> None:
+        names = places.load(game_dir)
+        if names is not None and not loop.is_closed():
+            loop.call_soon_threadsafe(pipeline.set_names, names)
+
+    threading.Thread(target=work, name="place-names", daemon=True).start()
 
 
 def build_parser() -> argparse.ArgumentParser:

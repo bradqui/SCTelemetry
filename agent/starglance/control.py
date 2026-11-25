@@ -42,7 +42,10 @@ SHARE_HELP = {
     "weapons": "Guns ready, countermeasures",
     "vitals": "Health, oxygen, food and water, injuries",
     "uec": "aUEC balance and contract rewards",
-    "location": "Zone, jurisdiction, server, star system, quantum destination, ship you're aboard",
+    "location": (
+        "Zone, jurisdiction, server, star system, planet or moon, landing area, "
+        "quantum destination, ship you're aboard"
+    ),
     "mission": "Current contracts and objectives",
     "combat": "Kills, ships lost, session counts",
 }

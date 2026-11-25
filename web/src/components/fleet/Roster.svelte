@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ago, LIGHT_NAMES, ROLE_NAMES } from "../../lib/format";
+  import { ago, LIGHT_NAMES, placeName, ROLE_NAMES } from "../../lib/format";
   import type { MemberSummary } from "../../lib/types";
   import { footLine, groupRoster, type GroupBy } from "./roster";
 
@@ -41,13 +41,16 @@
     if (m.presence === "offline") return m.last_seen ? `Offline · ${ago(m.last_seen, now)}` : "Offline";
     if (m.presence === "stale") return "Connection lost";
     if (m.presence === "idle") return "Agent on · not in game";
+    const at = m.ship?.quantum ? null : placeName(m.location);
     if (m.ship) {
       const role = m.role ? ROLE_NAMES[m.role] : null;
-      return by === "ship" ? (role ?? "Aboard") : `${m.ship.model}${role ? ` · ${role}` : ""}`;
+      const base = by === "ship" ? (role ?? "Aboard") : `${m.ship.model}${role ? ` · ${role}` : ""}`;
+      return at ? `${base} · ${at}` : base;
     }
     // Grouped by ship, the group already names the ship they're aboard.
     if (by === "ship" && m.location?.aboard) return m.locomotion === "eva" ? "EVA" : "On foot";
-    return footLine(m, nameOf);
+    const foot = footLine(m, nameOf);
+    return at && !m.location?.aboard ? `${foot} · ${at}` : foot;
   }
   const names = $derived(new Map(rows.map((r) => [r.id, r.name])));
   const nameOf = (id: string) => names.get(id);

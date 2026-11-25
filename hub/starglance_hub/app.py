@@ -8,7 +8,8 @@ One port (8100), behind a reverse proxy that terminates https.
   ``/auth/*``
 - ``/api/agent/*``, ``/ws/agent``        agents: join, link, telemetry (bearer token)
 - ``/api/me/*``, ``/api/link/<code>``    the signed-in member's account and PCs
-- ``/api/admin/*``                       admins: members, invites, settings, API keys
+- ``/api/admin/*``                       admins: members, invites, settings, API keys,
+                                         problem reports
 - ``/api/v1/*``                          integrations (bots, scripts): API key
 - ``/ws/view``                           pages watch the fleet (session cookie)
 """
@@ -29,6 +30,7 @@ from aiohttp import WSMsgType, web
 from starglance_shared import RELEASES_URL
 
 from . import MIN_AGENT_VERSION, __version__
+from . import reports as reports_mod
 from .auth import SESSION_COOKIE, Auth, Discord, page, valid_next
 from .config import Config
 from .db import API_SCOPES, ROLES, Database, Member, clean_name, now_ms
@@ -92,6 +94,13 @@ def default_web_dir() -> Path:
 
 
 def _json_error(status: int, message: str) -> web.HTTPException:
+    if status == 413:
+        return web.HTTPRequestEntityTooLarge(
+            max_size=reports_mod.MAX_BYTES,
+            actual_size=0,
+            text=json.dumps({"error": message}),
+            content_type="application/json",
+        )
     cls = {
         400: web.HTTPBadRequest,
         401: web.HTTPUnauthorized,
@@ -175,7 +184,9 @@ class Hub:
                 if not member.active:
                     await self.fleet.drop_member(mid, "Your membership is suspended.")
             if rounds % 4 == 0:
-                pruned = self.db.prune(self.cfg.event_retention_days)
+                pruned = self.db.prune(
+                    self.cfg.event_retention_days, self.cfg.report_retention_days
+                )
                 if pruned:
                     log.info("Pruned %d old events", pruned)
 
@@ -216,6 +227,7 @@ class Hub:
                 web.post("/api/agent/login-link", self.agent_login_link),
                 web.post("/api/agent/unlink", self.agent_unlink),
                 web.get("/ws/agent", self.ws_agent),
+                web.post("/api/agent/report", self.agent_report),
                 # the signed-in member
                 web.get("/api/link/{code}", self.link_info),
                 web.post("/api/link/{code}/confirm", self.link_confirm),
@@ -229,6 +241,8 @@ class Hub:
                 web.post("/api/me/discord/disconnect", self.discord_disconnect),
                 web.get("/api/me/agents", self.my_agents),
                 web.post("/api/me/agents/{id}/revoke", self.revoke_agent),
+                web.get("/api/me/reports", self.my_reports),
+                web.delete("/api/me/reports/{id}", self.my_report_delete),
                 web.get("/ws/view", self.ws_view),
                 # admins
                 web.get("/api/admin/members", self.admin_members),
@@ -242,6 +256,11 @@ class Hub:
                 web.get("/api/admin/keys", self.admin_keys),
                 web.post("/api/admin/keys", self.admin_key_new),
                 web.delete("/api/admin/keys/{id}", self.admin_key_delete),
+                web.get("/api/admin/reports", self.admin_reports),
+                web.get("/api/admin/reports/{id}", self.admin_report),
+                web.get("/api/admin/reports/{id}/download", self.admin_report_download),
+                web.patch("/api/admin/reports/{id}", self.admin_report_update),
+                web.delete("/api/admin/reports/{id}", self.admin_report_delete),
                 # integrations (API key)
                 web.get("/api/v1/fleet", self.v1_fleet),
                 web.get("/api/v1/members/{id}", self.v1_member),
@@ -570,6 +589,86 @@ class Hub:
         agent, member = self._agent_member(request)
         self.db.revoke_agent(agent.id, member.id)
         await self.fleet.drop_agent(member.id, agent.id, "This PC left the fleet.")
+        return web.json_response({"ok": True})
+
+    # -- problem reports (docs/REPORTS.md): members send them, admins read them
+
+    async def agent_report(self, request: web.Request) -> web.Response:
+        """A member's PC sends a problem report (a zip the agent built and cleaned)."""
+        agent, member = self._agent_member(request)
+        if (request.content_length or 0) > reports_mod.MAX_BYTES:
+            raise _json_error(413, "The report is too big.")
+        chunks, total = [], 0
+        async for chunk in request.content.iter_chunked(64 * 1024):
+            total += len(chunk)
+            if total > reports_mod.MAX_BYTES:
+                raise _json_error(413, "The report is too big.")
+            chunks.append(chunk)
+        data = b"".join(chunks)
+        if self.db.reports_since(member.id, now_ms() - 86_400_000) >= reports_mod.PER_DAY:
+            raise _json_error(429, "That's a lot of reports today: try again tomorrow.")
+        try:
+            summary = reports_mod.check(data)
+        except reports_mod.BadReport as exc:
+            raise _json_error(400, str(exc)) from None
+        report_id = self.db.add_report(member.id, agent.machine, summary, data)
+        log.info("Problem report %d from %s (%d bytes)", report_id, member.name, len(data))
+        return web.json_response({"ok": True, "id": report_id, "org": self.auth.org_name()})
+
+    async def my_reports(self, request: web.Request) -> web.Response:
+        member = await self._member(request)
+        return web.json_response(self.db.reports(member.id))
+
+    async def my_report_delete(self, request: web.Request) -> web.Response:
+        member = await self._member(request)
+        if not self.db.delete_report(_int(request.match_info["id"]), member.id):
+            raise _json_error(404, "no such report")
+        return web.json_response({"ok": True})
+
+    def _a_report(self, request: web.Request) -> tuple[dict, bytes]:
+        found = self.db.report(_int(request.match_info["id"]))
+        if found is None:
+            raise _json_error(404, "no such report")
+        return found
+
+    async def admin_reports(self, request: web.Request) -> web.Response:
+        await self._admin(request)
+        return web.json_response(self.db.reports())
+
+    async def admin_report(self, request: web.Request) -> web.Response:
+        await self._admin(request)
+        meta, data = self._a_report(request)
+        files = reports_mod.texts(data)
+        return web.json_response({**meta, "texts": files})
+
+    async def admin_report_download(self, request: web.Request) -> web.Response:
+        await self._admin(request)
+        meta, data = self._a_report(request)
+        day = time.strftime("%Y-%m-%d", time.gmtime(meta["created_at"] / 1000))
+        return web.Response(
+            body=data,
+            content_type="application/zip",
+            headers={
+                "Content-Disposition": (
+                    f'attachment; filename="Starglance-report-{day}-{meta["id"]}.zip"'
+                ),
+                "Cache-Control": "no-store",
+            },
+        )
+
+    async def admin_report_update(self, request: web.Request) -> web.Response:
+        await self._admin(request)
+        status = (await _body(request)).get("status")
+        if status not in reports_mod.STATUSES:
+            raise _json_error(400, "status is new, forwarded or not_a_bug")
+        if not self.db.set_report_status(_int(request.match_info["id"]), status):
+            raise _json_error(404, "no such report")
+        return web.json_response({"ok": True})
+
+    async def admin_report_delete(self, request: web.Request) -> web.Response:
+        await self._admin(request)
+        if not self.db.delete_report(_int(request.match_info["id"])):
+            raise _json_error(404, "no such report")
         return web.json_response({"ok": True})
 
     async def revoke_agent(self, request: web.Request) -> web.Response:

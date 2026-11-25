@@ -147,6 +147,7 @@ class LocalServer:
                 web.post("/api/agent/update", self._agent_update),
                 web.post("/api/agent/update/auto", self._agent_update_auto),
                 web.post("/api/agent/update/check", self._agent_update_check),
+                web.post("/api/agent/update/check-now", self._agent_update_check_now),
                 web.post("/api/app/show", self._app_show),
                 web.get("/{tail:.*}", self.static),
             ]
@@ -327,6 +328,9 @@ class LocalServer:
         return await self._agent_call(
             request, lambda b: self.control.set_check_updates(bool(b.get("on")))
         )
+
+    async def _agent_update_check_now(self, request: web.Request) -> web.Response:
+        return await self._agent_call(request, lambda _b: self.control.check_updates_now())
 
     async def _app_show(self, _request: web.Request) -> web.Response:
         if self.on_show is None:

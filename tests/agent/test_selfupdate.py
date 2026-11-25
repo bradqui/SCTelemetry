@@ -337,3 +337,36 @@ def test_a_failed_check_is_quiet(monkeypatch):
         return u
 
     assert asyncio.run(main()).state == "idle"
+
+
+def test_check_now_asks_at_once_and_says_when(monkeypatch):
+    async def main():
+        u = Updater(Pipeline(), announce=str, exe=None)
+        u.set_check(False)  # the button works with the regular check off
+        asked = []
+
+        async def latest():
+            asked.append(True)
+            return NEW
+
+        u.latest = latest
+        status = await u.check_now()
+        assert status["available"] == NEW and status["checked"] and not status["checking"]
+        await u.check_now()  # clicked again at once: the answer stands
+        return asked
+
+    assert asyncio.run(main()) == [True]
+
+
+def test_check_now_says_when_github_cant_be_reached():
+    async def main():
+        u = Updater(Pipeline(), announce=str, exe=None)
+
+        async def latest():
+            raise OSError("offline")
+
+        u.latest = latest
+        return await u.check_now()
+
+    status = asyncio.run(main())
+    assert status["check_error"] and status["checked"] is None and not status["checking"]

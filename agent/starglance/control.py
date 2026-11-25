@@ -230,6 +230,12 @@ class AgentControl:
         self.updater.set_auto(on)
         return self.state()
 
+    async def check_updates_now(self) -> dict:
+        if self.updater is None:
+            raise LinkError("Updates aren't available here.")
+        await self.updater.check_now()
+        return self.state()
+
     def set_check_updates(self, on: bool) -> dict:
         if self.updater is None:
             raise LinkError("Updates aren't available here.")

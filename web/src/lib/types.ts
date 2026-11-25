@@ -328,5 +328,9 @@ export interface UpdaterStatus {
   auto: boolean;
   /** Ask GitHub for the latest release (at start and every few hours). */
   check: boolean;
+  /** When GitHub last answered (ms since epoch); null before the first answer. */
+  checked: number | null;
+  checking: boolean;
+  check_error: string | null;
   releases: string;
 }

@@ -22,6 +22,18 @@ Starglance's own **Deep Space** look (ink blue, ice cyan and amber) is the defau
   <figure><img src="/shots/theme-light.jpg" alt="Origin theme, light"><figcaption>Origin, light</figcaption></figure>
 </div>
 
+Each theme also draws its **instruments** its own way: the speed dial and the small climb-rate and G gauges.
+
+| Style | Themes | Looks like |
+|---|---|---|
+| Standard | Starglance, RSI, MISC | Bold arcs with a glow |
+| Glass | Origin, Crusader, Mirai, Aopoa, Gatac | Thin lines and a dot |
+| Analog | Drake, Consolidated Outland, Argo, Banu, Greycat | A bezel, a needle and a hazard band near the top |
+| Segmented | Aegis, Tumbril | Lit segments, like a military display |
+| Angular | Anvil, Kruger, Esperia | Corner brackets, square ends and a chevron pointer |
+
+Every style keeps the boost reserve inside the speed dial.
+
 Kruger and Gatac follow their in-game screens and Argo its documented orange UI. The rest interpret the lore; they'll be tuned as we collect screenshots of each maker's screens in game.
 
 ## Layouts and panels

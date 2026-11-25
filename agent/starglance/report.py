@@ -16,6 +16,7 @@ import io
 import json
 import logging
 import platform
+import shutil
 import socket
 import sys
 import zipfile
@@ -293,6 +294,7 @@ class Reports:
             "before": list(BEFORE_MIN),
             "after": list(AFTER_MIN),
             "parts": list(PARTS),
+            "fleets": self._fleets(),
             **self.status(),
         }
 
@@ -325,30 +327,74 @@ class Reports:
         self._draft = draft
         return {"id": draft.id, "name": draft.name, **contents}
 
-    def save(self, draft_id: str) -> dict:
+    def _the_draft(self, draft_id: str) -> Draft:
         d = self._draft
         if d is None or d.id != draft_id or not d.path.exists():
             raise ValueError("That report is gone; make it again.")
-        dest = downloads_dir() / d.name
-        if d.path.drive == dest.drive:
-            d.path.replace(dest)
-        else:
-            self._copy(d.path, dest)
-        self._draft = None
+        return d
+
+    def _reported(self, d: Draft) -> None:
+        """Sent or saved: its mark needn't keep those minutes any longer."""
         mark = d.issue.pop("mark", None)
         if mark:
             self.buffer.forget_mark(mark)
+
+    def save(self, draft_id: str) -> dict:
+        """For a GitHub issue: a copy in Downloads (the draft stays, to send it too)."""
+        d = self._the_draft(draft_id)
+        dest = downloads_dir() / d.name
+        shutil.copyfile(d.path, dest)
+        self._reported(d)
         show_in_folder(dest)
+        issue = {k: v for k, v in d.issue.items() if k != "mark"}
         return {
             "path": str(dest),
             "folder": str(dest.parent),
-            "issue_url": issue_url(name=d.name, **d.issue),
+            "issue_url": issue_url(name=d.name, **issue),
         }
 
-    @staticmethod
-    def _copy(src: Path, dest: Path) -> None:
-        dest.write_bytes(src.read_bytes())
-        src.unlink()
+    async def send(self, draft_id: str, hub: str) -> dict:
+        """To a fleet's admins: uploaded to its hub with this PC's key (docs/REPORTS.md)."""
+        import aiohttp
+
+        from .fleetlink import load_settings as fleet_settings
+        from .fleetlink import load_token
+
+        d = self._the_draft(draft_id)
+        fleet = fleet_settings().get(hub)
+        token = load_token(fleet.hub_url) if fleet else None
+        if fleet is None or not token:
+            raise ValueError("This PC isn't linked to that fleet.")
+        data = await asyncio.to_thread(d.path.read_bytes)
+        try:
+            async with (
+                aiohttp.ClientSession(
+                    timeout=aiohttp.ClientTimeout(total=60),
+                    headers={"Authorization": f"Bearer {token}"},
+                ) as http,
+                http.post(
+                    f"{fleet.hub_url}/api/agent/report",
+                    data=data,
+                    headers={"Content-Type": "application/zip"},
+                ) as resp,
+            ):
+                try:
+                    body = await resp.json(content_type=None)
+                except ValueError:
+                    body = {}
+                status = resp.status
+        except (aiohttp.ClientError, TimeoutError) as exc:
+            raise ValueError(f"Can't reach {fleet.label}'s hub: {exc}") from exc
+        body = body if isinstance(body, dict) else {}
+        if status in (404, 405):
+            raise ValueError(
+                f"{fleet.label}'s hub is too old to take reports. Ask its admin to update it, "
+                "or save the report for a GitHub issue."
+            )
+        if status != 200:
+            raise ValueError(body.get("error") or f"{fleet.label}'s hub refused it ({status}).")
+        self._reported(d)
+        return {"ok": True, "hub": fleet.hub_url, "label": fleet.label}
 
     def discard(self) -> dict:
         if self._draft is not None:
@@ -356,6 +402,18 @@ class Reports:
                 self._draft.path.unlink()
             self._draft = None
         return {"ok": True}
+
+    @staticmethod
+    def _fleets() -> list[dict]:
+        """The fleets a report can go to: linked ones, with their key on this PC."""
+        from .fleetlink import load_settings as fleet_settings
+        from .fleetlink import load_token
+
+        return [
+            {"hub": f.hub_url, "label": f.label}
+            for f in fleet_settings().fleets
+            if _safe(lambda f=f: load_token(f.hub_url))
+        ]
 
     def _context(self) -> dict:
         """What the build needs from the running agent (read on the loop thread)."""

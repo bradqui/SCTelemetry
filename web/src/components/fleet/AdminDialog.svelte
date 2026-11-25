@@ -2,12 +2,13 @@
   import { onMount } from "svelte";
   import { api, copy } from "../../lib/api";
   import { ago } from "../../lib/format";
+  import { issueUrl, type IssueFields } from "../../lib/issue";
   import type { Account } from "../../lib/types";
   import Dialog from "./Dialog.svelte";
 
   let { me, onClose }: { me: Account; onClose: () => void } = $props();
 
-  type Tab = "members" | "invites" | "integrations" | "settings";
+  type Tab = "members" | "invites" | "reports" | "integrations" | "settings";
   let tab = $state<Tab>("members");
   let error = $state("");
   const now = Date.now();
@@ -43,6 +44,17 @@
   let invites = $state<Invite[]>([]);
   let keys = $state<Key[]>([]);
   let settings = $state<Settings | null>(null);
+  interface Report extends IssueFields {
+    id: number;
+    member: { id: string; name: string };
+    machine: string | null;
+    created_at: number;
+    status: "new" | "forwarded" | "not_a_bug";
+    size: number;
+    windows: string | null;
+  }
+  let reports = $state<Report[]>([]);
+  const newReports = $derived(reports.filter((r) => r.status === "new").length);
 
   async function run(fn: () => Promise<unknown>) {
     error = "";
@@ -55,6 +67,7 @@
   const load = {
     members: async () => (members = await api<MemberRow[]>("GET", "/api/admin/members")),
     invites: async () => (invites = await api<Invite[]>("GET", "/api/admin/invites")),
+    reports: async () => (reports = await api<Report[]>("GET", "/api/admin/reports").catch(() => [])),
     integrations: async () => (keys = await api<Key[]>("GET", "/api/admin/keys")),
     settings: async () => (settings = await api<Settings>("GET", "/api/admin/settings")),
   };
@@ -112,6 +125,47 @@
     setTimeout(() => (copied = false), 1500);
   }
 
+  // -- problem reports members sent (docs/REPORTS.md)
+  let openReport = $state<number | null>(null);
+  let texts = $state<Record<string, string> | null>(null);
+  let shown = $state("gamelog.txt");
+  const STATUS: Record<Report["status"], string> = { new: "New", forwarded: "Forwarded", not_a_bug: "Not a bug" };
+  async function viewReport(r: Report) {
+    if (openReport === r.id) {
+      openReport = null;
+      return;
+    }
+    await run(async () => {
+      texts = null;
+      openReport = r.id;
+      texts = (await api<{ texts: Record<string, string> }>("GET", `/api/admin/reports/${r.id}`)).texts;
+      shown = texts["gamelog.txt"] ? "gamelog.txt" : "report.json";
+    });
+  }
+  async function setStatus(r: Report, status: string) {
+    await run(async () => {
+      await api("PATCH", `/api/admin/reports/${r.id}`, { status });
+      await load.reports();
+    });
+  }
+  async function deleteReport(r: Report) {
+    if (!confirm(`Delete ${r.member.name}'s report? It can't be brought back.`)) return;
+    await run(async () => {
+      await api("DELETE", `/api/admin/reports/${r.id}`);
+      if (openReport === r.id) openReport = null;
+      await load.reports();
+    });
+  }
+  function forward(r: Report) {
+    window.open(
+      issueUrl(r, "Sent through a fleet hub. Report file: drop it here."),
+      "_blank",
+      "noopener,noreferrer",
+    );
+    if (r.status === "new") void setStatus(r, "forwarded");
+  }
+  const kb = (n: number) => (n < 1024 ? `${n} B` : `${Math.round(n / 1024)} KB`);
+
   // -- integrations
   let keyName = $state("");
   let keyRead = $state(true);
@@ -158,8 +212,10 @@
 
 <Dialog title="Admin" wide {onClose}>
   <nav class="tabs">
-    {#each [["members", "Members"], ["invites", "Invites"], ["integrations", "Integrations"], ["settings", "Settings"]] as [id, label] (id)}
-      <button class:on={tab === id} onclick={() => (tab = id as Tab)}>{label}</button>
+    {#each [["members", "Members"], ["invites", "Invites"], ["reports", "Reports"], ["integrations", "Integrations"], ["settings", "Settings"]] as [id, label] (id)}
+      <button class:on={tab === id} onclick={() => (tab = id as Tab)}
+        >{label}{#if id === "reports" && newReports}<span class="count">{newReports}</span>{/if}</button
+      >
     {/each}
   </nav>
   {#if error}<p class="error">{error}</p>{/if}
@@ -234,6 +290,55 @@
           </div>
         {:else}
           <p>None. Links are only shown when they're created.</p>
+        {/each}
+      </div>
+    </section>
+  {:else if tab === "reports"}
+    <section>
+      <p>
+        Problem reports members sent from Starglance (Report a problem). They hold a few minutes of their telemetry and Game.log,
+        with names, IDs and addresses taken out, and are deleted after 30 days. A real bug? <b>Open a GitHub issue</b> fills in the
+        project's bug form; download the report and drop it in.
+      </p>
+      <div class="list">
+        {#each reports as r (r.id)}
+          <div class="report" class:done={r.status !== "new"}>
+            <div class="item">
+              <span class="grow"
+                ><b>{r.what.split("\n")[0] || "Problem report"}</b>
+                <small
+                  >{r.member.name}{r.machine ? ` (${r.machine})` : ""} · {ago(r.created_at, now)} · Starglance {r.agent_version ?? "?"}{r.game
+                    ? ` · ${r.game}`
+                    : ""} · {kb(r.size)}</small
+                ></span
+              >
+              <select value={r.status} onchange={(e) => setStatus(r, (e.target as HTMLSelectElement).value)} aria-label="Status">
+                {#each Object.entries(STATUS) as [id, label] (id)}<option value={id}>{label}</option>{/each}
+              </select>
+            </div>
+            <div class="row">
+              <button class="btn" onclick={() => viewReport(r)}>{openReport === r.id ? "Hide" : "View"}</button>
+              <a class="btn" href={`/api/admin/reports/${r.id}/download`} download>Download</a>
+              <button class="btn" onclick={() => forward(r)}>Open a GitHub issue</button>
+              <button class="btn danger" onclick={() => deleteReport(r)}>Delete</button>
+            </div>
+            {#if openReport === r.id}
+              {#if r.expected}<p><b>Expected:</b> {r.expected}</p>{/if}
+              {#if r.part}<p><b>Where:</b> {r.part}</p>{/if}
+              {#if texts}
+                <nav class="files">
+                  {#each Object.keys(texts) as name (name)}
+                    <button class:on={shown === name} onclick={() => (shown = name)}>{name}</button>
+                  {/each}
+                </nav>
+                <pre>{texts[shown] || "(empty)"}</pre>
+              {:else}
+                <p>Loading…</p>
+              {/if}
+            {/if}
+          </div>
+        {:else}
+          <p>None yet. Members send them from Starglance: Report a problem, then Send to my fleet's admins.</p>
         {/each}
       </div>
     </section>
@@ -323,6 +428,61 @@
   .tabs button.on {
     color: var(--text);
     border-bottom-color: var(--accent);
+  }
+  .count {
+    margin-left: 6px;
+    padding: 0 5px;
+    border-radius: 8px;
+    background: var(--warn);
+    color: var(--bg);
+    font-size: 0.68rem;
+  }
+  .report {
+    display: grid;
+    gap: 6px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--line);
+  }
+  .report.done b {
+    color: var(--text-2);
+  }
+  .report p {
+    margin: 0;
+    font-size: 0.85rem;
+  }
+  .files {
+    display: flex;
+    gap: 3px;
+    flex-wrap: wrap;
+  }
+  .files button {
+    border: 1px solid var(--line-2);
+    border-radius: var(--radius-sm);
+    background: var(--bg-2);
+    color: var(--text-2);
+    padding: 2px 8px;
+    font-size: 0.75rem;
+    cursor: pointer;
+  }
+  .files button.on {
+    color: var(--text);
+    border-color: var(--accent);
+  }
+  pre {
+    margin: 0;
+    max-height: 320px;
+    overflow: auto;
+    padding: 8px 10px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--bg-2);
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    white-space: pre;
+  }
+  a.btn {
+    text-decoration: none;
+    color: var(--text);
   }
   .item.off b {
     color: var(--text-3);

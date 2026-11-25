@@ -22,6 +22,8 @@ It never reads game memory, never touches Easy Anti-Cheat and never sends anythi
 - **Update notices**: when it starts and every few hours, and when you click **Check now** (Settings → Agent → Updates), the agent asks this project's GitHub page which release is the latest (one request to `github.com/bradqui/starglance/releases/latest`; the answer is a redirect naming the version). GitHub sees your IP address and that it's Starglance, as for any web request; nothing about you or your game is sent. Switch it off under **Settings → Agent → Updates → Check for new versions**. Your org's hub also says which agent version is current.
 - **Updates**, only when you click **Update** or switch on *Update automatically* (Settings → Agent; off by default): the app downloads that version's `starglance.exe` and its checksum file from this project's GitHub releases, and nothing else. GitHub sees the download, as for any download from a browser; nothing about you or your game is sent. The address is fixed in the app; a hub can only say which version is current, not where to download it.
 
+- **A problem report, only when you click Send** (Report a problem → *Send to my fleet's admins*): the report file goes to the hub of the fleet you pick, with this PC's key. Its admins see the whole file: a few minutes of your telemetry, Game.log and Starglance's log, with names, IDs and addresses taken out, including what you don't otherwise share with that fleet (where you were, combat). You see all of it before sending.
+
 If you never join a fleet, the agent sends nothing anywhere.
 
 **What it stores on your PC**
@@ -32,7 +34,7 @@ If you never join a fleet, the agent sends nothing anywhere.
 - **Updates**: whether automatic updates are on, and the last version installed that way, in `updates.json`. While updating, the previous exe sits next to the new one as `starglance.old.exe` for a few seconds.
 - **Start with Windows**, only if you switch it on (Settings → Agent, or the tray menu): one value named `Starglance` under `HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run`, which starts it in the tray when you sign in. Switching it off removes the value.
 - **The last 30 minutes, for problem reports** (Settings → Agent → Problem reports; on by default): what the game sent and what Starglance made of it, in `recent\`, with aUEC amounts removed. Anything older is deleted, except the 10 minutes around a moment you mark, which stay for a day. Switching it off deletes it all. It never leaves your PC by itself.
-- **Problem reports**, only when you make one: a file in your Downloads folder with the minutes you picked, the game's Game.log lines for them and Starglance's own log. Your handle, other players' names, account and session IDs, IP addresses, hub addresses and fleet names are replaced; you see all of it before it's saved. You choose whether to attach it to a GitHub issue, which is public. A hotkey to mark a moment, if you pick one, is registered with Windows only while Starglance runs.
+- **Problem reports**, only when you make one: a file in your Downloads folder with the minutes you picked, the game's Game.log lines for them and Starglance's own log. Your handle, other players' names, account and session IDs, IP addresses, hub addresses and fleet names are replaced; you see all of it before it's saved. You choose whether to send it to your fleet's admins (above) or attach it to a GitHub issue, which is public. A hotkey to mark a moment, if you pick one, is registered with Windows only while Starglance runs.
 - Recordings, only if you run the capture tool yourself (`tools/capture.py`, from the source code). They stay in a local folder, with aUEC amounts removed.
 
 **Stopping**
@@ -50,6 +52,7 @@ If you never join a fleet, the agent sends nothing anywhere.
 - your linked PCs: name, when last seen, and a hash of each PC's key;
 - the browsers signed in as you: a rough device name ("Safari on iPhone"), how and when they signed in, and when they were last active;
 - fleet events (seat changes, quantum jumps, contracts, kills…) for 30 days, by default;
+- problem reports you chose to send to the admins, for 30 days by default; you can delete yours under **Your account**;
 - live state (what you share right now) in memory only, while you're online.
 
 Org members see the fleet page. The org's admins can also manage members and invites, and can create API keys for bots, which can read the same fleet information.

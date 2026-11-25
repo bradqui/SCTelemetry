@@ -24,6 +24,7 @@
     before: number[];
     after: number[];
     parts: string[];
+    fleets: { hub: string; label: string }[];
   }
   interface Preview {
     id: string;
@@ -52,6 +53,8 @@
   let preview = $state<Preview | null>(null);
   let shown = $state("gamelog.txt");
   let saved = $state<Saved | null>(null);
+  let hub = $state("");
+  let sentTo = $state<string[]>([]);
 
   const status = $derived(reports ?? tl);
   const marks = $derived([...(status?.marks ?? [])].sort((a, b) => b.t - a.t));
@@ -61,6 +64,7 @@
     try {
       tl = await reportCall<Timeline>("timeline");
       part ||= tl.parts[0] ?? "";
+      hub ||= tl.fleets[0]?.hub ?? "";
       if (!pick) {
         const m = [...tl.marks].sort((a, b) => b.t - a.t)[0];
         pick = m ? { kind: "mark", id: m.id, t: m.t } : { kind: "now", t: tl.now };
@@ -108,6 +112,17 @@
   function back() {
     void reportCall("discard").catch(() => {});
     preview = null;
+    saved = null;
+    sentTo = [];
+  }
+  function send() {
+    if (!preview) return;
+    const id = preview.id;
+    const to = hub;
+    void run("send", async () => {
+      await reportCall("send", { id, hub: to });
+      sentTo = [...sentTo, to];
+    });
   }
   function save() {
     if (!preview) return;
@@ -130,7 +145,7 @@
     });
   }
   function close() {
-    if (preview && !saved) void reportCall("discard").catch(() => {});
+    if (preview) void reportCall("discard").catch(() => {}); // a saved copy is in Downloads
     onClose();
   }
   function onKey(e: KeyboardEvent) {
@@ -148,7 +163,7 @@
   <header>
     <div>
       <h2>Report a problem</h2>
-      <p>Makes one file to attach to a GitHub issue. Nothing is sent by Starglance.</p>
+      <p>One file for your fleet's admins or a GitHub issue. Nothing goes anywhere until you send it.</p>
     </div>
     <button class="btn" onclick={close}>Close</button>
   </header>
@@ -165,19 +180,6 @@
       something goes wrong.
     </p>
     <button class="btn primary" disabled={busy === "keep"} onclick={keepOn}>Keep the last {tl.keep_minutes} minutes</button>
-  {:else if saved}
-    <section class="done">
-      <p><b>Saved</b> to <code>{saved.path}</code> (Explorer shows it).</p>
-      <ol>
-        <li>Open the issue: it's filled in with what you wrote.</li>
-        <li>Drag the file into the <b>Log or recording</b> box, then submit.</li>
-      </ol>
-      <p class="warn">GitHub issues are public: anyone can read the issue and download the file.</p>
-      <div class="row">
-        <button class="btn primary" onclick={() => openExternal(saved!.issue_url)}>Open a GitHub issue</button>
-        <button class="btn" onclick={onClose}>Done</button>
-      </div>
-    </section>
   {:else if preview}
     <section class="preview">
       <p class="hint">
@@ -199,13 +201,50 @@
           <code>telemetry.protoset</code> (the game's message definitions){/if}.
       </p>
       <p class="warn">
-        This goes on a public GitHub issue. Your handle, other players' names, account and session IDs, addresses and fleet names are
-        replaced; your ship, location, server and what happened stay. Read it through: a name in a line Starglance doesn't know can
-        slip past.
+        Your handle, other players' names, account and session IDs, addresses and fleet names are replaced; your ship, location, server
+        and what happened stay. Read it through: a name in a line Starglance doesn't know can slip past.
       </p>
+
+      {#if tl.fleets.length}
+        {@const label = tl.fleets.find((f) => f.hub === hub)?.label ?? "your fleet"}
+        <div class="way">
+          <h3>Send to your fleet's admins</h3>
+          <p class="hint">
+            Only {label}'s admins see it, and all of it, including what you don't share with that fleet (where you were, combat). Its hub
+            keeps it for 30 days; you can delete it under Your account on the fleet page.
+          </p>
+          <div class="row">
+            {#if tl.fleets.length > 1}
+              <select bind:value={hub} aria-label="Fleet">
+                {#each tl.fleets as f (f.hub)}<option value={f.hub}>{f.label}</option>{/each}
+              </select>
+            {/if}
+            <button class="btn primary" disabled={busy === "send" || sentTo.includes(hub)} onclick={send}
+              >{sentTo.includes(hub) ? `Sent to ${label}'s admins` : busy === "send" ? "Sending…" : `Send to ${label}'s admins`}</button
+            >
+          </div>
+        </div>
+      {/if}
+
+      <div class="way">
+        <h3>{tl.fleets.length ? "Or a GitHub issue" : "A GitHub issue"}</h3>
+        <p class="hint">Public: anyone can read the issue and download the file. Needs a free GitHub account.</p>
+        {#if saved}
+          <p class="hint">
+            Saved to <code>{saved.path}</code> (Explorer shows it). Open the issue (it's filled in), drag the file into
+            <b>Log or recording</b>, and submit.
+          </p>
+          <button class="btn" onclick={() => openExternal(saved!.issue_url)}>Open a GitHub issue</button>
+        {:else}
+          <button class="btn" class:primary={!tl.fleets.length} disabled={busy === "save"} onclick={save}
+            >{busy === "save" ? "Saving…" : "Save for a GitHub issue"}</button
+          >
+        {/if}
+      </div>
+
       <div class="row">
-        <button class="btn primary" disabled={busy === "save"} onclick={save}>{busy === "save" ? "Saving…" : "Save to Downloads"}</button>
         <button class="btn" onclick={back}>Back</button>
+        {#if sentTo.length || saved}<button class="btn" onclick={close}>Done</button>{/if}
       </div>
     </section>
   {:else}
@@ -495,7 +534,7 @@
   }
   pre {
     margin: 0;
-    max-height: 320px;
+    max-height: 240px;
     overflow: auto;
     padding: 8px 10px;
     border: 1px solid var(--line);
@@ -527,14 +566,11 @@
     color: var(--bad);
     font-size: 0.85rem;
   }
-  .done p,
-  .done ol {
-    margin: 0;
-    font-size: 0.85rem;
-  }
-  .done ol {
-    padding-left: 20px;
+  .way {
     display: grid;
-    gap: 4px;
+    gap: 6px;
+    padding: 8px 10px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
   }
 </style>

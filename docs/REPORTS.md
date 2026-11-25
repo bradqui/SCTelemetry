@@ -2,7 +2,7 @@
 
 A player sees something wrong (a quantum jump counted twice, a kill that never showed), clicks **Report a problem**, picks the moment, and gets one file to attach to a GitHub issue. The maintainer replays that file and sees exactly what the agent saw and did.
 
-Decision 24 in SPEC.md. Nothing here sends anything anywhere: the agent writes a file, and the player attaches it to an issue themselves.
+Decision 24 in SPEC.md. Two ways to send one, both the player's choice: **to their fleet's admins**, through the hub they already use (no new account), or **as a GitHub issue** they attach the file to (a free GitHub account). The agent sends nothing by itself.
 
 ## The rolling buffer
 
@@ -38,9 +38,19 @@ A mark says "this moment": it doesn't have to be made at the time, since the las
 2. **How much:** 1–8 minutes before and 1–2 after; 3 and 1 by default.
 3. **What happened** (required), **what you expected**, and which part (as on the issue form).
 4. **Preview:** the report is built and its contents listed; each text file can be read in full, as it will be sent.
-5. **Save:** `Starglance-report-<date>-<time>.zip` goes to Downloads and Explorer shows it. **Open a GitHub issue** opens the bug form filled in (what happened, version, game version, part); the player drags the file in.
+5. **Send** it, either way (or both):
+   - **Send to my fleet's admins** (when the PC is in a fleet; with several, pick which): the agent uploads the file to that hub with the PC's key. The main button when there's a fleet.
+   - **Save for a GitHub issue:** `Starglance-report-<date>-<time>.zip` goes to Downloads and Explorer shows it. **Open a GitHub issue** opens the bug form filled in (what happened, version, game version, part); the player drags the file in. Needs a free GitHub account.
 
-The page says plainly that GitHub issues are public, and what the file holds.
+The page says plainly where it goes: GitHub issues are public; a fleet's admins see the whole file, including what the player doesn't share with that fleet (where they were, combat), since that's in Game.log.
+
+## On the hub
+
+- `POST /api/agent/report` (the PC's key): the zip, at most 4 MB. The hub checks it's a report (a zip with `report.json`, only the expected files, not too big unpacked), keeps it in its database with who sent it and from which PC, and reads the summary from `report.json`. At most 10 a day per member.
+- **Admin → Reports**: every report, newest first, with the count of new ones on the tab. Each shows who, when, what happened, the agent and game versions; **View** shows the text files; **Download**; **Open a GitHub issue** (the same pre-filled form, saying it came through a fleet hub; the admin drags the file in); a status (*New*, *Forwarded*, *Not a bug*); **Delete**.
+- **Your account → Reports you sent**: a member sees and can delete their own.
+- Deleted after 30 days (`HUB_REPORT_RETENTION_DAYS`), and with the member's account.
+- The hub never contacts GitHub and keeps no GitHub token: GitHub has no way for a program to attach a file to an issue anyway, so the admin's one drag is the same either way.
 
 ## The file
 

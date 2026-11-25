@@ -24,6 +24,13 @@
     current: boolean;
   }
   let devices = $state<Device[] | null>(null);
+  interface SentReport {
+    id: number;
+    created_at: number;
+    what: string;
+    status: string;
+  }
+  let sent = $state<SentReport[] | null>(null);
   const HOW: Record<string, string> = {
     invite: "joined with an invite",
     code: "signed in with a code",
@@ -41,9 +48,10 @@
   onMount(async () => {
     name = me.name;
     try {
-      [pcs, devices] = await Promise.all([
+      [pcs, devices, sent] = await Promise.all([
         api<Pc[]>("GET", "/api/me/agents"),
         api<Device[]>("GET", "/api/me/sessions"),
+        api<SentReport[]>("GET", "/api/me/reports").catch(() => []),
       ]);
     } catch (e) {
       error = String((e as Error).message);
@@ -58,6 +66,15 @@
       await api("PATCH", "/api/me", { name });
       saved = true;
       setTimeout(() => (saved = false), 1500);
+    } catch (e) {
+      error = (e as Error).message;
+    }
+  }
+  async function deleteReport(r: SentReport) {
+    if (!confirm("Delete this report? The admins won't see it any more.")) return;
+    try {
+      await api("DELETE", `/api/me/reports/${r.id}`);
+      sent = (sent ?? []).filter((x) => x.id !== r.id);
     } catch (e) {
       error = (e as Error).message;
     }
@@ -175,6 +192,24 @@
       {/if}
     {/if}
   </section>
+
+  {#if sent?.length}
+    <section>
+      <h3>Problem reports you sent</h3>
+      <p>The admins can read these. They're deleted after 30 days, or now if you'd rather.</p>
+      <div class="list">
+        {#each sent as r (r.id)}
+          <div class="item">
+            <span class="grow"
+              ><b>{r.what.split("\n")[0] || "Problem report"}</b>
+              <small>{ago(r.created_at, now)}{r.status === "forwarded" ? " · sent on to the project" : ""}</small></span
+            >
+            <button class="btn danger" onclick={() => deleteReport(r)}>Delete</button>
+          </div>
+        {/each}
+      </div>
+    </section>
+  {/if}
 
   <section>
     <h3>Sign in on another device</h3>

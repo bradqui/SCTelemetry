@@ -109,6 +109,21 @@ MIGRATIONS: list[str] = [
     ALTER TABLE sessions ADD COLUMN how TEXT;        -- invite | code | link | discord | dev
     ALTER TABLE sessions ADD COLUMN last_seen INTEGER;
     """,
+    # 3: problem reports members send to the admins (docs/REPORTS.md)
+    """
+    CREATE TABLE reports (
+        id          INTEGER PRIMARY KEY,
+        member_id   TEXT NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+        machine     TEXT,                                -- the PC it came from
+        created_at  INTEGER NOT NULL,
+        status      TEXT NOT NULL DEFAULT 'new',         -- new | forwarded | not_a_bug
+        summary     TEXT NOT NULL,                       -- JSON, from the report's report.json
+        size        INTEGER NOT NULL,
+        zip         BLOB NOT NULL
+    );
+    CREATE INDEX reports_member ON reports(member_id, created_at);
+    CREATE INDEX reports_created ON reports(created_at);
+    """,
 ]
 
 SESSION_DAYS = 30
@@ -679,14 +694,71 @@ class Database:
             for r in reversed(rows)
         ]
 
-    def prune(self, retention_days: int) -> int:
+    def prune(self, retention_days: int, report_days: int = 30) -> int:
         cutoff = now_ms() - retention_days * 86_400_000
         n = self.conn.execute("DELETE FROM events WHERE t < ?", (cutoff,)).rowcount
+        self.conn.execute(
+            "DELETE FROM reports WHERE created_at < ?", (now_ms() - report_days * 86_400_000,)
+        )
         t = now_ms()
         self.conn.execute("DELETE FROM sessions WHERE expires_at < ?", (t,))
         self.conn.execute("DELETE FROM pair_codes WHERE expires_at < ?", (t,))
         self.conn.execute("DELETE FROM login_links WHERE expires_at < ?", (t,))
         return n
+
+    # -- problem reports (reports.py): sent by members, read by admins
+
+    def add_report(self, member_id: str, machine: str | None, summary: dict, data: bytes) -> int:
+        cur = self.conn.execute(
+            "INSERT INTO reports (member_id, machine, created_at, summary, size, zip) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (member_id, machine, now_ms(), json.dumps(summary), len(data), data),
+        )
+        return int(cur.lastrowid or 0)
+
+    def reports_since(self, member_id: str, since: int) -> int:
+        row = self._one(
+            "SELECT COUNT(*) FROM reports WHERE member_id=? AND created_at >= ?", member_id, since
+        )
+        return int(row[0]) if row else 0
+
+    def reports(self, member_id: str | None = None) -> list[dict]:
+        """Newest first, without the files; one member's, or everyone's (admins)."""
+        sql = (
+            "SELECT r.id, r.member_id, m.name, r.machine, r.created_at, r.status, r.summary, "
+            "r.size FROM reports r JOIN members m ON m.id = r.member_id"
+        )
+        args: tuple = ()
+        if member_id is not None:
+            sql += " WHERE r.member_id=?"
+            args = (member_id,)
+        rows = self.conn.execute(sql + " ORDER BY r.created_at DESC, r.id DESC", args)
+        return [_report(row) for row in rows]
+
+    def report(self, report_id: int) -> tuple[dict, bytes] | None:
+        row = self._one(
+            "SELECT r.id, r.member_id, m.name, r.machine, r.created_at, r.status, r.summary, "
+            "r.size, r.zip FROM reports r JOIN members m ON m.id = r.member_id WHERE r.id=?",
+            report_id,
+        )
+        return (_report(row), bytes(row["zip"])) if row else None
+
+    def set_report_status(self, report_id: int, status: str) -> bool:
+        cur = self.conn.execute("UPDATE reports SET status=? WHERE id=?", (status, report_id))
+        return cur.rowcount > 0
+
+    def delete_report(self, report_id: int, member_id: str | None = None) -> bool:
+        if member_id is None:
+            cur = self.conn.execute("DELETE FROM reports WHERE id=?", (report_id,))
+        else:
+            cur = self.conn.execute(
+                "DELETE FROM reports WHERE id=? AND member_id=?", (report_id, member_id)
+            )
+        return cur.rowcount > 0
+
+    def new_reports(self) -> int:
+        row = self._one("SELECT COUNT(*) FROM reports WHERE status='new'")
+        return int(row[0]) if row else 0
 
     # -- settings (changed by admins on the page)
 
@@ -728,6 +800,18 @@ def _invite(row: sqlite3.Row) -> Invite:
         uses=row["uses"],
         revoked=bool(row["revoked"]),
     )
+
+
+def _report(row: sqlite3.Row) -> dict:
+    return {
+        "id": row["id"],
+        "member": {"id": row["member_id"], "name": row["name"]},
+        "machine": row["machine"],
+        "created_at": row["created_at"],
+        "status": row["status"],
+        "size": row["size"],
+        **json.loads(row["summary"]),
+    }
 
 
 def _key(row: sqlite3.Row) -> dict:

@@ -160,6 +160,7 @@ class LocalServer:
                 web.post("/api/agent/report/timeline", self._report_timeline),
                 web.post("/api/agent/report/preview", self._report_preview),
                 web.post("/api/agent/report/save", self._report_save),
+                web.post("/api/agent/report/send", self._report_send),
                 web.post("/api/agent/report/discard", self._report_discard),
                 web.post("/api/app/show", self._app_show),
                 web.get("/{tail:.*}", self.static),
@@ -377,6 +378,12 @@ class LocalServer:
     async def _report_save(self, request: web.Request) -> web.Response:
         return await self._agent_call(
             request, lambda b: self.control._reports().save(str(b.get("id", "")))
+        )
+
+    async def _report_send(self, request: web.Request) -> web.Response:
+        return await self._agent_call(
+            request,
+            lambda b: self.control._reports().send(str(b.get("id", "")), str(b.get("hub", ""))),
         )
 
     async def _report_discard(self, request: web.Request) -> web.Response:

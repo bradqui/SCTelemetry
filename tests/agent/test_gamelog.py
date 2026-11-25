@@ -487,3 +487,28 @@ def test_pipeline_adds_the_handle_and_aboard():
     # Shared under "location", the handle under "status".
     hidden = apply_sharing(snap, ["status"])
     assert hidden.location is None and hidden.status.handle == ME
+
+
+def _four_legs(log: bool) -> list[str]:
+    """The four-leg recording (legs of 1, 1, 2 and 25 s, 10-15 s apart), with or
+    without its route in Game.log: the quantum events it makes."""
+    p = Pipeline()
+    events = []
+    p.subscribe(lambda kind, payload: events.append(payload) if kind == "event" else None)
+    frames = list(read_frames(Path(__file__).parents[2] / "fixtures" / "quantum-travel.jsonl.gz"))
+    if log:
+        p.on_log(SELECTED, frames[0][0])
+    for t, raw in frames:
+        p.on_frame(raw, t)
+    if log:
+        p.on_log(ARRIVED, frames[-1][0])
+    return [e.kind for e in events if e.kind.startswith("quantum")]
+
+
+def test_a_quantum_trip_is_one_jump_however_many_legs():
+    """Players see one jump: no "dropped out" right after the first short leg."""
+    assert _four_legs(log=True) == ["quantum_route", "quantum_start", "quantum_arrived"]
+
+
+def test_without_game_log_each_leg_ends_on_its_own():
+    assert _four_legs(log=False) == ["quantum_start", "quantum_end"] * 4

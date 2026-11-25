@@ -46,7 +46,7 @@ Kruger and Gatac follow their in-game screens and Argo its documented orange UI.
 
 **Settings → Flight phases → Follow the flight** lets the dashboard follow what you're doing (takeoff and landing, cruise, quantum, combat, on foot). Panels never move, so your eyes always know where things are; only the emphasis changes.
 
-- **Spotlight** lights the panels that matter now and dims the rest: in combat, Hull & shields, Warnings, Weapons and Power; when landing, Flight, Warnings and Fuel.
+- **Spotlight** lights the panels that matter now and dims the rest: in combat, Ship, Weapons and Power; when landing, Flight, Ship and Fuel.
 - **Focus strip** adds one slim band at the top with that phase's numbers: height above ground, climb rate and gear when landing; shields, warnings, guns and decoys in combat.
 - **Both**, or **Off** (the default).
 

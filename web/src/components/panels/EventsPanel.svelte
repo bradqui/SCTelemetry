@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { showing } from "../../lib/panels";
   import { fly } from "svelte/transition";
   import type { PanelCtx } from "../../lib/context";
   import {
@@ -54,9 +55,25 @@
         ]
       : [],
   );
+
+  // The Contract panel isn't on screen: show an active (or just-ended) contract here.
+  const pinned = $derived(
+    !showing(ctx.prefs, ctx.compact, "mission") ? (ctx.snap.missions?.[0] ?? null) : null,
+  );
 </script>
 
 <div class="activity">
+  <div class="left">
+  {#if pinned}
+    <div class="pinned {pinned.state}" title={pinned.title ?? "Contract"}>
+      <span class="badge">{pinned.state === "active" ? "Contract" : pinned.state}</span>
+      <span class="ptitle">{pinned.title ?? "Objective"}</span>
+      {#if pinned.objective}
+        <span class="pobj" class:done={pinned.objective_done}>{pinned.objective_done ? "✓" : "▢"} {pinned.objective}</span>
+      {/if}
+      {#if (ctx.snap.missions?.length ?? 0) > 1}<span class="more">+{(ctx.snap.missions?.length ?? 1) - 1}</span>{/if}
+    </div>
+  {/if}
   {#if stats.length}
     <div class="stats">
       {#each stats as s (s.label)}
@@ -80,7 +97,10 @@
         </div>
       </div>
     {/key}
-
+  {/if}
+  </div>
+  {#if latest}
+  <div class="right">
     <div class="filters" role="tablist" aria-label="Filter activity">
       <button class:on={filter === "all"} onclick={() => (filter = "all")} role="tab" aria-selected={filter === "all"}>
         All
@@ -114,6 +134,7 @@
         <li class="none">Nothing else {filter === "all" ? "yet" : "in this category"}.</li>
       {/each}
     </ol>
+  </div>
   {:else}
     <p class="empty">
       Nothing yet. Contracts, kills, zones, quantum jumps, seats, takeoff and warnings show up here as they happen.
@@ -253,7 +274,7 @@
     padding: 0;
     display: grid;
     gap: 2px;
-    max-height: 104px; /* about four rows: keeps the dashboard on one 1080p screen */
+    max-height: 78px; /* three rows (it scrolls): keeps the dashboard on one 1080p screen */
     overflow-y: auto;
     scrollbar-width: thin;
   }
@@ -313,5 +334,73 @@
     margin: 0;
     color: var(--text-3);
     font-size: 0.85rem;
+  }
+  .pinned {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas: "badge title more" "obj obj obj";
+    gap: 2px 8px;
+    align-items: baseline;
+    margin-bottom: 8px;
+    padding: 5px 9px;
+    border-radius: var(--radius-sm);
+    border-left: 3px solid var(--accent-2, var(--accent));
+    background: color-mix(in srgb, var(--accent-2, var(--accent)) 8%, transparent);
+  }
+  .pinned .badge {
+    grid-area: badge;
+    font-size: 0.6rem;
+    font-weight: 750;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent-2, var(--accent));
+  }
+  .pinned.complete .badge {
+    color: var(--good);
+  }
+  .pinned.failed .badge,
+  .pinned.abandoned .badge {
+    color: var(--bad);
+  }
+  .ptitle {
+    grid-area: title;
+    font-weight: 650;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .pobj {
+    grid-area: obj;
+    font-size: 0.78rem;
+    color: var(--text-2);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .pobj.done {
+    color: var(--good);
+  }
+  .more {
+    grid-area: more;
+    font-size: 0.7rem;
+    color: var(--text-3);
+  }
+  .left,
+  .right {
+    display: grid;
+    gap: inherit;
+    align-content: start;
+    min-width: 0;
+  }
+  /* Wide: the contract, counts and latest event on the left; filters and the list right. */
+  @container panel (min-width: 760px) {
+    .activity:has(.right) {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+      align-items: start;
+      column-gap: 14px;
+    }
+    .right ol {
+      max-height: 132px;
+    }
   }
 </style>

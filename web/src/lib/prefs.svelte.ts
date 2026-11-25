@@ -1,7 +1,7 @@
 import { defaultAlerts, loadAlerts, type Alerts } from "./alerts";
 import type { Destroyed } from "./format";
 import type { Focus } from "./phase";
-import { COMPACT_PRESETS, PRESETS, repairLayout, type Layout } from "./panels";
+import { COMPACT_PRESETS, PRESETS, repairLayout, upgradeLayout, type Layout } from "./panels";
 import { DEFAULT_THEME, THEME_BY_ID, type Scheme } from "./themes";
 
 export interface Prefs {
@@ -63,8 +63,8 @@ function load(): Prefs {
       destroyed: ["none", "fleet", "players", "all"].includes(raw.destroyed) ? raw.destroyed : d.destroyed,
       awake: raw.awake === true,
       focus: ["spot", "strip", "both"].includes(raw.focus) ? raw.focus : "off",
-      full: repairLayout(raw.full, d.full),
-      compact: repairLayout(raw.compact, d.compact),
+      full: upgradeLayout(repairLayout(raw.full, d.full)),
+      compact: upgradeLayout(repairLayout(raw.compact, d.compact)),
     };
   } catch {
     return d;

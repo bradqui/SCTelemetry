@@ -130,6 +130,7 @@
 <style>
   .spark {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: 2px;
     min-width: 0;
   }
@@ -153,7 +154,11 @@
     cursor: crosshair;
     touch-action: pan-y;
   }
+  /* Out of the flow: the plot takes its column's width, and the drawing follows it (an
+     in-flow svg would hold the column at its first width). */
   svg {
+    position: absolute;
+    inset: 0;
     display: block;
     overflow: hidden;
   }

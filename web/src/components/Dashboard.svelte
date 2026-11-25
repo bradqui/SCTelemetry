@@ -13,6 +13,7 @@
   import MissionPanel from "./panels/MissionPanel.svelte";
   import PowerPanel from "./panels/PowerPanel.svelte";
   import ShipPanel from "./panels/ShipPanel.svelte";
+  import ShipStatusPanel from "./panels/ShipStatusPanel.svelte";
   import TrendsPanel from "./panels/TrendsPanel.svelte";
   import VitalsPanel from "./panels/VitalsPanel.svelte";
   import WarningsPanel from "./panels/WarningsPanel.svelte";
@@ -38,6 +39,7 @@
     flight: FlightPanel,
     ship: ShipPanel,
     warnings: WarningsPanel,
+    status: ShipStatusPanel,
     trends: TrendsPanel,
     fuel: FuelPanel,
     power: PowerPanel,
@@ -59,11 +61,34 @@
       (s) =>
         !s.hidden &&
         !(s.id === "wingmates" && ctx.wing === undefined) && // the hub's pages: not yours to show
+        !(s.id === "wingmates" && ctx.wing === null && !editing) && // not in a fleet: nothing to show
         (editing || !(PANELS[s.id].ship && !inShip && ctx.prefs.autoHide)),
     );
     if (next.length === shown.length && next.every((s, i) => s === shown[i])) return shown;
     shown = next;
     return next;
+  });
+
+  // No holes: a row that doesn't reach the edge (a panel hidden on foot, Wingmates with no
+  // fleet) widens its last panel to fill it. Not while arranging, so spans stay as set.
+  const fill = $derived.by(() => {
+    const out = new Map<PanelId, number>();
+    if (editing) return out;
+    let used = 0;
+    let row: typeof visible = [];
+    const close = () => {
+      const last = row[row.length - 1];
+      if (last && used < 12) out.set(last.id, last.span + (12 - used));
+      row = [];
+      used = 0;
+    };
+    for (const slot of visible) {
+      if (used + slot.span > 12) close();
+      row.push(slot);
+      used += slot.span;
+    }
+    close();
+    return out;
   });
 
   /** Slide panels to their new places; no scaling (it stretches the text mid-move). */
@@ -133,7 +158,7 @@
     {@const info = PANELS[slot.id]}
     {@const Panel = COMPONENTS[slot.id]}
     <div
-      class="cell s{slot.span}"
+      class="cell s{fill.get(slot.id) ?? slot.span}"
       class:dragging={dragging === slot.id}
       animate:slide
       draggable={editing}
@@ -194,13 +219,33 @@
   .s12 {
     grid-column: span 12;
   }
+  .s5 {
+    grid-column: span 5;
+  }
+  .s7 {
+    grid-column: span 7;
+  }
+  .s9 {
+    grid-column: span 9;
+  }
+  .s10 {
+    grid-column: span 10;
+  }
+  .s11 {
+    grid-column: span 11;
+  }
   /* Narrower screens: small panels grow so nothing gets cramped. */
   @container dash (max-width: 1100px) {
     .dash:not(.compact) > .s3,
-    .dash:not(.compact) > .s4 {
+    .dash:not(.compact) > .s4,
+    .dash:not(.compact) > .s5,
+    .dash:not(.compact) > .s7 {
       grid-column: span 6;
     }
-    .dash:not(.compact) > .s8 {
+    .dash:not(.compact) > .s8,
+    .dash:not(.compact) > .s9,
+    .dash:not(.compact) > .s10,
+    .dash:not(.compact) > .s11 {
       grid-column: span 12;
     }
   }

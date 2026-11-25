@@ -5,6 +5,7 @@ export const PANEL_IDS = [
   "flight",
   "ship",
   "warnings",
+  "status",
   "trends",
   "fuel",
   "power",
@@ -35,9 +36,14 @@ export interface PanelInfo {
 
 export const PANELS: Record<PanelId, PanelInfo> = {
   heading: { title: "Heading", blurb: "Compass tape", ship: true },
-  flight: { title: "Flight", blurb: "Speed dial, altitude, vertical speed, G", ship: true },
+  flight: {
+    title: "Flight",
+    blurb: "Speed dial, altitude, climb, G; the compass and their history when those panels are off",
+    ship: true,
+  },
   ship: { title: "Hull & shields", blurb: "Ship diagram, hull and shield levels", ship: true },
   warnings: { title: "Warnings", blurb: "The ten warning lights, gear, landed", ship: true },
+  status: { title: "Ship", blurb: "Hull, shields, power, gear and the ten warning lights", ship: true },
   trends: { title: "Trends", blurb: "Speed, altitude and G over the last 3 minutes", ship: true },
   fuel: { title: "Fuel", blurb: "Hydrogen, quantum fuel, boost", ship: true },
   power: { title: "Power", blurb: "Which ship systems are on", ship: true },
@@ -45,7 +51,11 @@ export const PANELS: Record<PanelId, PanelInfo> = {
   vitals: { title: "Vitals", blurb: "Health, oxygen, hunger, thirst, heart rate", ship: false },
   environment: { title: "Environment", blurb: "Temperature, gravity, pressure, air", ship: false },
   mission: { title: "Contract", blurb: "Current contract, objective, rewards", ship: false },
-  events: { title: "Activity", blurb: "What just happened, session counts, filters", ship: false },
+  events: {
+    title: "Activity",
+    blurb: "What just happened, session counts, filters; your contract when that panel is off",
+    ship: false,
+  },
   wingmates: { title: "Wingmates", blurb: "Your fleet: ship, mode, speed, altitude (when linked)", ship: false },
 };
 
@@ -78,17 +88,13 @@ export const PRESETS: Preset[] = [
     title: "Pilot",
     blurb: "Everything, flight first",
     layout: layout([
-      ["heading", 12],
       ["flight", 6],
-      ["ship", 3],
-      ["warnings", 3],
+      ["status", 6],
       ["fuel", 3],
       ["power", 3],
       ["weapons", 3],
       ["vitals", 3],
-      ["mission", 3],
       ["events", 6],
-      ["trends", 3],
       ["wingmates", 6],
     ]),
   },
@@ -97,15 +103,13 @@ export const PRESETS: Preset[] = [
     title: "Combat",
     blurb: "Shields, warnings and guns up front",
     layout: layout([
-      ["ship", 4],
-      ["warnings", 4],
-      ["weapons", 4],
+      ["status", 6],
       ["flight", 6],
+      ["weapons", 3],
       ["power", 3],
       ["fuel", 3],
-      ["events", 6],
-      ["mission", 3],
       ["vitals", 3],
+      ["events", 6],
       ["wingmates", 6],
     ]),
   },
@@ -114,13 +118,11 @@ export const PRESETS: Preset[] = [
     title: "Explorer",
     blurb: "Trends, environment and vitals",
     layout: layout([
-      ["heading", 12],
       ["flight", 6],
-      ["trends", 6],
       ["environment", 3],
       ["vitals", 3],
-      ["mission", 3],
-      ["events", 3],
+      ["events", 8],
+      ["fuel", 4],
     ]),
   },
   {
@@ -129,9 +131,7 @@ export const PRESETS: Preset[] = [
     blurb: "Just the essentials",
     layout: layout([
       ["flight", 8],
-      ["warnings", 4],
-      ["ship", 6],
-      ["fuel", 6],
+      ["status", 4],
     ]),
   },
 ];
@@ -142,12 +142,10 @@ export const COMPACT_PRESETS: Preset[] = [
     title: "VR overlay",
     blurb: "Narrow, for OVR Toolkit or XSOverlay",
     layout: layout([
-      ["heading", 12],
       ["flight", 12],
-      ["warnings", 12],
-      ["ship", 6],
+      ["status", 12],
       ["fuel", 6],
-      ["weapons", 12],
+      ["weapons", 6],
       ["mission", 12],
       ["vitals", 12],
     ]),
@@ -162,6 +160,33 @@ export const COMPACT_PRESETS: Preset[] = [
     ]),
   },
 ];
+
+/** Is this panel on screen in the layout in use (full or compact)? Panels use it to take
+ * over a job when its own panel is off: Flight draws the compass and the history when the
+ * Heading and Trends panels aren't shown; Activity shows the contract when Contract isn't. */
+export function showing(prefs: { full: Layout; compact: Layout }, compact: boolean, id: PanelId): boolean {
+  return (compact ? prefs.compact : prefs.full).some((s) => s.id === id && !s.hidden);
+}
+
+/** The built-in layouts before 0.10, by their visible panels: a saved layout still exactly
+ * one of these (never customized) moves to that preset's new version. */
+const OLD_PRESETS: Record<string, string> = {
+  "heading:12,flight:6,ship:3,warnings:3,fuel:3,power:3,weapons:3,vitals:3,mission:3,events:6,trends:3,wingmates:6": "pilot",
+  "ship:4,warnings:4,weapons:4,flight:6,power:3,fuel:3,events:6,mission:3,vitals:3,wingmates:6": "combat",
+  "heading:12,flight:6,trends:6,environment:3,vitals:3,mission:3,events:3": "explorer",
+  "flight:8,warnings:4,ship:6,fuel:6": "minimal",
+  "heading:12,flight:12,warnings:12,ship:6,fuel:6,weapons:12,mission:12,vitals:12": "vr",
+};
+
+export function upgradeLayout(saved: Layout): Layout {
+  const key = saved
+    .filter((s) => !s.hidden)
+    .map((s) => `${s.id}:${s.span}`)
+    .join(",");
+  const id = OLD_PRESETS[key];
+  const preset = id ? [...PRESETS, ...COMPACT_PRESETS].find((p) => p.id === id) : undefined;
+  return preset ? structuredClone(preset.layout) : saved;
+}
 
 /** A saved layout with any panels added since it was saved appended (hidden). */
 export function repairLayout(saved: unknown, fallback: Layout): Layout {

@@ -18,10 +18,10 @@ export const PHASE_NAMES: Record<Phase, string> = {
 /** The panels Spotlight lights in each phase. */
 export const SPOTLIGHT: Record<Phase, PanelId[]> = {
   foot: ["vitals", "environment", "mission", "events"],
-  landing: ["flight", "warnings", "fuel"],
-  cruise: ["flight", "heading", "fuel", "mission"],
+  landing: ["flight", "status", "warnings", "fuel"],
+  cruise: ["flight", "heading", "fuel", "mission", "events"],
   quantum: ["flight", "fuel", "events"],
-  combat: ["ship", "warnings", "weapons", "power"],
+  combat: ["status", "ship", "warnings", "weapons", "power"],
 };
 
 const LIT = new Set(["minor", "minor_flashing", "major", "major_flashing"]);

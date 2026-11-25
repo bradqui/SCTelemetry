@@ -2,13 +2,14 @@
   import { pct } from "../../lib/format";
 
   // A small donut for a 0-1 level, coloured by level.
-  let { value, label }: { value: number | null; label: string } = $props();
+  let { value, label, size = 58 }: { value: number | null; label: string; size?: number } = $props();
   const level = $derived(value == null ? null : Math.max(0, Math.min(1, value)));
   const color = $derived(level == null ? "muted" : level < 0.25 ? "bad" : level < 0.5 ? "warn" : "good");
 </script>
 
 <div
   class="ring {color}"
+  style:--size="{size}px"
   role="meter"
   aria-label={label}
   aria-valuenow={level ?? undefined}
@@ -44,7 +45,7 @@
   }
   .dial {
     position: relative;
-    width: min(100%, 58px);
+    width: min(100%, var(--size, 58px));
     aspect-ratio: 1;
     display: grid;
     place-items: center;
@@ -69,7 +70,7 @@
   }
   .v {
     font-weight: 700;
-    font-size: 0.8rem;
+    font-size: calc(var(--size, 58px) * 0.22);
   }
   .muted .v {
     color: var(--text-3);

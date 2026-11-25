@@ -30,6 +30,16 @@ Kruger and Gatac follow their in-game screens and Argo its documented orange UI.
 - **Panels**: show or hide each one, and set its width (¼, ⅓, ½, ⅔ or full).
 - **Move** a panel by dragging it on the dashboard while Settings is open.
 
+## Following the flight
+
+**Settings → Flight phases → Follow the flight** lets the dashboard follow what you're doing (takeoff and landing, cruise, quantum, combat, on foot). Panels never move, so your eyes always know where things are; only the emphasis changes.
+
+- **Spotlight** lights the panels that matter now and dims the rest: in combat, Hull & shields, Warnings, Weapons and Power; when landing, Flight, Warnings and Fuel.
+- **Focus strip** adds one slim band at the top with that phase's numbers: height above ground, climb rate and gear when landing; shields, warnings, guns and decoys in combat.
+- **Both**, or **Off** (the default).
+
+The Focus strip takes about 45 px; everything else fits a 1080p screen as it is.
+
 ## Look
 
 - **HUD effects**: glow, scanlines and animations.

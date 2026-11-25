@@ -19,7 +19,18 @@
   import WeaponsPanel from "./panels/WeaponsPanel.svelte";
   import WingmatesPanel from "./panels/WingmatesPanel.svelte";
 
-  let { ctx, layout, editing = false }: { ctx: PanelCtx; layout: Layout; editing?: boolean } = $props();
+  let {
+    ctx,
+    layout,
+    editing = false,
+    spotlight = null,
+  }: {
+    ctx: PanelCtx;
+    layout: Layout;
+    editing?: boolean;
+    /** Spotlight: the panels that matter in this flight phase (the rest dim). */
+    spotlight?: PanelId[] | null;
+  } = $props();
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const COMPONENTS: Record<PanelId, Component<{ ctx: any }>> = {
@@ -140,6 +151,8 @@
         span={slot.span}
         {editing}
         bare={slot.id === "heading"}
+        lit={!editing && !!spotlight && spotlight.includes(slot.id)}
+        dim={!editing && !!spotlight && !spotlight.includes(slot.id)}
         pulse={pulses[slot.id] ?? null}
         onSpan={(s) => setSpan(slot.id, s)}
         onHide={() => hide(slot.id)}

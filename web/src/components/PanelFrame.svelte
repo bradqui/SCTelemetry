@@ -8,6 +8,8 @@
     editing = false,
     pulse = null,
     bare = false,
+    lit = false,
+    dim = false,
     children,
     onSpan,
     onHide,
@@ -20,6 +22,9 @@
     pulse?: { n: number; tone: string } | null;
     /** Less padding (the heading strip). */
     bare?: boolean;
+    /** Spotlight (Settings → Flight phases): this panel matters now, or doesn't. */
+    lit?: boolean;
+    dim?: boolean;
     children: Snippet;
     onSpan?: (s: Span) => void;
     onHide?: () => void;
@@ -41,7 +46,7 @@
   });
 </script>
 
-<section class="frame panel-frame" class:bare class:editing bind:this={el} aria-label={title}>
+<section class="frame panel-frame" class:bare class:editing class:lit class:dim bind:this={el} aria-label={title}>
   <header>
     <span class="label panel-title">{title}</span>
     {#if editing}
@@ -76,6 +81,26 @@
     min-width: 0;
     display: flex;
     flex-direction: column;
+  }
+  .frame {
+    transition:
+      opacity 0.35s ease,
+      border-color 0.35s ease,
+      box-shadow 0.35s ease;
+  }
+  .frame.dim {
+    opacity: 0.5;
+  }
+  .frame.lit {
+    border-color: var(--accent);
+    box-shadow:
+      0 0 0 1px var(--accent),
+      0 0 18px -6px var(--accent);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .frame {
+      transition: none;
+    }
   }
   /* HUD corner brackets */
   .frame::before,

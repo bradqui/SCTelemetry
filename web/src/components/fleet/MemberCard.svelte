@@ -1,8 +1,9 @@
 <script lang="ts">
-  import { ago, altitude, heading, LIGHT_NAMES, pct, placeText, ROLE_NAMES, speedIn, temp } from "../../lib/format";
+  import { ago, altitude, heading, LIGHT_NAMES, placeText, ROLE_NAMES, speedIn, temp } from "../../lib/format";
   import type { Prefs } from "../../lib/prefs.svelte";
   import { applyTheme, DEFAULT_THEME, THEME_BY_ID, themeForShip, type Scheme, type Theme } from "../../lib/themes";
   import type { MemberSummary } from "../../lib/types";
+  import Ring from "../gauges/Ring.svelte";
   import { footLine } from "./roster";
 
   // One player at a glance: flight numbers in a ship, body numbers on foot. With
@@ -76,6 +77,19 @@
       : [],
   );
   const signed = (n: number | null | undefined) => (n == null ? "—" : `${n > 0 ? "+" : ""}${n}`);
+
+  // Speed as a small arc: up to 1,300 m/s (NAV top speeds), the number inside.
+  const SPEED_MAX = 1300;
+  function speedArc(frac: number): string {
+    const A = 120;
+    const a1 = -A + Math.max(0, Math.min(1, frac)) * 2 * A;
+    if (a1 <= -A + 0.5) return "";
+    const p = (a: number) => {
+      const r = (a * Math.PI) / 180;
+      return `${(32 + 26 * Math.sin(r)).toFixed(1)} ${(32 - 26 * Math.cos(r)).toFixed(1)}`;
+    };
+    return `M${p(-A)} A26 26 0 ${a1 + A > 180 ? 1 : 0} 1 ${p(a1)}`;
+  }
 </script>
 
 <button
@@ -113,10 +127,14 @@
       </p>
     {/if}
     <div class="flight">
-      <div class="speed">
+      <div class="speed" class:qt={s.quantum} role="img" aria-label={s.quantum ? "Quantum jump" : `Speed ${spd.value} ${spd.unit}`}>
+        <svg viewBox="0 0 64 56" aria-hidden="true">
+          <path d={speedArc(1)} class="strack" />
+          {#if s.quantum}<path d={speedArc(1)} class="sval" />{:else if s.speed}<path d={speedArc(s.speed / SPEED_MAX)} class="sval" />{/if}
+        </svg>
         {#if s.quantum}
           <!-- the game freezes the instruments mid-jump: the speed it shows means nothing -->
-          <b class="display qt">QT</b>
+          <b class="display">QT</b>
           <small>jumping</small>
         {:else}
           <b class="display num">{spd.value}</b>
@@ -133,22 +151,14 @@
         <dt>G</dt>
         <dd class="num">{s.g == null ? "—" : s.g.toFixed(1)}</dd>
       </dl>
+      <div class="rings">
+        <Ring value={s.h2_fuel} label="Fuel" size={40} />
+        <Ring value={v?.health ?? null} label="Health" size={40} />
+      </div>
     </div>
     {#if s.agl != null && s.agl < 5000}
       <p class="agl"><span class="label">Above ground</span> <b class="num">{Math.round(s.agl).toLocaleString()} m</b></p>
     {/if}
-    <div class="meters">
-      <span class="meter" class:low={s.h2_fuel != null && s.h2_fuel < 0.25}>
-        <span class="label">Fuel</span>
-        <i style:--v={s.h2_fuel ?? 0}></i>
-        <b class="num">{pct(s.h2_fuel)}</b>
-      </span>
-      <span class="meter hp" class:low={v?.health != null && v.health < 0.5}>
-        <span class="label">Health</span>
-        <i style:--v={v?.health ?? 0}></i>
-        <b class="num">{pct(v?.health)}</b>
-      </span>
-    </div>
     {#if s.shields.powered === false || v?.injury}
       <div class="flags">
         {#if s.shields.powered === false}<span class="flag bad">Shields down</span>{/if}
@@ -158,11 +168,7 @@
   {:else if playing && v}
     <div class="body">
       {#each bars as b (b.label)}
-        <span class="meter" class:low={b.value != null && b.value < b.low}>
-          <span class="label">{b.label}</span>
-          <i style:--v={b.value ?? 0}></i>
-          <b class="num">{pct(b.value)}</b>
-        </span>
+        <Ring value={b.value} label={b.label} size={44} />
       {/each}
     </div>
     <p class="vit">
@@ -364,27 +370,61 @@
   }
   .flight {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-columns: auto minmax(0, 1fr) auto;
     gap: 10px;
     align-items: center;
   }
   .speed {
+    position: relative;
+    width: 72px;
+    height: 62px;
     display: grid;
-    justify-items: start;
-    min-width: 72px;
+    justify-items: center;
+    align-content: center;
+    padding-top: 8px;
+  }
+  .speed svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+  .strack,
+  .sval {
+    fill: none;
+    stroke-width: 5;
+    stroke-linecap: round;
+  }
+  .strack {
+    stroke: var(--line);
+  }
+  .sval {
+    stroke: var(--accent);
+  }
+  .speed.qt .sval {
+    stroke: var(--nav);
   }
   .speed b {
-    font-size: 2rem;
+    position: relative;
+    font-size: 1.3rem;
     line-height: 1;
   }
-  .speed b.qt {
+  .speed.qt b {
     color: var(--nav);
   }
   .speed small {
+    position: relative;
     font-family: var(--mono);
-    font-size: 0.66rem;
+    font-size: 0.6rem;
     color: var(--text-3);
     letter-spacing: 0.1em;
+  }
+  .rings {
+    display: flex;
+    gap: 6px;
+  }
+  .rings :global(.label) {
+    font-size: 0.56rem;
   }
   dl {
     margin: 0;
@@ -422,47 +462,13 @@
   .agl b {
     font-family: var(--mono);
   }
-  .meters,
   .body {
     display: grid;
-    gap: 4px;
-  }
-  .meters {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 4px 10px;
-  }
-  .body {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 5px 10px;
-  }
-  .meter {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    align-items: center;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 6px;
-    --c: var(--accent);
   }
-  .meter.hp,
-  .body .meter {
-    --c: var(--good);
-  }
-  .meter.low {
-    --c: var(--bad);
-  }
-  .meter i {
-    display: block;
-    height: 5px;
-    border-radius: 1px;
-    background: linear-gradient(90deg, var(--c) calc(var(--v) * 100%), var(--line) 0);
-  }
-  .meter b {
-    font-family: var(--mono);
-    font-size: 0.74rem;
-    min-width: 34px;
-    text-align: right;
-  }
-  .meter.low b {
-    color: var(--bad);
+  .body :global(.label) {
+    font-size: 0.56rem;
   }
   .vit {
     margin: 0;

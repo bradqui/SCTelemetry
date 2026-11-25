@@ -4,6 +4,7 @@
   import type { PrefsStore } from "../lib/prefs.svelte";
   import { palette, THEMES } from "../lib/themes";
   import type { Destroyed } from "../lib/format";
+  import type { Focus } from "../lib/phase";
   import type { UpdaterStatus, UplinkStatus } from "../lib/types";
   import { awake, wakeSupport } from "../lib/wakelock.svelte";
   import AgentSettings from "./AgentSettings.svelte";
@@ -37,6 +38,12 @@
 
   const prefs = $derived(store.value);
   const wake = wakeSupport();
+  const FOCUS: { id: Focus; label: string }[] = [
+    { id: "off", label: "Off" },
+    { id: "spot", label: "Spotlight" },
+    { id: "strip", label: "Focus strip" },
+    { id: "both", label: "Both" },
+  ];
   const DESTROYED: { id: Destroyed; label: string }[] = [
     { id: "none", label: "None" },
     { id: "fleet", label: "Fleet" },
@@ -172,6 +179,24 @@
     </ul>
   </section>
 
+  <section>
+    <h3>Flight phases</h3>
+    <div class="units">
+      <span class="label">Follow the flight</span>
+      <div class="seg" role="group" aria-label="Follow the flight">
+        {#each FOCUS as f (f.id)}
+          <button class:on={prefs.focus === f.id} onclick={() => (prefs.focus = f.id)} aria-pressed={prefs.focus === f.id}
+            >{f.label}</button
+          >
+        {/each}
+      </div>
+    </div>
+    <p class="hint">
+      Panels never move. <b>Spotlight</b> lights the panels that matter in what you're doing (takeoff and landing,
+      cruise, quantum, combat, on foot) and dims the rest. <b>Focus strip</b> adds one band at the top with that
+      phase's numbers.
+    </p>
+  </section>
   <section>
     <h3>Look</h3>
     <label class="toggle">

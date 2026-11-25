@@ -10,6 +10,8 @@
   import { Trends } from "./lib/trends.svelte";
   import Customize from "./components/Customize.svelte";
   import Dashboard from "./components/Dashboard.svelte";
+  import FocusStrip from "./components/FocusStrip.svelte";
+  import { COMBAT_HOLD_MS, inCombat, phaseOf, SPOTLIGHT } from "./lib/phase";
   import LocalFleet from "./components/LocalFleet.svelte";
   import ReplayBar from "./components/ReplayBar.svelte";
   import ReportProblem from "./components/ReportProblem.svelte";
@@ -158,6 +160,16 @@
   });
 
   const snap = $derived(live.snapshot);
+  // Following the flight (Settings → Flight phases): panels never move, only emphasis.
+  let combatUntil = $state(0);
+  $effect(() => {
+    if (snap && inCombat(snap)) combatUntil = Date.now() + COMBAT_HOLD_MS;
+  });
+  const phase = $derived(prefs.focus === "off" ? null : phaseOf(snap, combatUntil, now));
+  const spotlight = $derived(
+    phase && (prefs.focus === "spot" || prefs.focus === "both") ? SPOTLIGHT[phase] : null,
+  );
+  const strip = $derived(!!phase && (prefs.focus === "strip" || prefs.focus === "both"));
   const ship = $derived(snap?.ship ?? null);
   const waiting = $derived(live.socket !== "open" || !live.agent?.streaming || !snap);
   const ctx = $derived<PanelCtx | null>(
@@ -206,7 +218,8 @@
       {/if}
     </section>
   {:else}
-    <Dashboard {ctx} layout={compact ? prefs.compact : prefs.full} editing={customizing} />
+    {#if strip && phase && !customizing}<FocusStrip {ctx} {phase} />{/if}
+    <Dashboard {ctx} layout={compact ? prefs.compact : prefs.full} editing={customizing} {spotlight} />
   {/if}
 
 </main>

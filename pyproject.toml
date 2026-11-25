@@ -1,6 +1,6 @@
 [project]
 name = "starglance"
-version = "0.6.1"
+version = "0.6.2"
 description = "Starglance: Star Citizen ship and crew status. Windows agent, self-hosted hub, and tools"
 readme = "README.md"
 # The agent and hub target 3.12; the shared models also run on 3.11 (for integrations).

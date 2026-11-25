@@ -33,6 +33,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 
@@ -50,8 +51,14 @@ AUTO_EVERY_S = 60
 LATEST = "https://github.com/bradqui/starglance/releases/latest"
 CHECK_FIRST_S = 15
 CHECK_EVERY_S = 6 * 3600
+CHECK_NOW_GAP_S = 5
+"""Check now, clicked again within this: the last answer stands (GitHub isn't asked)."""
 _VERSION = re.compile(r"\d{1,4}\.\d{1,4}\.\d{1,4}")
 _NO_WINDOW = 0x08000000  # CREATE_NO_WINDOW: no console flashing up from the windowed app
+
+
+def now_ms() -> int:
+    return int(time.time() * 1000)
 
 
 class UpdateError(Exception):
@@ -249,6 +256,11 @@ class Updater:
         self.check = load_check()
         self.latest: Callable[[], Awaitable[str | None]] = latest_release
         self._check_now = asyncio.Event()
+        self.checked: int | None = None
+        """When GitHub last answered (ms since epoch)."""
+        self.checking = False
+        self.check_error: str | None = None
+        self._check_lock = asyncio.Lock()
         self.tried = _load().get("installed")
         """The last version installed by updating: automatic mode never installs it twice
         (a release whose exe still says the old version would otherwise loop)."""
@@ -287,6 +299,9 @@ class Updater:
             "error": self.error,
             "auto": self.auto,
             "check": self.check,
+            "checked": self.checked,
+            "checking": self.checking,
+            "check_error": self.check_error,
             "releases": RELEASES_URL,
         }
 
@@ -319,12 +334,31 @@ class Updater:
                 await asyncio.wait_for(self._check_now.wait(), timeout=wait)
             self._check_now.clear()
             wait = CHECK_EVERY_S
-            if not self.check:
-                continue
+            if self.check:
+                await self.check_once()
+
+    async def check_now(self) -> dict:
+        """The Check now button: ask GitHub at once, even with the regular check off (the
+        user asked). A second click within a few seconds keeps the last answer."""
+        recent = self.checked is not None and now_ms() - self.checked < CHECK_NOW_GAP_S * 1000
+        if not recent:
+            await self.check_once()
+        return self.status()
+
+    async def check_once(self) -> None:
+        """Ask GitHub which release is the latest; remember when, and what went wrong."""
+        async with self._check_lock:
+            self.checking = True
+            self._notify()
             try:
                 self.offer(await self.latest())
+                self.checked, self.check_error = now_ms(), None
             except (TimeoutError, aiohttp.ClientError, OSError) as exc:
                 log.info("Couldn't ask GitHub for the latest release: %s", exc)
+                self.check_error = "Couldn't reach GitHub. Try again in a moment."
+            finally:
+                self.checking = False
+                self._notify()
 
     # -- updating
 

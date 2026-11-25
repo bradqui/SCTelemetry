@@ -71,6 +71,15 @@
     if (!r.ok) throw new Error(data.error ?? `The agent said ${r.status}.`);
     info = data as State;
   }
+  /** "18:42", or "Nov 24, 18:42" when it wasn't today. */
+  function checkedAt(t: number): string {
+    const d = new Date(t);
+    const time = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    return d.toDateString() === new Date().toDateString()
+      ? time
+      : `${d.toLocaleDateString([], { month: "short", day: "numeric" })}, ${time}`;
+  }
+
   async function act(what: string, path: string, body: unknown) {
     busy = what;
     try {
@@ -248,9 +257,19 @@
         Starglance {u.current}.
         {#if u.available}<b class="new">{u.available} is out.</b>
         {:else if u.check || info.fleets.length}Up to date.
-        {:else}With the check off and no fleet, nothing tells it about new versions: look at the
-          <a href={u.releases} target="_blank" rel="noopener noreferrer">releases page</a> now and then.{/if}
+        {:else}With the regular check off and no fleet, nothing tells it about new versions: use Check now, or the
+          <a href={u.releases} target="_blank" rel="noopener noreferrer">releases page</a>.{/if}
       </p>
+      <div class="checknow">
+        <button
+          class="btn"
+          disabled={u.checking || busy === "checknow" || working}
+          onclick={() => act("checknow", "update/check-now", {})}>{u.checking ? "Checking…" : "Check now"}</button
+        >
+        <small class:error={!!u.check_error}
+          >{u.check_error ?? (u.checked ? `Checked at ${checkedAt(u.checked)}` : "")}</small
+        >
+      </div>
       {#if u.available && u.can}
         <button class="btn primary" disabled={working || busy === "update"} onclick={() => act("update", "update", {})}>
           {u.state === "downloading"
@@ -444,6 +463,18 @@
     gap: 4px;
     font-size: 0.78rem;
     color: var(--text-3);
+  }
+  .checknow {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+  .checknow small {
+    color: var(--text-3);
+  }
+  .checknow small.error {
+    color: var(--warn);
   }
   .btn {
     justify-self: start;

@@ -65,7 +65,8 @@ def device_label(user_agent: str) -> str | None:
 SHARE_CATEGORIES = ("status", "ship", "weapons", "vitals", "uec", "location", "mission", "combat")
 """What a member can share with the fleet. All on by default; each can be switched off.
 
-location: zone, jurisdiction, server, star system, quantum destination (no coordinates).
+location: zone, jurisdiction, server, star system, planet or moon, landing area, quantum
+destination (no coordinates).
 mission: current contracts and objectives. combat: kills, ships lost, session counts."""
 
 Level = Literal["off", "nominal", "minor", "minor_flashing", "major", "major_flashing"]
@@ -255,6 +256,12 @@ class Location(_Model):
     """Star system, when the game names it (jump drive lines)."""
     route: Route | None = None
     last_arrived: LastArrived | None = None
+    landing: str | None = None
+    """The landing area you're in: a city, station, outpost or gateway ("Lorville"), by
+    the name the game shows (read from the player's own game files)."""
+    body: str | None = None
+    """The planet or moon you're at ("Daymar"), from the ground the game has loaded, a
+    jump that just ended there, or where a route was plotted from."""
     aboard: Aboard | None = None
 
 
@@ -318,6 +325,7 @@ EventKind = Literal[
     "quantum_route",
     "quantum_arrived",
     "quantum_blocked",
+    "place_enter",
     "qt_calibration",
     "jump_start",
     "jump_end",
@@ -486,6 +494,7 @@ EVENT_CATEGORY: dict[str, str] = {
             "quantum_route",
             "quantum_arrived",
             "quantum_blocked",
+            "place_enter",
             "qt_calibration",
             "jump_start",
             "jump_end",

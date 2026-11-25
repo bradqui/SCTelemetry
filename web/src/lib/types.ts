@@ -105,6 +105,10 @@ export interface Location {
   shard: string | null;
   system: string | null;
   route: Route | null;
+  /** The landing area you're in (a city, station, outpost or gateway), by its in-game name. */
+  landing?: string | null;
+  /** The planet or moon you're at. */
+  body?: string | null;
   /** Where the last quantum jump ended (not necessarily where they are now). */
   last_arrived?: { destination: string; since: number } | null;
   /** The ship you're aboard, seated or on foot (its comms channel). */

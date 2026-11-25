@@ -10,7 +10,8 @@ The full policy, with every file and setting, is [PRIVACY.md](https://github.com
 
 - the game's telemetry stream, on `127.0.0.1`, once you switch it on;
 - the game's `Game.log`, read-only: location, quantum routes, contracts, kills and losses, injuries, the ship you're aboard, your handle;
-- the game's `user.cfg`, only when you switch telemetry on or off (it backs it up and restores it exactly).
+- the game's `user.cfg`, only when you switch telemetry on or off (it backs it up and restores it exactly);
+- the game's own place names, from its `Data.p4k`, once per game version, so places show as "Lorville" rather than an internal id.
 
 It never reads game memory, never touches Easy Anti-Cheat, and never sends anything to the game.
 

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { alertLights, chosen, defaultAlerts, type AlertPick } from "../lib/alerts";
-  import { LIGHT_NAMES, ROLE_NAMES as ROLE } from "../lib/format";
+  import { LIGHT_NAMES, placeText, ROLE_NAMES as ROLE } from "../lib/format";
   import { openOnHub } from "../lib/hub";
   import { markNow, openReport } from "../lib/reports";
   import { view } from "../lib/remote.svelte";
@@ -55,6 +55,9 @@
   const ship = $derived(snapshot?.ship ?? null);
   const status = $derived(snapshot?.status ?? null);
   const loc = $derived(snapshot?.location ?? null);
+  const place = $derived(
+    placeText(loc, { locomotion: status?.locomotion, landed: ship?.landed, quantum: ship?.flight.quantum }),
+  );
 
   // The Fleet chip: every fleet this PC sends to. Its colour is the worst of them.
   const links = $derived(uplinks.filter((u) => u.state !== "unlinked"));
@@ -151,7 +154,7 @@
   </div>
 
   {#if loc}
-    <LocationChips {loc} />
+    <LocationChips {loc} {place} />
   {/if}
 
   {#if alarm}

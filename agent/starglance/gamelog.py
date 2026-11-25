@@ -46,6 +46,7 @@ from starglance_shared import (
 )
 
 from .normalize import model_name
+from .places import Names
 
 log = logging.getLogger(__name__)
 
@@ -76,6 +77,11 @@ _JUMP_DRIVE = re.compile(r"<Jump Drive State Changed> Now (\w+) \|[^|]*\|[^|]*\|
 _INJURY = re.compile(r"^(Minor|Moderate|Severe) Injury Detected - (.+?) - Tier (\d)")
 _TAGS = re.compile(r"<EM\d>(.*?)</EM\d>")
 _CHANNEL = re.compile(r"^You have (joined|left the) channel '(.+) : ([^']+)'")
+# Where you are (names come later, from the game's own files: places.py).
+_LANDING = re.compile(r"<RequestLocationInventory> .*?requested inventory for Location\[([^\]]+)\]")
+_INV_LOCATION = re.compile(r"<Update Inventory Location> .*?Landing \[(\d+)\] -> \[(\d+)\]")
+_CELLS = re.compile(r"^<([^>]+)>\s+planet cells:\s*(\d+)\s*\[\s*(\d+)\].*?name:\s*(\S+)")
+_ROUTE_START = re.compile(r"Projected Start Location is (.+?) for route to")
 
 _INTERESTING = (
     "<UpdateNotificationItem>",
@@ -88,6 +94,10 @@ _INTERESTING = (
     "<Vehicle Destroyed>",
     "<Actor Death>",
     "<Jump Drive State Changed>",
+    "<RequestLocationInventory>",
+    "<Update Inventory Location>",
+    "planet cells:",
+    "Projected Start Location",
 )
 
 
@@ -98,7 +108,19 @@ def parse_line(line: str) -> LogEvent | None:
     if m := _NOTIFICATION.search(line):
         return parse_notification(m.group(1))
     if "Quantum Target" in line and (m := _ROUTE.search(line)):
-        return LogEvent("route", {"destination": destination_name(m.group(1))})
+        return LogEvent("route", {"destination": destination_name(m.group(1)), "id": m.group(1)})
+    if m := _LANDING.search(line):
+        return LogEvent("landing_area", {"id": m.group(1)})
+    if m := _INV_LOCATION.search(line):
+        return LogEvent("landing_change", {"from": m.group(1), "to": m.group(2)})
+    if m := _CELLS.match(line):
+        block, cells, cap, body = m.groups()
+        return LogEvent(
+            "planet_cells", {"block": block, "cells": int(cells), "cap": int(cap), "body": body}
+        )
+    if m := _ROUTE_START.search(line):
+        near = re.sub(r"[^\w '&.-]", "", m.group(1)).strip()
+        return LogEvent("route_start", {"near": near}) if near else None
     if "<Quantum Drive Arrived - Arrived at Final Destination>" in line:
         return LogEvent("arrived")
     if m := _HANDLE.search(line):
@@ -306,12 +328,14 @@ class RouteTracker:
 
     def reset(self) -> None:
         self.destination: str | None = None
+        self.destination_id: str | None = None
         self.state: str | None = None  # plotted | en_route | arrived | blocked
         self.since = 0
 
     def on_log(self, ev: LogEvent, t: int) -> list[Event]:
         if ev.kind == "route":
             self.destination, self.state, self.since = ev.data["destination"], "plotted", t
+            self.destination_id = ev.data.get("id")
             return [Event(t=t, kind="quantum_route", data={"destination": self.destination})]
         if ev.kind == "arrived":
             self.state, self.since = "arrived", t
@@ -343,6 +367,8 @@ class LogState:
     def __init__(self) -> None:
         self.handle: str | None = None
         self.route = RouteTracker()
+        self.names: Names | None = None
+        """Place names from the game's own files (places.py), once they're read."""
         self.reset_session()
 
     def reset_session(self) -> None:
@@ -351,9 +377,30 @@ class LogState:
         self.loc: dict = {}
         self.aboard: Aboard | None = None
         self.last_arrived: LastArrived | None = None
+        self._forget_place()
         self.missions: list[Mission] = []
         self.injuries: dict[str, Injury] = {}
         self.session = Session()
+
+    def _forget_place(self) -> None:
+        self.landing_id: str | None = None
+        """The landing area you're in (a city, station, outpost), by the game's id."""
+        self.body_id: str | None = None
+        """The planet or moon whose ground is loaded, or that a jump just ended at."""
+        self.near: str | None = None
+        """Where a route was plotted from ("Projected Start Location"), already a name."""
+        self._cells: tuple[str, int, int] | None = None  # this block's busiest: body, cells, cap
+        self._block: str | None = None
+        self._block_t = 0
+
+    def _end_block(self) -> None:
+        """A planet-cells block is over: its busiest body is where you are; none is space."""
+        if self._block is None:
+            return
+        self.body_id = self._cells[0] if self._cells else None
+        if self.body_id:
+            self.near = None
+        self._block, self._cells = None, None
 
     # -- feed
 
@@ -363,8 +410,34 @@ class LogState:
         def event(kind: str, **data) -> list[Event]:
             return [Event(t=t, kind=kind, data=data)]  # type: ignore[arg-type]
 
+        if k == "planet_cells":  # every 10 minutes, one line per body, all at once
+            if d["block"] != self._block:
+                self._end_block()
+                self._block, self._block_t = d["block"], t
+            # Only loaded ground counts: a body you left keeps its capacity, with 0 cells.
+            if d["cells"] and (self._cells is None or d["cells"] > self._cells[1]):
+                self._cells = (d["body"], d["cells"], d["cap"])
+            return []
+        self._end_block()
+        if k == "landing_area":
+            if d["id"] == "INVALID_LOCATION_ID" or d["id"] == self.landing_id:
+                return []
+            self.landing_id = d["id"]
+            name = self._place_name(d["id"])
+            return event("place_enter", name=name) if name else []
+        if k == "landing_change":
+            if d["to"] == "0" and self.landing_id:
+                # Left it, but still at its planet or moon (until the ground says otherwise).
+                self.body_id, self.landing_id = self.landing_id, None
+            return []
+        if k == "route_start":
+            self.near = d["near"]
+            return []
         if k in ("route", "arrived", "blocked"):
             if k == "arrived":
+                dest = self.route.destination_id or ""
+                self.body_id = dest if dest.startswith("OOC_") else None
+                self.near, self.landing_id = None, None
                 self.session.quantum_trips += 1
                 if self.route.destination:
                     self.last_arrived = LastArrived(destination=self.route.destination, since=t)
@@ -381,6 +454,7 @@ class LogState:
             if changed and before is not None:
                 self.aboard = None  # moved to another server: the ship didn't come along
                 self.last_arrived = None
+                self._forget_place()
             return event("shard_join", shard=d["shard"]) if changed else []
 
         # -- the ship you're aboard
@@ -542,6 +616,7 @@ class LogState:
         self.injuries.clear()
         self.aboard = None
         self.last_arrived = None
+        self._forget_place()
 
     # -- read
 
@@ -549,7 +624,23 @@ class LogState:
         route = self.route.route(t, quantum)
         if self.last_arrived and t - self.last_arrived.since > LAST_ARRIVED_MS:
             self.last_arrived = None
-        if not self.loc and route is None and self.aboard is None and self.last_arrived is None:
+        if self._block is not None and t - self._block_t > 2000:
+            self._end_block()  # long over: its lines all come at once
+        if quantum:  # between places until the jump ends
+            self.body_id, self.near, self.landing_id = None, None, None
+        landing = self._place_name(self.landing_id) if self.landing_id else None
+        if self.landing_id:  # the landing area's own planet or moon, if it has one
+            body = self._body_name(self.landing_id)
+        else:
+            body = self._body_name(self.body_id) or self.near
+        if (
+            not self.loc
+            and route is None
+            and self.aboard is None
+            and self.last_arrived is None
+            and landing is None
+            and body is None
+        ):
             return None
         return Location(
             armistice=self.loc.get("armistice"),
@@ -562,8 +653,20 @@ class LogState:
             system=self.loc.get("system"),
             route=route,
             last_arrived=self.last_arrived.model_copy() if self.last_arrived else None,
+            landing=landing,
+            body=body,
             aboard=self.aboard.model_copy() if self.aboard else None,
         )
+
+    def _place_name(self, raw: str) -> str | None:
+        return self.names.place(raw) if self.names else None
+
+    def _body_name(self, raw: str | None) -> str | None:
+        if not raw:
+            return None
+        if self.names and (name := self.names.body(raw)):
+            return name
+        return destination_name(raw) if raw.startswith("OOC_") else None
 
     def mission_list(self, t: int) -> list[Mission]:
         self.missions = [

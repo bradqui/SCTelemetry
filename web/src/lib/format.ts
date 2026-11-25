@@ -57,6 +57,7 @@ const EVENT_TEXT: Record<string, (d: Record<string, unknown>) => string> = {
   quantum_route: (d) => `Route set: ${d.destination ?? "unknown"}`,
   quantum_arrived: (d) => (d.destination ? `Arrived at ${d.destination}` : "Arrived"),
   quantum_blocked: (d) => `Route obstructed${d.destination ? `: ${d.destination}` : ""}`,
+  place_enter: (d) => `At ${d.name ?? "a landing area"}`,
   takeoff: () => "Took off",
   landed: () => "Landed",
   warning_on: (d) => `${String(d.light).toUpperCase()} warning`,
@@ -174,7 +175,7 @@ export function eventCategory(kind: string): EventCategory {
     return "combat";
   if (kind.startsWith("contract") || kind.startsWith("objective") || kind === "reward") return "mission";
   if (
-    ["shard_join", "jurisdiction", "comms_down", "comms_restored", "hangar_ready", "hangar_queue", "boarded", "disembarked"].includes(kind) ||
+    ["shard_join", "jurisdiction", "place_enter", "comms_down", "comms_restored", "hangar_ready", "hangar_queue", "boarded", "disembarked"].includes(kind) ||
     /^(armistice|monitored|restricted|private)_/.test(kind)
   )
     return "location";
@@ -184,6 +185,30 @@ export function eventCategory(kind: string): EventCategory {
 }
 
 /** Short server label: pub_use1b_13165946_150 -> "use1b · 150". */
+/** Where someone is in game terms, as a phrase: "Landed at Lorville", "Flying at Daymar",
+ * "On Daymar", "At Everus Harbor". From Game.log (location.landing and body) and what
+ * they're doing; null when it isn't known, or mid-jump. */
+export function placeText(
+  loc: { landing?: string | null; body?: string | null } | null | undefined,
+  how: { locomotion?: string | null; seated?: boolean; landed?: boolean | null; quantum?: boolean | null },
+): string | null {
+  const landing = loc?.landing ?? null;
+  const body = loc?.body ?? null;
+  if ((!landing && !body) || how.quantum) return null;
+  const seated = how.seated ?? how.locomotion === "seated";
+  if (landing) {
+    if (!seated) return `At ${landing}`;
+    return how.landed === false ? `Flying at ${landing}` : how.landed ? `Landed at ${landing}` : `At ${landing}`;
+  }
+  if (seated) return how.landed ? `Landed on ${body}` : `Flying at ${body}`;
+  return how.locomotion === "eva" ? `EVA near ${body}` : `On ${body}`;
+}
+
+/** Just the place's name, for tight spots: the landing area, else the planet or moon. */
+export function placeName(loc: { landing?: string | null; body?: string | null } | null | undefined): string | null {
+  return loc?.landing ?? loc?.body ?? null;
+}
+
 export function shardLabel(shard: string | null | undefined): string | null {
   if (!shard) return null;
   const parts = shard.split("_");

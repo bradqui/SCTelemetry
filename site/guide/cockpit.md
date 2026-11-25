@@ -13,7 +13,7 @@ The cockpit view is your own dashboard. It shows what the game sends about your 
 From left to right:
 
 - **Your ship** and its maker, and your **seat** (Pilot, Co-pilot, Turret…). On foot it says *On foot* or *EVA*, and which ship you're aboard if you're in someone's.
-- **Where you are**: armistice zone, jurisdiction, monitored space, and the server you're on.
+- **Where you are**: the place in words ("Landed at Lorville", "Flying at Daymar", "On Daymar", "At Everus Harbor"), then armistice zone, jurisdiction, monitored space and the server you're on. Places come from the game's log and its own names, so they follow patches; between places (in space, or mid-jump) there's no place to show.
 - **The master warning**, when any warning light is on: *Warning* for the red ones, *Caution* for the amber ones, with their names. It lives in the top bar so nothing else on screen moves when it fires.
 - **The mode**: **NAV**, **SCM**, **QT** while in quantum travel, or *Powered down*.
 - **Fleet**, when you're in a fleet: opens the fleet view in this window ([The fleet page](/fleet/fleet-page)).

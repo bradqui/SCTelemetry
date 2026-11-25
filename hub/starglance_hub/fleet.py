@@ -271,6 +271,8 @@ def summarize(m: MemberLive, now: int, cfg: Config) -> dict:
                 "jurisdiction",
                 "system",
                 "shard",
+                "landing",
+                "body",
             )
         }
         out["location"]["route"] = (

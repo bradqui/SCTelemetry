@@ -7,7 +7,8 @@ Starglance has two parts: the **agent**, which runs on your gaming PC, and the *
 **What it reads, on your PC only**
 
 - The game's **telemetry stream**, which the game offers on your own PC (`127.0.0.1`) once telemetry is switched on: ship, flight, warning lights, fuel, power, weapons, your vitals, seat and role. If the game's server doesn't describe its messages, the agent reads them from `StarCitizen.exe` (read-only).
-- The game's **Game.log** (read-only), for what the stream lacks: your location in game terms (armistice zone, jurisdiction, server, star system), quantum routes, contracts, kills and losses, injuries, the ship you're aboard, and your in-game handle.
+- The game's **Game.log** (read-only), for what the stream lacks: your location in game terms (armistice zone, jurisdiction, server, star system, the planet or moon you're at, the landing area you're in), quantum routes, contracts, kills and losses, injuries, the ship you're aboard, and your in-game handle.
+- The game's **place names**, from its own text file inside `Data.p4k` (read-only, once per game version, a few seconds), so a place shows as "Lorville" rather than `Stanton1_Lorville`. The names it keeps (about 50,000 short ones) stay in `%LOCALAPPDATA%\Starglance\names`.
 - The game's **user.cfg**, only when you switch telemetry on or off (Agent settings, or `starglance on` / `off`). It keeps a backup and restores the file exactly when you switch it off.
 
 It never reads game memory, never touches Easy Anti-Cheat and never sends anything to the game.

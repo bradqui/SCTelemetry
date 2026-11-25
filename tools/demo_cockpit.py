@@ -17,8 +17,9 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path[:0] = [str(ROOT / "agent"), str(ROOT / "shared")]
+sys.path[:0] = [str(ROOT / "agent"), str(ROOT / "shared"), str(ROOT / "tools")]
 
+from demo_places import add_places  # noqa: E402
 from starglance.replay import FIXTURES_DIR, Recording, default_fixtures  # noqa: E402
 from starglance.runtime import Pipeline  # noqa: E402
 from starglance_shared import make_patch  # noqa: E402
@@ -40,6 +41,8 @@ def main() -> None:
         )
     )
     chapter = 0
+    fixture = lambda c: rec.chapters[c].title.lower().replace(" ", "-")  # noqa: E731
+    add_places(pipeline, fixture(0))
     steps: list[dict] = []
     prev: dict | None = None
     latest: dict | None = None
@@ -49,6 +52,7 @@ def main() -> None:
         if c != chapter:  # the next recording: start fresh, keep the event list (as the agent does)
             pipeline.reset(clear_history=False)
             chapter = c
+            add_places(pipeline, fixture(c))
         t = int(pos * 1000)
         for line, quiet in rec.logs.get(i, ()):
             pipeline.on_log(line, t, quiet)

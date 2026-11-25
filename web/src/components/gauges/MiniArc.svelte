@@ -12,6 +12,7 @@
     peak = null,
     danger = null,
     tone = "accent",
+    large = false,
   }: {
     label: string;
     display: string;
@@ -23,6 +24,9 @@
     /** 0..1: where the danger band starts. */
     danger?: number | null;
     tone?: "accent" | "good" | "warn" | "bad";
+    /** Big: the arc fills its box's height and the number sits under it (beside the
+     * speed dial). Otherwise a small arc with the number beside it. */
+    large?: boolean;
   } = $props();
 
   const CX = 50;
@@ -48,7 +52,7 @@
   const peakAngle = $derived(peak == null ? 0 : -A + clamp(peak, 0, 1) * 2 * A);
 </script>
 
-<div class="mini {tone}">
+<div class="mini {tone}" class:large>
   <span class="label">{label}</span>
   <div class="row">
     <svg viewBox="0 0 100 56" aria-hidden="true">
@@ -144,6 +148,30 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+  .large {
+    height: 100%;
+    grid-template-rows: auto minmax(0, 1fr);
+    justify-items: center;
+  }
+  .large .label {
+    justify-self: start;
+  }
+  .large .row {
+    flex-direction: column;
+    justify-content: center;
+    gap: 2px;
+    height: 100%;
+    min-height: 0;
+  }
+  .large svg {
+    height: auto;
+    width: min(100%, 170px);
+    max-height: 84px;
+  }
+  .large .v {
+    font-size: 1.6rem;
+    line-height: 1;
   }
   .v small {
     font-size: 0.55em;

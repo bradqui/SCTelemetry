@@ -58,6 +58,7 @@
       display={quantum ? "—" : num(f.vsi, 0)}
       unit="m/s"
       centred
+      large
       frac={quantum ? null : vsiFrac}
       tone={vsiFrac < 0 ? "warn" : "good"}
     /></div>
@@ -65,6 +66,7 @@
       label="G-force"
       display={num(f.g, 1)}
       unit="g"
+      large
       frac={f.g == null ? null : f.g / gScale}
       peak={f.g_max ? f.g_max / gScale : null}
       danger={9 / gScale}
@@ -131,7 +133,7 @@
     grid-template-rows: minmax(0, 1fr) auto;
     grid-template-areas: "tape vsi g" "tape atmo atmo";
     gap: 6px 10px;
-    align-items: center;
+    align-items: stretch;
     padding-block: 6px;
   }
   .tape {
@@ -148,6 +150,7 @@
   }
   .atmo {
     grid-area: atmo;
+    align-self: end;
     display: flex;
     align-items: baseline;
     gap: 8px;

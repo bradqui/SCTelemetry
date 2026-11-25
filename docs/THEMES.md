@@ -12,6 +12,10 @@ On the fleet page your default themes the page; with matching on, the member you
 
 `?theme=DRAK&scheme=light` in the address previews a theme without saving it (handy for screenshots).
 
+## Instruments
+
+A theme's `gauge` picks how its instruments are drawn: `standard`, `glass`, `analog`, `segmented` or `angular` (see `GaugeStyle` in themes.ts). `ArcGauge` (the speed dial) draws every style's layer and the theme's CSS variables (`--gs-<style>`) show one; `MiniArc` (climb rate, G) takes its line weight, ends and segments from `--gs-mini-*`. Because they're variables, a member's panel on the fleet page wears their own ship's instruments inside a page in your theme.
+
 ## How it works
 
 Everything lives in [web/src/lib/themes.ts](../web/src/lib/themes.ts): the house theme (`SG`, the default), the 17 maker themes and `applyTheme(element, theme, scheme)`, which sets CSS custom properties on the page (or on one member's panel) and `data-deco` for the details. Components only ever read tokens:

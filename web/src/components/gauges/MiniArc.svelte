@@ -103,8 +103,9 @@
   .track {
     fill: none;
     stroke: var(--line);
-    stroke-width: 6;
-    stroke-linecap: round;
+    stroke-width: var(--gs-mini-w, 6);
+    stroke-linecap: var(--gs-mini-cap, round);
+    stroke-dasharray: var(--gs-mini-dash, none);
   }
   .danger {
     fill: none;
@@ -115,8 +116,9 @@
   .value {
     fill: none;
     stroke: var(--c);
-    stroke-width: 6;
-    stroke-linecap: round;
+    stroke-width: var(--gs-mini-w, 6);
+    stroke-linecap: var(--gs-mini-cap, round);
+    stroke-dasharray: var(--gs-mini-dash, none);
     transition: d 0.15s linear;
   }
   .zero {

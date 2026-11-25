@@ -7,13 +7,13 @@
   let { alt, agl }: { alt: number | null; agl: number | null } = $props();
 
   const uid = $props.id();
-  const H = 120;
+  const H = 200;
   const W = 60;
   const MID = H / 2;
 
   // Step between labels, by how high you are: 100 m low down, 1 km, then 10 km.
   const step = $derived(alt == null ? 100 : alt < 1500 ? 100 : alt < 15_000 ? 1000 : 10_000);
-  const span = $derived(step * 5); // metres shown top to bottom
+  const span = $derived(step * 8); // metres shown top to bottom (taller tape, more scale)
   const y = (m: number) => MID - ((m - (alt ?? 0)) / span) * H;
   const label = (m: number) => (step >= 1000 ? `${m / 1000}k` : String(m));
 

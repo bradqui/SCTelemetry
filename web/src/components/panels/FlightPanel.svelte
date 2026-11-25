@@ -122,14 +122,17 @@
       filter: drop-shadow(0 0 10px var(--nav));
     }
   }
+  /* The altitude tape runs the full height of the speed dial beside it. */
   .tiles {
     grid-area: tiles;
+    align-self: stretch;
     display: grid;
-    grid-template-columns: 62px repeat(2, minmax(0, 1fr));
-    grid-template-rows: auto auto;
+    grid-template-columns: 66px repeat(2, minmax(0, 1fr));
+    grid-template-rows: minmax(0, 1fr) auto;
     grid-template-areas: "tape vsi g" "tape atmo atmo";
     gap: 6px 10px;
-    align-items: start;
+    align-items: center;
+    padding-block: 6px;
   }
   .tape {
     grid-area: tape;

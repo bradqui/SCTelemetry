@@ -23,3 +23,8 @@ updates:
     directory: /hub
     schedule:
       interval: weekly
+    # Node's odd-numbered majors never get long-term support: move the hub (and the
+    # workflows' node-version) to the next even one by hand when it becomes LTS.
+    ignore:
+      - dependency-name: node
+        update-types: ["version-update:semver-major"]

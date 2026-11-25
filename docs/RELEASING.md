@@ -38,6 +38,8 @@ Agents learn of the release from GitHub's "latest release" (they check at start 
 
 To publish a tag again, for example after setting up signing, use **Actions → Release → Run workflow** with the tag. Delete the old GitHub release first.
 
+To try a change to `release.yml` before it ships, run it from your branch with **dry run** ticked and an existing tag, or `gh workflow run release.yml --ref <branch> -f tag=v<version> -f dry_run=true`. It builds and tests the exe and the hub image and passes them between the jobs, but signs, pushes and publishes nothing.
+
 The first time the hub image is pushed, make the package public on GitHub so servers can pull it without signing in: **Packages → starglance-hub → Package settings → Change visibility → Public**.
 
 ## Building the exe yourself

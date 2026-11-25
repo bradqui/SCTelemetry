@@ -4,7 +4,8 @@
   // Saved by the agent (not this browser), applied at once.
   import { onMount } from "svelte";
   import { appWindow } from "../lib/appwin.svelte";
-  import type { UpdaterStatus, UplinkStatus } from "../lib/types";
+  import { openReport, reportCall } from "../lib/reports";
+  import type { ReportsStatus, UpdaterStatus, UplinkStatus } from "../lib/types";
   import OtherDevices, { type Lan } from "./OtherDevices.svelte";
 
   let {
@@ -48,6 +49,7 @@
     restart_note: string;
     lan: Lan | null;
     updates: UpdaterStatus | null;
+    reports: ReportsStatus | null;
   }
 
   let info = $state<State | null>(null);
@@ -84,6 +86,20 @@
     busy = what;
     try {
       await call(path, body);
+    } catch (e) {
+      error = (e as Error).message;
+    } finally {
+      busy = null;
+    }
+  }
+
+  /** Problem report settings: their own calls, then the settings again. */
+  async function reportSet(what: string, path: string, body: unknown) {
+    busy = what;
+    error = "";
+    try {
+      await reportCall(path, body);
+      await call("settings");
     } catch (e) {
       error = (e as Error).message;
     } finally {
@@ -321,6 +337,47 @@
     </section>
   {/if}
 
+  {#if info.reports?.available}
+    {@const r = info.reports}
+    <section>
+      <h3>Problem reports</h3>
+      <p class="hint">
+        Something shown wrong, or missing? <b>Report a problem</b> makes one file from the minutes around it, to attach to a GitHub issue.
+        Mark the moment with the flag in the top bar (or the hotkey) and report it later.
+      </p>
+      <button class="btn" disabled={!r.keep} onclick={openReport}>Report a problem…</button>
+      <ul class="share">
+        <li>
+          <label class="toggle">
+            <input type="checkbox" checked={r.keep} disabled={busy === "keep"} onchange={(e) => reportSet("keep", "keep", { on: e.currentTarget.checked })} />
+            <span
+              ><b>Keep the last {r.keep_minutes} minutes</b><small
+                >What the game sent and what Starglance made of it, on this PC only (1–2.5 MB). Marked moments are kept for a day.
+                Switching it off deletes it all.</small
+              ></span
+            >
+          </label>
+        </li>
+      </ul>
+      <label class="field"
+        ><span>Hotkey to mark a moment from inside the game</span>
+        <select
+          value={r.hotkey ?? ""}
+          disabled={busy === "hotkey" || !r.keep}
+          onchange={(e) => reportSet("hotkey", "hotkey", { key: e.currentTarget.value || null })}
+        >
+          <option value="">Off</option>
+          {#each r.hotkeys as h (h.id)}<option value={h.id}>{h.label}</option>{/each}
+        </select></label
+      >
+      {#if r.hotkey_error}
+        <p class="error" role="alert">{r.hotkey_error}</p>
+      {:else if r.hotkey_on}
+        <p class="hint">Works over the game; a short sound says it marked. The key does nothing else while it's on.</p>
+      {/if}
+    </section>
+  {/if}
+
   {#if appWindow.inApp && appWindow.state}
     {@const w = appWindow.state}
     <section>
@@ -446,6 +503,16 @@
   form {
     display: grid;
     gap: 8px;
+  }
+  select {
+    justify-self: start;
+    padding: 5px 8px;
+    border: 1px solid var(--line-2);
+    border-radius: var(--radius-sm);
+    background: var(--bg-2);
+    color: var(--text);
+    font: inherit;
+    font-size: 0.85rem;
   }
   input[type="url"],
   input[type="text"] {

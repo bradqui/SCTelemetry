@@ -50,6 +50,8 @@ class Config:
     """Not in game, an agent only sends a heartbeat (every 8 s; 25 s before 0.6.1)."""
     offline_after_s: float = 60.0
     event_retention_days: int = 30
+    report_retention_days: int = 30
+    """Problem reports members sent to the admins (docs/REPORTS.md)."""
 
     @property
     def secure(self) -> bool:
@@ -88,6 +90,7 @@ class Config:
             discord_member_role_id=_env("DISCORD_MEMBER_ROLE_ID"),
             dev_login=_env("HUB_DEV_LOGIN", "0") == "1",
             event_retention_days=int(_env("HUB_EVENT_RETENTION_DAYS", "30") or 30),
+            report_retention_days=int(_env("HUB_REPORT_RETENTION_DAYS", "30") or 30),
         )
 
     def problems(self) -> list[str]:

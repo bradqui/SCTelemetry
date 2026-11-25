@@ -98,7 +98,7 @@ async def serve(args, *, stop=None, on_ready=None, say=print) -> None:
         if not files:
             raise SystemExit("No recordings to replay.")
         say(f"Indexing {len(files)} recording(s)...")
-        playhead = Playhead(Recording.load(files), speed=args.speed)
+        playhead = Playhead(Recording.load(files, _report_protoset(files)), speed=args.speed)
 
     tail = None
     pipeline = Pipeline()
@@ -144,6 +144,22 @@ async def serve(args, *, stop=None, on_ready=None, say=print) -> None:
     from .selfupdate import Updater
 
     updater = control.updater = Updater(pipeline, announce=say)
+    from .report import Reports
+
+    reports = control.reports = Reports(
+        pipeline,
+        install=control.install,
+        live=playhead is None,
+        notify=lambda status: pipeline._notify("reports", status),
+    )
+    reports.loop = loop
+
+    async def prune_recent() -> None:  # nothing older than 30 minutes, even when idle
+        while True:
+            await asyncio.sleep(60)
+            reports.buffer.prune()
+
+    pruning = loop.create_task(prune_recent())
     auto_updates = asyncio.get_running_loop().create_task(updater.auto_loop())
     update_checks = asyncio.get_running_loop().create_task(updater.check_loop())
     lan = control.lan = LanView(server, announce=say)
@@ -166,9 +182,27 @@ async def serve(args, *, stop=None, on_ready=None, say=print) -> None:
             tail.stop()
         auto_updates.cancel()
         update_checks.cancel()
+        pruning.cancel()
+        reports.stop()
         await control.stop_uplinks()
         await lan.stop()
         await server.stop()
+
+
+def _report_protoset(files: list[Path]) -> Path:
+    """The game's definitions from a problem report being replayed, else the fixtures'."""
+    import tempfile
+
+    from .capturefile import report_protoset
+    from .replay import DEFAULT_PROTOSET
+
+    for f in files:
+        data = report_protoset(f)
+        if data:
+            out = Path(tempfile.gettempdir()) / f"starglance-replay-{f.stem}.protoset"
+            out.write_bytes(data)
+            return out
+    return DEFAULT_PROTOSET
 
 
 def cmd_link(args) -> None:
@@ -461,6 +495,17 @@ def _windows_certificates() -> None:
         logging.getLogger(__name__).debug("truststore unavailable", exc_info=True)
 
 
+def _below_normal_priority() -> None:
+    """The game first: when the CPU is busy, Windows runs Star Citizen before the agent
+    (which needs a fraction of a percent of one core)."""
+    if sys.platform != "win32":
+        return
+    import ctypes
+
+    kernel32 = ctypes.windll.kernel32
+    kernel32.SetPriorityClass(kernel32.GetCurrentProcess(), 0x4000)  # BELOW_NORMAL
+
+
 def main(argv: list[str] | None = None) -> None:
     if argv is None and getattr(sys, "frozen", False):
         if len(sys.argv) == 1:
@@ -469,6 +514,8 @@ def main(argv: list[str] | None = None) -> None:
             _console_for_commands()
     args = build_parser().parse_args(argv)
     _windows_certificates()
+    if args.command in ("app", "run"):
+        _below_normal_priority()
     if args.command != "app":  # the app logs to a file
         logging.basicConfig(level=logging.DEBUG if args.verbose else logging.WARNING)
     try:

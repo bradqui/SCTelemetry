@@ -49,8 +49,7 @@ body:
   - type: textarea
     id: logs
     attributes:
-      label: Log or recording (optional)
+      label: Log or recording
       description: |
-        The app's log is in %LOCALAPPDATA%\Starglance\logs (tray icon → Logs folder): the lines around the problem help.
-        For data that looks wrong, a recording helps most (README → Capturing telemetry); its aUEC amounts are removed, but check it before attaching.
-      render: text
+        Best: a problem report. In Starglance, Report a problem (the top bar's ⚑ marked, Settings → Agent, or the tray) makes Starglance-report-….zip in your Downloads; drag it into this box. Names, IDs and addresses are taken out, and this issue is public.
+        Otherwise the app's log, in %LOCALAPPDATA%\Starglance\logs (tray icon → Logs folder): the lines around the problem.

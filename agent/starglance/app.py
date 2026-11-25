@@ -415,6 +415,22 @@ class App:
         finally:
             self._resizing = False
 
+    def mark(self) -> None:
+        """Tray: mark this moment for a problem report (docs/REPORTS.md)."""
+        reports = getattr(getattr(self.server, "control", None), "reports", None)
+        loop = self.loop
+        if reports is None or loop is None or loop.is_closed():
+            return
+
+        def go() -> None:
+            with contextlib.suppress(ValueError):  # keeping the last 30 minutes is off
+                reports.mark("app")
+
+        loop.call_soon_threadsafe(go)
+        from .hotkey import chime
+
+        chime()
+
     def set_on_top(self, on: bool) -> None:
         self.prefs["on_top"] = on
         save_prefs(self.prefs)
@@ -476,6 +492,7 @@ class App:
         import pystray
 
         settings = "dispatchEvent(new CustomEvent('ft:settings', { detail: 'agent' }))"
+        report = "dispatchEvent(new CustomEvent('ft:report'))"
         item = pystray.MenuItem
         windowed = self.window is not None
         return pystray.Icon(
@@ -486,6 +503,9 @@ class App:
                 item("Open Starglance", lambda: self.show(""), default=True),
                 item("Fleet", lambda: self.show("#fleet")),
                 item("Settings", lambda: self.show("", settings)),
+                pystray.Menu.SEPARATOR,
+                item("Mark this moment", self.mark),
+                item("Report a problem...", lambda: self.show("", report)),
                 pystray.Menu.SEPARATOR,
                 item(
                     "Always on top",

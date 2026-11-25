@@ -317,6 +317,21 @@ export interface UplinkStatus {
 }
 
 /** The agent's updates (selfupdate.py): what the hubs say is current, and installing it. */
+/** Problem reports (report.py): the recent buffer, marks and hotkey, on this PC only. */
+export interface ReportsStatus {
+  /** False when replaying: nothing is recorded. */
+  available: boolean;
+  /** Keep the last 30 minutes (on unless switched off). */
+  keep: boolean;
+  keep_minutes: number;
+  /** The hotkey preset chosen (null: none) and whether it's registered. */
+  hotkey: string | null;
+  hotkey_on: boolean;
+  hotkey_error: string | null;
+  hotkeys: { id: string; label: string }[];
+  marks: { id: string; t: number; source: string }[];
+}
+
 export interface UpdaterStatus {
   current: string;
   available: string | null;

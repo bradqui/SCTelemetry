@@ -8,6 +8,7 @@ events, and tells its listeners: the local UI now, the hub uplink in Phase 2.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import threading
 import time
@@ -23,6 +24,7 @@ from .events import EventDeriver
 from .gamelog import LogState, parse_line
 from .installs import Install
 from .normalize import Normalizer, raw_game_events
+from .scrub import scrub_uec
 
 log = logging.getLogger(__name__)
 
@@ -77,6 +79,11 @@ class Pipeline:
         self._log = LogState()
         self._log_active = False
         self._listeners: list[Callable[[str, object], None]] = []
+        self.recorder = None
+        """The recent buffer (recent.RecentBuffer) for problem reports, when live."""
+        self.schema_bytes: bytes | None = None
+        """The game's message definitions in use (a serialized FileDescriptorSet)."""
+        self.schema_source: str | None = None
 
     def subscribe(self, listener: Callable[[str, object], None]) -> Callable[[], None]:
         """``listener(kind, payload)``: kind "snapshot" | "event" | "state" | "reset" | "replay"."""
@@ -90,8 +97,13 @@ class Pipeline:
             except Exception:
                 log.exception("Listener failed")
 
+    def _record(self, rec: dict, t: int | None = None) -> None:
+        if self.recorder is not None:
+            self.recorder.record(rec, t)
+
     def _emit(self, event: Event) -> None:
         self.recent.append(event)
+        self._record({"event": json.loads(event.model_dump_json(by_alias=True))}, event.t)
         self._notify("event", event)
 
     def set_state(self, **changes) -> None:
@@ -105,9 +117,16 @@ class Pipeline:
         ):
             new.since = now_ms()
             self.state = new
+            self._record({"state": new.as_dict()}, new.since)
             self._notify("state", new)
 
+    def on_schema(self, file_set: bytes, source: str) -> None:
+        """The game's message definitions were loaded (kept for problem reports)."""
+        self.schema_bytes, self.schema_source = file_set, source
+
     def on_frame(self, raw: dict, t: int) -> None:
+        if self.recorder is not None:
+            self._record({"frame": scrub_uec(raw)}, t)
         if not self.state.streaming:
             self.set_state(streaming=True, message="Receiving telemetry")
             self._emit(Event(t=t, kind="game_start"))
@@ -156,6 +175,8 @@ class Pipeline:
         ev = parse_line(line)
         if ev is None:
             return
+        if not quiet:
+            self._record({"log": line}, t)
         self._log_active = True
         my_ship = self.latest.ship.id if self.latest and self.latest.ship else None
         events = self._log.on_log(ev, now_ms() if t is None else t, my_ship)
@@ -245,6 +266,9 @@ class GameReader:
                     backoff = min(backoff * 1.5, 10.0)
                     continue
                 schema = client.load_schema(channel, self.install.exe if self.install else None)
+                self._post(
+                    self.pipeline.on_schema, schema.file_set.SerializeToString(), schema.source
+                )
                 backoff = 1.0
                 self._post(
                     lambda p=port: self.pipeline.set_state(

@@ -184,9 +184,9 @@ class Recording:
             ship_id = None
             first = len(rec.positions)
             # Log lines (t, line) in this file, attached to the next frame at or after them.
-            lines = sorted(
-                (r["t"], r["log"]) for r in read_records(path) if "log" in r and "t" in r
-            )
+            records = list(read_records(path))
+            lines = sorted((r["t"], r["log"]) for r in records if "log" in r and "t" in r)
+            marks = sorted(r["t"] for r in records if "mark" in r and "t" in r)
             frame_times = [t for t, _ in read_frames(path)]
             li = 0
             for k, (delay, payload, raw) in enumerate(_frames(schema, [path])):
@@ -204,6 +204,9 @@ class Recording:
                         if not quiet:
                             rec.markers.extend(Marker(pos, e.kind, e.data) for e in events)
                     li += 1
+                while marks and marks[0] <= frame_times[k]:  # a problem report's marks
+                    rec.markers.append(Marker(pos, "mark", {}))
+                    marks.pop(0)
                 rec.positions.append(pos)
                 rec.payloads.append(payload)
                 normalizer.route_active = logstate.route.active

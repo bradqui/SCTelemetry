@@ -58,8 +58,9 @@ def _dump(model: Snapshot | Event) -> str:
 
 
 class _Client:
-    def __init__(self, ws: web.WebSocketResponse) -> None:
+    def __init__(self, ws: web.WebSocketResponse, *, remote: bool = False) -> None:
         self.ws = ws
+        self.remote = remote
         self.snapshot: str | None = None
         self.messages: deque[str] = deque(maxlen=CLIENT_EVENT_QUEUE)
         self.wake = asyncio.Event()
@@ -80,6 +81,10 @@ class _Client:
             self.messages.append(json.dumps({"type": "uplink", **payload}))  # type: ignore[dict-item]
         elif kind == "updater":
             self.messages.append(json.dumps({"type": "updater", **payload}))  # type: ignore[dict-item]
+        elif kind == "reports":
+            if self.remote:
+                return  # marks and reports are this PC's
+            self.messages.append(json.dumps({"type": "reports", **payload}))  # type: ignore[dict-item]
         self.wake.set()
 
     async def pump(self) -> None:
@@ -148,6 +153,15 @@ class LocalServer:
                 web.post("/api/agent/update/auto", self._agent_update_auto),
                 web.post("/api/agent/update/check", self._agent_update_check),
                 web.post("/api/agent/update/check-now", self._agent_update_check_now),
+                web.post("/api/agent/report/keep", self._report_keep),
+                web.post("/api/agent/report/hotkey", self._report_hotkey),
+                web.post("/api/agent/report/mark", self._report_mark),
+                web.post("/api/agent/report/forget", self._report_forget),
+                web.post("/api/agent/report/timeline", self._report_timeline),
+                web.post("/api/agent/report/preview", self._report_preview),
+                web.post("/api/agent/report/save", self._report_save),
+                web.post("/api/agent/report/send", self._report_send),
+                web.post("/api/agent/report/discard", self._report_discard),
                 web.post("/api/app/show", self._app_show),
                 web.get("/{tail:.*}", self.static),
             ]
@@ -267,7 +281,7 @@ class LocalServer:
             result = action(body if isinstance(body, dict) else {})
             if asyncio.iscoroutine(result):
                 result = await result
-        except LinkError as exc:
+        except (LinkError, ValueError) as exc:
             return web.json_response({"error": str(exc)}, status=400)
         except Exception as exc:  # the hub is down, the file is locked...
             log.warning("Agent settings: %s", exc)
@@ -332,6 +346,49 @@ class LocalServer:
     async def _agent_update_check_now(self, request: web.Request) -> web.Response:
         return await self._agent_call(request, lambda _b: self.control.check_updates_now())
 
+    # Problem reports (docs/REPORTS.md): this PC only; the view for other devices has none.
+
+    async def _report_keep(self, request: web.Request) -> web.Response:
+        return await self._agent_call(
+            request, lambda b: self.control._reports().set_keep(bool(b.get("on")))
+        )
+
+    async def _report_hotkey(self, request: web.Request) -> web.Response:
+        return await self._agent_call(
+            request,
+            lambda b: self.control._reports().set_hotkey(
+                str(b["key"]) if isinstance(b.get("key"), str) else None
+            ),
+        )
+
+    async def _report_mark(self, request: web.Request) -> web.Response:
+        return await self._agent_call(request, lambda _b: self.control._reports().mark("app"))
+
+    async def _report_forget(self, request: web.Request) -> web.Response:
+        return await self._agent_call(
+            request, lambda b: self.control._reports().forget_mark(str(b.get("id", "")))
+        )
+
+    async def _report_timeline(self, request: web.Request) -> web.Response:
+        return await self._agent_call(request, lambda _b: self.control._reports().timeline_async())
+
+    async def _report_preview(self, request: web.Request) -> web.Response:
+        return await self._agent_call(request, lambda b: self.control._reports().preview(b))
+
+    async def _report_save(self, request: web.Request) -> web.Response:
+        return await self._agent_call(
+            request, lambda b: self.control._reports().save(str(b.get("id", "")))
+        )
+
+    async def _report_send(self, request: web.Request) -> web.Response:
+        return await self._agent_call(
+            request,
+            lambda b: self.control._reports().send(str(b.get("id", "")), str(b.get("hub", ""))),
+        )
+
+    async def _report_discard(self, request: web.Request) -> web.Response:
+        return await self._agent_call(request, lambda _b: self.control._reports().discard())
+
     async def _app_show(self, _request: web.Request) -> web.Response:
         if self.on_show is None:
             return web.json_response({"error": "not the app"}, status=404)
@@ -369,7 +426,7 @@ class LocalServer:
                 done()
 
     async def _stream(self, ws: web.WebSocketResponse, *, remote: bool) -> web.WebSocketResponse:
-        c = _Client(ws)
+        c = _Client(ws, remote=remote)
         await ws.send_str(
             json.dumps(
                 {
@@ -390,6 +447,9 @@ class LocalServer:
         updater = getattr(self.control, "updater", None)
         if updater is not None:
             await ws.send_str(json.dumps({"type": "updater", **updater.status()}))
+        reports = getattr(self.control, "reports", None)
+        if reports is not None and not remote:
+            await ws.send_str(json.dumps({"type": "reports", **reports.status()}))
         await ws.send_str(
             json.dumps(
                 {"type": "history", "events": [json.loads(_dump(e)) for e in self.pipeline.recent]}

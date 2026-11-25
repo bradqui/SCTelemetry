@@ -43,6 +43,24 @@ To try a change to `release.yml` before it ships, run it from your branch with *
 
 The first time the hub image is pushed, make the package public on GitHub so servers can pull it without signing in: **Packages → starglance-hub → Package settings → Change visibility → Public**.
 
+## Docs site
+
+The docs and the live demos are published on GitHub Pages, at https://bradqui.github.io/starglance/, by the [Docs site workflow](../.github/workflows/pages.yml) whenever `main` changes (it also builds, without publishing, on pull requests that touch them). The guide is Markdown in `site/` ([VitePress](https://vitepress.dev)); the demos are `web/demo/` (the real cockpit view and fleet page on the bundled recordings).
+
+```
+cd site && npm install
+npm run demo                 # builds the demos into public/demo/ (needs uv and web's npm install)
+npx playwright install chromium
+npm run shots -- demo clips  # screenshots and clips of the demos (the workflow does this itself)
+npm run dev                  # the site with live reload on http://localhost:5173/starglance/
+```
+
+The demo screenshots and clips are made fresh on every deploy, so they always match the release. The screens the demos can't show (Agent settings, problem reports, the hub's admin) come from a real agent and test hub: `npm run shots -- app` runs both in a temporary folder, with a made-up handle and PC name, and writes `site/public/shots/app/`, which is committed. Run it after changing those screens, and look at every picture before committing it.
+
+When a feature changes, change its page in `site/` in the same pull request.
+
+One-time setup (done): **Settings → Pages → Source: GitHub Actions**.
+
 ## Building the exe yourself
 
 ```

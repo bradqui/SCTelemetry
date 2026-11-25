@@ -17,7 +17,9 @@
   import TopBar from "./components/TopBar.svelte";
   import { keepAwake } from "./lib/wakelock.svelte";
 
-  const live = new LiveConnection();
+  // The demo page (GitHub Pages) passes a recording player instead of the agent's socket,
+  // and demo: no agent, so no Agent settings or problem reports, but the replay bar.
+  let { live = new LiveConnection(), demo = false }: { live?: LiveConnection; demo?: boolean } = $props();
   const trends = new Trends();
   const store = new PrefsStore();
   const prefs = $derived(store.value);
@@ -72,7 +74,7 @@
   );
   function openSettings(tab: "dashboard" | "agent") {
     if (fleetOpen) showFleet(false);
-    settingsTab = view.remote ? "dashboard" : tab; // Agent settings: on the PC only
+    settingsTab = view.remote || demo ? "dashboard" : tab; // Agent settings: on the PC only
     customizing = true;
   }
   onMount(() => {
@@ -84,7 +86,7 @@
   let reporting = $state(false);
   onMount(() => {
     const onReport = () => {
-      if (view.remote) return;
+      if (view.remote || demo) return;
       if (fleetOpen) showFleet(false);
       customizing = false;
       reporting = true;
@@ -211,7 +213,7 @@
 
 {/if}
 
-{#if live.replay && !fleetOpen && !view.remote}
+{#if live.replay && !fleetOpen && (demo || !view.remote)}
   <ReplayBar {live} />
 {/if}
 
@@ -220,7 +222,7 @@
 {/if}
 
 {#if customizing && !fleetOpen}
-  <Customize {store} {compact} agent={!view.remote} uplinks={live.uplinks} updater={live.updater} tab={settingsTab} onClose={() => (customizing = false)} />
+  <Customize {store} {compact} agent={!view.remote && !demo} uplinks={live.uplinks} updater={live.updater} tab={settingsTab} onClose={() => (customizing = false)} />
 {/if}
 
 <style>

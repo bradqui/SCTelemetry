@@ -2,6 +2,8 @@
 
 **Your Star Citizen ship and crew, at a glance.**
 
+**[📖 Docs and guide](https://bradqui.github.io/starglance/)** · **[▶ Live demo: cockpit view](https://bradqui.github.io/starglance/demo/cockpit.html)** · **[▶ Live demo: fleet page](https://bradqui.github.io/starglance/demo/)** · **[⬇ Download](https://github.com/bradqui/starglance/releases/latest)**
+
 Starglance reads the game's own telemetry on your PC and turns it into a cockpit dashboard for a second monitor, a tablet or a VR overlay: flight, ship, warnings, fuel, weapons, vitals, location, contracts. On its own, that's all it does: nothing leaves your PC.
 
 Play with others? Join your org's fleet and everyone sees everyone at a glance: who's flying what (and who's aboard whose ship), in which mode, where, with which warnings, and anyone's full dashboard a click away. The fleet view is in your cockpit page, and on your org's own hub (a small self-hosted server) for phones and other screens.
@@ -67,7 +69,7 @@ uv run python -m starglance run --replay captures/x.jsonl  # or your own capture
 
 A timeline at the bottom has every event on it (seat changes, takeoff, landing, NAV/SCM, warnings, kills, contracts). Click a marker, use **Events** to pick one, or press ← / → to jump to the previous or next event. Space plays and pauses, Shift+← / → moves 10 s, `,` / `.` step one frame while paused. `--speed 4` starts it faster.
 
-The sliders button (top right) customizes the dashboard: a theme from each ship maker (Drake, Anvil, Origin, Aegis and 12 more), dark or light, and whether it follows the ship you're in; layouts (Pilot, Combat, Explorer, Minimal); show, hide, resize and drag panels (including Wingmates, when linked to a fleet); HUD effects; units. See [docs/THEMES.md](docs/THEMES.md). `?compact=1` or **Compact** gives a narrow view for VR overlays (OVR Toolkit, XSOverlay). The cockpit view only accepts connections from the same PC.
+The sliders button (top right) customizes the dashboard: a theme from each ship maker (Drake, Anvil, Origin, Aegis and 13 more), dark or light, and whether it follows the ship you're in; layouts (Pilot, Combat, Explorer, Minimal); show, hide, resize and drag panels (including Wingmates, when linked to a fleet); HUD effects; units. See [docs/THEMES.md](docs/THEMES.md). `?compact=1` or **Compact** gives a narrow view for VR overlays (OVR Toolkit, XSOverlay). The cockpit view only accepts connections from the same PC.
 
 ## Know before you use it
 
@@ -114,7 +116,7 @@ npm run dev          # live-reload on :5173, proxying to an agent on :8740
 npm run check        # type check
 ```
 
-Releases (the exe, the hub image, signing): [docs/RELEASING.md](docs/RELEASING.md). The field reference (what the game actually sends): [docs/FIELDS.md](docs/FIELDS.md). The design and its decisions: [docs/SPEC.md](docs/SPEC.md). Contributing: [CONTRIBUTING.md](CONTRIBUTING.md).
+Releases (the exe, the hub image, signing) and the docs site: [docs/RELEASING.md](docs/RELEASING.md). The field reference (what the game actually sends): [docs/FIELDS.md](docs/FIELDS.md). The design and its decisions: [docs/SPEC.md](docs/SPEC.md). Contributing: [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ### Capturing telemetry
 

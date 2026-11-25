@@ -14,7 +14,7 @@ On the fleet page your default themes the page; with matching on, the member you
 
 ## How it works
 
-Everything lives in [web/src/lib/themes.ts](../web/src/lib/themes.ts): the 16 themes and `applyTheme(element, theme, scheme)`, which sets CSS custom properties on the page (or on one member's panel) and `data-deco` for the details. Components only ever read tokens:
+Everything lives in [web/src/lib/themes.ts](../web/src/lib/themes.ts): the 17 themes and `applyTheme(element, theme, scheme)`, which sets CSS custom properties on the page (or on one member's panel) and `data-deco` for the details. Components only ever read tokens:
 
 | Token | What |
 |---|---|

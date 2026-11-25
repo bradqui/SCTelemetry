@@ -68,6 +68,10 @@
       monitor or VR overlay, and the whole fleet at a glance on one page: who's flying what, where, in which mode, with
       which warnings.
     </p>
+    <p class="links">
+      <a href="./cockpit.html">Try the cockpit view</a><span aria-hidden="true">·</span><a href="../">Docs and guide</a
+      ><span aria-hidden="true">·</span><a href="https://github.com/bradqui/starglance/releases/latest">Download</a>
+    </p>
     <ul class="facts">
       <li><b>Reads only what the game offers</b> its local telemetry stream and log file; no memory reading, nothing near Easy Anti-Cheat</li>
       <li><b>You choose what's shared</b> eight categories, each one yours to switch off</li>
@@ -193,7 +197,7 @@
     <div>
       <h2 class="display">Themes</h2>
       <ul>
-        <li>Sixteen themes, one per ship maker: colours, typefaces, corners and the details that make each brand recognisable, like Drake's hazard stripes or Argo's metal frame.</li>
+        <li>Seventeen themes, one per ship maker: colours, typefaces, corners and the details that make each brand recognisable, like Drake's hazard stripes or Argo's metal frame.</li>
         <li>Dark or light, your choice; everything else comes from the manufacturer.</li>
         <li>Optional: switch to the maker of whatever you board, and back to your default on foot.</li>
         <li>Kruger and Gatac follow their in-game screens and Argo its documented orange UI. The rest interpret the lore, to be tuned with screenshots from the game.</li>
@@ -259,14 +263,13 @@
           <li>The Windows app: its own window and tray icon, one-click updates</li>
           <li>The cockpit view, with the fleet and a Wingmates panel inside it, and on a tablet at home</li>
           <li>Hub with invites, admin tools, the fleet page and the bot API</li>
-          <li>The sixteen themes</li>
+          <li>The seventeen themes</li>
           <li>About 250 automated tests on recorded sessions; the server image builds and starts in CI</li>
         </ul>
       </div>
       <div>
         <h3>Next</h3>
         <ul>
-          <li>Code signing, so Windows stops warning about the download</li>
           <li>Ops with after-action summaries</li>
           <li>Tune the themes from in-game screenshots of each maker's screens</li>
           <li>More from the game as CIG adds it (hull and shield levels)</li>
@@ -365,6 +368,16 @@
     font-size: 1.12rem;
     color: var(--text-2);
     max-width: 68ch;
+  }
+  .links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 10px;
+    margin: 4px 0 0;
+    font-weight: 700;
+  }
+  .links span {
+    color: var(--text-3);
   }
   .facts {
     list-style: none;

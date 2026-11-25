@@ -205,7 +205,7 @@ Bots live in their own projects and use the integration API (decision 16). Ideas
 
 **Phase 3, done:** the integration API for bots (replacing a bot built into this repo, decision 16).
 
-**Phase 4, done:** releases: `starglance.exe` and the hub image from tags, update notices and one-click updates. Code signing is wired into the release workflow and waits for SignPath (decision 8).
+**Phase 4, done:** releases: `starglance.exe` and the hub image from tags, update notices and one-click updates. Releases are unsigned, with a build attestation for each exe (decision 8).
 
 **Next:** after-action summaries and op windows on the hub; more Game.log lines as the game adds them; hull and shield levels if CIG starts sending them.
 
@@ -237,7 +237,7 @@ Bots live in their own projects and use the integration API (decision 16). Ideas
 5. *(Withdrawn: hosting details for a bot built into this repo; see 16.)*
 6. **Default sharing:** everything on; each member can switch off any category, and switched-off data is never sent.
 7. **Frontend:** Svelte 5 + Vite + TypeScript (§3.1).
-8. **Code signing:** through SignPath's free program for open-source projects (docs/CODE_SIGNING.md); releases are unsigned until it's set up, and say so.
+8. **Code signing:** not for now (2026-11-25). SignPath's free program wants a wider following first, and a paid certificate isn't worth it for a small fan-made tool. Releases are unsigned and say so; each one has a GitHub build attestation that ties the exe to the tag and workflow that built it (docs/CODE_SIGNING.md). The SignPath step stays in the release workflow, off, for reapplying later.
 9. **Hull/shield bars (2026-11-23):** LIVE doesn't send hull health or shield levels (FIELDS.md). The design keeps room for them beside shield power and the warning lights, in case CIG adds them.
 10. **Game.log and location (2026-11-23):** the agent also reads Game.log (read-only) for location, quantum routes, contracts, kills, injuries and the server (FIELDS.md, "Game.log"); comms and party chatter are left out. It goes to the fleet like the rest, under its own categories, each of which a member can switch off: `location` (zone, jurisdiction, server, system, quantum destination), `mission` (contracts) and `combat` (kills, losses, session counts), alongside `status`, `ship`, `weapons`, `vitals` and `uec` (which also covers contract rewards).
 11. **One org per hub (2026-11-23):** a hub serves one org. **Crews** are found automatically (members reporting the same ship). Tables carry an `org_id` anyway, so hosting several orgs stays possible.

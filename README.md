@@ -20,7 +20,7 @@ Discord is optional: members join with invite links; a hub can also offer "Sign 
 
 ## For players
 
-Download **starglance.exe** from the [latest release](https://github.com/bradqui/starglance/releases/latest) and double-click it. Starglance opens in its own window, with an icon in the system tray: closing the window keeps it running there (right-click the icon for Fleet, Settings, *Always on top*, *Hide the title bar*, *Start with Windows*, or Quit). Starting it again just brings the window back. With the title bar hidden, drag the window by its top bar; minimize, maximize and close move there. The same view is at `http://127.0.0.1:8740` for a browser, a second screen or a VR overlay.
+Download **starglance.exe** from the [latest release](https://github.com/bradqui/starglance/releases/latest) and double-click it. It isn't code-signed, so Windows may warn the first time: choose **More info → Run anyway** (to check the file first, see [docs/CODE_SIGNING.md](docs/CODE_SIGNING.md)). Starglance opens in its own window, with an icon in the system tray: closing the window keeps it running there (right-click the icon for Fleet, Settings, *Always on top*, *Hide the title bar*, *Start with Windows*, or Quit). Starting it again just brings the window back. With the title bar hidden, drag the window by its top bar; minimize, maximize and close move there. The same view is at `http://127.0.0.1:8740` for a browser, a second screen or a VR overlay.
 
 **Updating:** when a new version is out, an **Update** button appears in the top bar (Starglance asks this project's GitHub page when it starts and every few hours, and your fleet's hub says so too). Heard about a release before Starglance has? **Settings → Agent → Updates → Check now**. Click it: Starglance downloads the new version from this project's releases, checks it, and restarts in a few seconds, with your settings as they were. **Settings → Agent → Updates → Update automatically** does it by itself while the game isn't running. Switched off **Check for new versions**? Then only your fleet's hub tells it, or the [releases page](https://github.com/bradqui/starglance/releases).
 
@@ -50,7 +50,7 @@ starglance run --open         # cockpit view, and sends to the fleet
 
 To undo the game setting: Settings → Agent → Switch off, or `starglance off`. It restores `user.cfg` exactly.
 
-**Code signing policy**: release builds of `starglance.exe` are signed: free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org) (from the first release after the project is accepted). See [docs/CODE_SIGNING.md](docs/CODE_SIGNING.md) for what's signed, how it's built, and who approves it.
+**Code signing:** release builds of `starglance.exe` aren't code-signed. Each one is built by this repository's release workflow on GitHub, which records a build attestation for it: `gh attestation verify starglance.exe --repo bradqui/starglance` shows the tag and commit it was built from. If your antivirus flags it, that's a false positive common with PyInstaller programs; [docs/CODE_SIGNING.md](docs/CODE_SIGNING.md) says how to check the file and report it.
 
 ## For org admins
 

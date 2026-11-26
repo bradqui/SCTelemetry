@@ -165,7 +165,7 @@ END_ABANDON = (
         (destroyed("ANVL_Hurricane_PU_AI_CRIM_950384366871", ME), "vehicle_destroyed", None),
         (ACTOR_DEATH, "actor_death", None),
         (JUMP, "jump_drive", {"state": "Exiting", "system": "Pyro"}),
-        (END_ABANDON, "end_mission", {"how": "Abandon"}),
+        (END_ABANDON, "end_mission", {"mission": "3043cc9f", "how": "Abandon"}),
     ],
 )
 def test_parse(line, kind, data):
@@ -243,9 +243,9 @@ def test_contracts_objectives_rewards():
     feed(s, note("New Objective: Defeat Hostile Ships: "))
     [m] = s.mission_list(1000)
     assert m.title == "Combat Gauntlet - Scenario #1" and m.state == "active"
-    assert m.objective == "Defeat Hostile Ships" and not m.objective_done
+    assert [(o.text, o.state) for o in m.objectives] == [("Defeat Hostile Ships", "active")]
     feed(s, note("Objective Complete: Defeat Hostile Ships: "))
-    assert s.mission_list(1000)[0].objective_done
+    assert s.mission_list(1000)[0].objectives[0].state == "complete"
     events = feed(
         s, note("Contract Complete: Combat Gauntlet - Scenario #1: "), note("Awarded 500 aUEC: ")
     )
@@ -253,6 +253,99 @@ def test_contracts_objectives_rewards():
     assert s.session.contracts == 1 and s.session.earned == 500
     assert s.mission_list(1000)[0].state == "complete"
     assert s.mission_list(1000 + 200_000) == [], "finished contracts clear after a while"
+
+
+def told(text: str, n: int, mission: str, objective: str = "") -> tuple[str, str]:
+    """A notice as the game logs it: queued (with its ids), then shown (without)."""
+    return (
+        f'{TS}[Notice] <SHUDEvent_OnNotification> Added notification "{text}" [{n}] to queue. '
+        f"New queue size: 1, MissionId: [{mission}], ObjectiveId: [{objective}] "
+        "[Team_CoreGameplayFeatures][Missions][Comms]",
+        f'{TS}[Notice] <UpdateNotificationItem> Notification "{text}" [{n}], Action: Next '
+        "[Team_CoreGameplayFeatures][Missions][Comms]",
+    )
+
+
+HAUL = "1a2b3c4d-0000-4000-8000-000000000001"
+CARGO = ["Ammonia", "Hydrogen Fuel", "Argon", "Pressurized Ice", "Construction Materials"]
+
+
+def haul_accepted(n: int = 2) -> list[str]:
+    lines = [*told("Contract Accepted:  Rookie Hauler Needed for Direct Bulk Shipment: ", n, HAUL)]
+    for i, what in enumerate(CARGO):
+        lines += told(
+            f"New Objective: Deliver 0/48 SCU of {what} to Stanton System: ",
+            n + 1 + i,
+            HAUL,
+            f"dropoff_x_{i}",
+        )
+    return lines
+
+
+def test_a_haul_keeps_all_its_objectives():
+    s = LogState()
+    feed(s, *haul_accepted())
+    [m] = s.mission_list(1000)
+    assert m.id == HAUL and m.state == "active"
+    assert [o.text.split(" of ")[1].split(" to ")[0] for o in m.objectives] == CARGO
+    assert all(o.state == "active" for o in m.objectives)
+    feed(s, *told("Contract Complete: Rookie Hauler Needed for Direct Bulk Shipment: ", 20, HAUL))
+    m = s.mission_list(1000)[0]
+    assert m.state == "complete" and all(o.state == "complete" for o in m.objectives)
+
+
+def test_a_relog_announces_it_again_without_doubling():
+    s = LogState()
+    feed(s, *haul_accepted(2))
+    feed(s, *haul_accepted(40))  # the game says it all again after a relog
+    [m] = s.mission_list(1000)
+    assert len(m.objectives) == 5
+
+
+def test_objectives_find_their_own_contract():
+    s = LogState()
+    other = "1a2b3c4d-0000-4000-8000-000000000002"
+    feed(s, *haul_accepted())
+    feed(s, *told("Contract Accepted:  Retake: ", 10, other))
+    feed(s, *told("New Objective: Defeat Hostile Ships: ", 11, other, "kill_0"))
+    feed(
+        s,
+        *told(
+            "Objective Withdrawn: Deliver 0/48 SCU of Argon to Stanton System: ",
+            12,
+            HAUL,
+            "dropoff_x_2",
+        ),
+    )
+    retake, haul = s.mission_list(1000)
+    assert [o.text for o in retake.objectives] == ["Defeat Hostile Ships"]
+    assert len(haul.objectives) == 5 and haul.objectives[2].state == "withdrawn"
+
+
+def test_abandon_by_mission_id():
+    s = LogState()
+    other = "1a2b3c4d-0000-4000-8000-000000000002"
+    feed(s, *haul_accepted())
+    feed(s, *told("Contract Accepted:  Retake: ", 10, other))
+    end = END_ABANDON.replace("MissionId[3043cc9f]", f"MissionId[{HAUL}]")
+    assert [e.data["title"] for e in feed(s, end)] == [
+        "Rookie Hauler Needed for Direct Bulk Shipment"
+    ]
+    assert [m.state for m in s.mission_list(1000)] == ["active", "abandoned"]
+
+
+def test_auec_from_the_balance_and_from_notices():
+    s = LogState()
+    s.balance(0)  # still loading: not counted
+    s.balance(120_000)  # where counting starts
+    s.balance(95_000)  # spent: doesn't take earnings back
+    s.balance(140_000)  # a hauling payout, no notice
+    assert s.session.earned == 45_000
+    feed(s, note("Awarded 5,000 aUEC: "))  # the notice for money already counted
+    assert s.session.earned == 45_000
+    s = LogState()  # no balance in the stream: the notices still count
+    feed(s, note("Awarded 5,000 aUEC: "))
+    assert s.session.earned == 5000
 
 
 def test_abandon_only_when_unambiguous():

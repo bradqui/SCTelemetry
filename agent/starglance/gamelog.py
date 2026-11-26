@@ -31,7 +31,7 @@ import logging
 import re
 import threading
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from starglance_shared import (
@@ -41,6 +41,7 @@ from starglance_shared import (
     LastArrived,
     Location,
     Mission,
+    Objective,
     Route,
     Session,
 )
@@ -57,14 +58,22 @@ log = logging.getLogger(__name__)
 class LogEvent:
     kind: str
     data: dict = field(default_factory=dict)
+    n: int | None = None
+    """A shown notice's number: its queued twin (notice_ids) has the same one."""
 
 
 _TS = re.compile(r"^<\d{4}-\d\d-\d\dT[^>]*>\s?")
-_NOTIFICATION = re.compile(r'<UpdateNotificationItem> Notification "(.*)" \[\d+\], Action: Next')
+_NOTIFICATION = re.compile(r'<UpdateNotificationItem> Notification "(.*)" \[(\d+)\], Action: Next')
+# The same notice when it's queued, with the ids the shown one lacks: which contract and
+# which objective it's about. Matched to the shown one by its number ([N]).
+_NOTICE_IDS = re.compile(
+    r'<SHUDEvent_OnNotification> Added notification ".*" \[(\d+)\] to queue\..*?'
+    r"MissionId: \[([^\]]*)\], ObjectiveId: \[([^\]]*)\]"
+)
 _ROUTE = re.compile(r"Player has selected point (\S+) as their destination")
 _HANDLE = re.compile(r"<Legacy login response>.*?Handle\[([^\]]+)\]")
 _SHARD = re.compile(r"<Join PU>.*?shard\[([^\]]+)\]|<Update Shard Id> New Shard Id: ([\w-]+)")
-_END_MISSION = re.compile(r"<EndMission>.*?CompletionType\[(\w+)\]")
+_END_MISSION = re.compile(r"<EndMission>.*?(?:MissionId\[([^\]]*)\].*?)?CompletionType\[(\w+)\]")
 _VEHICLE = re.compile(
     r"<Vehicle Destroyed> Vehicle '([^']+)'.*?class '([^']+)'.*?destroyed: reason \[(\w+)\]"
     r" level \[(\d+)\] -> \[(\d+)\].*?killer '([^']*)'"
@@ -85,6 +94,7 @@ _ROUTE_START = re.compile(r"Projected Start Location is (.+?) for route to")
 
 _INTERESTING = (
     "<UpdateNotificationItem>",
+    "<SHUDEvent_OnNotification>",
     "Quantum Target",
     "Quantum Drive Arrived",
     "<Legacy login response>",
@@ -106,7 +116,17 @@ def parse_line(line: str) -> LogEvent | None:
     if not any(k in line for k in _INTERESTING):
         return None  # fast path: almost every line
     if m := _NOTIFICATION.search(line):
-        return parse_notification(m.group(1))
+        ev = parse_notification(m.group(1))
+        if ev is not None and ev.kind.startswith(("contract_", "objective_")):
+            ev = replace(ev, n=int(m.group(2)))
+        return ev
+    if m := _NOTICE_IDS.search(line):
+        mission, objective = _guid(m.group(2)), m.group(3) or None
+        if mission is None and objective is None:
+            return None
+        return LogEvent(
+            "notice_ids", {"n": int(m.group(1)), "mission": mission, "objective": objective}
+        )
     if "Quantum Target" in line and (m := _ROUTE.search(line)):
         return LogEvent("route", {"destination": destination_name(m.group(1)), "id": m.group(1)})
     if m := _LANDING.search(line):
@@ -128,7 +148,7 @@ def parse_line(line: str) -> LogEvent | None:
     if m := _SHARD.search(line):
         return LogEvent("shard", {"shard": m.group(1) or m.group(2)})
     if m := _END_MISSION.search(line):
-        return LogEvent("end_mission", {"how": m.group(1)})
+        return LogEvent("end_mission", {"mission": _guid(m.group(1) or ""), "how": m.group(2)})
     if m := _VEHICLE.search(line):
         vid, cls, reason, before, after, killer = m.groups()
         return LogEvent(
@@ -232,6 +252,12 @@ def parse_notification(text: str) -> LogEvent | None:
     if head == "Received Blueprint":
         return LogEvent("blueprint", {"name": rest})
     return None
+
+
+def _guid(raw: str) -> str | None:
+    """A mission id, or None for the empty one (00000000-...) and blanks."""
+    raw = raw.strip()
+    return None if not raw or set(raw) <= {"0", "-"} else raw
 
 
 def contract_title(raw: str) -> tuple[str, list[str]]:
@@ -379,8 +405,16 @@ class LogState:
         self.last_arrived: LastArrived | None = None
         self._forget_place()
         self.missions: list[Mission] = []
+        self._notice_ids: dict[int, tuple[str | None, str | None]] = {}
+        """Queued notices' (mission id, objective id), by number, until they're shown."""
         self.injuries: dict[str, Injury] = {}
         self.session = Session()
+        # aUEC earned, two ways: rises in your balance (telemetry), and "Awarded" notices.
+        # Many payouts (hauling, for one) come with no notice; the balance may not be in
+        # every build's stream. The session shows whichever is more.
+        self._uec: int | None = None
+        self._earned_balance = 0
+        self._earned_notices = 0
 
     def _forget_place(self) -> None:
         self.landing_id: str | None = None
@@ -490,44 +524,74 @@ class LogState:
             return event("comms_restored" if d["up"] else "comms_down")
 
         # -- contracts
+        if k == "notice_ids":
+            self._notice_ids[d["n"]] = (d["mission"], d["objective"])
+            while len(self._notice_ids) > 100:  # shown ones are taken; these never were
+                del self._notice_ids[next(iter(self._notice_ids))]
+            return []
+        mid, oid = self._notice_ids.pop(ev.n, (None, None)) if ev.n is not None else (None, None)
         if k == "contract_accepted":
-            self.missions = [m for m in self.missions if m.title != d["title"]]
+            # The game announces your contracts again after a relog: the same one again
+            # (by id, else by name) replaces the old copy, objectives and all.
+            self.missions = [
+                m for m in self.missions if not (m.id == mid if mid else m.title == d["title"])
+            ]
             self.missions.insert(
-                0, Mission(title=d["title"], tags=d["tags"], state="active", since=t)
+                0, Mission(id=mid, title=d["title"], tags=d["tags"], state="active", since=t)
             )
             del self.missions[MAX_MISSIONS:]
             return event(k, title=d["title"])
         if k in ("contract_complete", "contract_failed", "contract_shared"):
-            m = self._mission(d["title"])
+            m = self._mission(d["title"], mid)
             if k == "contract_shared":
                 m.shared = True
             else:
                 m.state, m.since = ("complete" if k == "contract_complete" else "failed"), t
                 if k == "contract_complete":
                     self.session.contracts += 1
+                    for o in m.objectives:  # done means all of it
+                        if o.state == "active":
+                            o.state = "complete"
                 else:
                     self.session.failed += 1
             return event(k, title=d["title"])
         if k == "end_mission":
             if d["how"].lower().startswith("abandon"):
                 active = [m for m in self.missions if m.state == "active"]
-                if len(active) == 1:  # the line has an id, not a title: only sure with one
-                    active[0].state, active[0].since = "abandoned", t
-                    return event("contract_abandoned", title=active[0].title)
+                # By the mission's id; without one, only when there's no doubt which.
+                found = [m for m in active if d.get("mission") and m.id == d["mission"]]
+                if not found and len(active) == 1 and not active[0].id:
+                    found = active
+                if found:
+                    found[0].state, found[0].since = "abandoned", t
+                    return event("contract_abandoned", title=found[0].title)
             return []
         if k.startswith("objective_"):
-            m = next((m for m in self.missions if m.state == "active"), None)
+            m = next((m for m in self.missions if mid and m.id == mid), None) or next(
+                (m for m in self.missions if m.state == "active"), None
+            )
             if m is None:
-                m = Mission(title=None, state="active", since=t)
+                m = Mission(id=mid, title=None, state="active", since=t)
                 self.missions.insert(0, m)
-            if k == "objective_new":
-                m.objective, m.objective_done = d["text"], False
-            elif m.objective == d["text"] or m.objective is None:
-                m.objective = d["text"]
-                m.objective_done = k == "objective_complete"
+                del self.missions[MAX_MISSIONS:]
+            o = next((o for o in m.objectives if oid and o.id == oid), None) or next(
+                (o for o in m.objectives if o.text == d["text"]), None
+            )
+            state = {
+                "objective_new": "active",
+                "objective_complete": "complete",
+                "objective_failed": "failed",
+                "objective_withdrawn": "withdrawn",
+            }[k]
+            if o is None:
+                m.objectives.append(Objective(id=oid, text=d["text"], state=state))
+            else:
+                o.text, o.state = d["text"], state
+                o.id = o.id or oid
             return event(k, text=d["text"], title=m.title)
         if k == "reward":
-            self.session.earned += d["auec"]
+            self._earned_notices += d["auec"]
+            self.session.earned = max(self._earned_balance, self._earned_notices)
             return event("reward", auec=d["auec"])
 
         # -- combat
@@ -603,11 +667,14 @@ class LogState:
             return event("blueprint", name=d["name"])
         return []
 
-    def _mission(self, title: str) -> Mission:
+    def _mission(self, title: str, mid: str | None = None) -> Mission:
+        for m in self.missions:
+            if mid and m.id == mid:
+                return m
         for m in self.missions:
             if m.title == title:
                 return m
-        m = Mission(title=title, state="active", since=0)
+        m = Mission(id=mid, title=title, state="active", since=0)
         self.missions.insert(0, m)
         del self.missions[MAX_MISSIONS:]
         return m
@@ -668,11 +735,26 @@ class LogState:
             return name
         return destination_name(raw) if raw.startswith("OOC_") else None
 
+    def balance(self, uec: int | None) -> None:
+        """Your aUEC balance from telemetry: each rise counts as earned (spending doesn't
+        take it back). Not from nothing: the first reading, or a 0 while the game loads it,
+        is only where counting starts."""
+        if uec is None:
+            return
+        if self._uec and uec > self._uec:
+            self._earned_balance += uec - self._uec
+            self.session.earned = max(self._earned_balance, self._earned_notices)
+        self._uec = uec
+
+    def balance_lost(self) -> None:
+        """The stream dropped: start counting again from the next reading."""
+        self._uec = None
+
     def mission_list(self, t: int) -> list[Mission]:
         self.missions = [
             m for m in self.missions if m.state == "active" or t - m.since <= ENDED_SHOWN_MS
         ]
-        return [m.model_copy() for m in self.missions]
+        return [m.model_copy(deep=True) for m in self.missions]
 
 
 # ---------------------------------------------------------------- following the file

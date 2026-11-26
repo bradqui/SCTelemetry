@@ -123,13 +123,20 @@ export interface Aboard {
   since: number;
 }
 
+export interface Objective {
+  id: string | null;
+  text: string;
+  state: "active" | "complete" | "failed" | "withdrawn";
+}
+
 export interface Mission {
+  id: string | null;
   title: string | null;
   tags: string[];
   state: "active" | "complete" | "failed" | "abandoned";
   since: number;
-  objective: string | null;
-  objective_done: boolean;
+  /** In the order the game set them; the log doesn't report delivery progress. */
+  objectives: Objective[];
   shared: boolean;
 }
 
@@ -279,7 +286,7 @@ export interface MemberSummary extends Me {
     injury: string | null;
     injuries: number;
   } | null;
-  mission: { title: string | null; objective: string | null } | null;
+  mission: { title: string | null; objective: string | null; objectives_done: number; objectives: number } | null;
   session: Session | null;
 }
 

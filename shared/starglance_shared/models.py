@@ -265,16 +265,29 @@ class Location(_Model):
     aboard: Aboard | None = None
 
 
+class Objective(_Model):
+    """One of a contract's objectives ("Deliver 0/168 SCU of Ammonia to ..."). The log
+    gives its text when it's set; it doesn't report delivery progress along the way."""
+
+    id: str | None = None
+    """The game's id for it (from the notice), so a repeat or a change finds the same one."""
+    text: str
+    state: Literal["active", "complete", "failed", "withdrawn"] = "active"
+
+
 class Mission(_Model):
     """A contract (or loose objective) from Game.log notices."""
 
+    id: str | None = None
+    """The game's mission id, when the log gave one: objectives and endings find their
+    contract by it (several can be active at once)."""
     title: str | None = None
     tags: list[str] = Field(default_factory=list)
     """E.g. ["150 Rep", "BP"] from the contract name."""
     state: Literal["active", "complete", "failed", "abandoned"]
     since: int
-    objective: str | None = None
-    objective_done: bool = False
+    objectives: list[Objective] = Field(default_factory=list)
+    """Every objective, in the order the game set them (hauling contracts have several)."""
     shared: bool = False
 
 

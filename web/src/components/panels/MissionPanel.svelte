@@ -1,7 +1,8 @@
 <script lang="ts">
   import type { PanelCtx } from "../../lib/context";
+  import { currentObjective, objectiveCount } from "../../lib/missions";
 
-  // Current contract (from Game.log), its objective, and how the session's going.
+  // Current contract (from Game.log), its objectives, and how the session's going.
   let { ctx }: { ctx: PanelCtx } = $props();
 
   const missions = $derived(ctx.snap.missions ?? null);
@@ -14,6 +15,7 @@
     failed: "Failed",
     abandoned: "Abandoned",
   };
+  const count = $derived(main ? objectiveCount(main) : null);
 </script>
 
 {#if missions === null}
@@ -31,20 +33,28 @@
       {#each main.tags as tag (tag)}<span class="tag">{tag}</span>{/each}
     </div>
     <span class="title display">{main.title ?? "Objective"}</span>
-    {#if main.objective}
-      <div class="objective" class:done={main.objective_done}>
-        <svg viewBox="0 0 16 16" aria-hidden="true">
-          <path d="M2.5 2.5h11v11h-11z" />
-          {#if main.objective_done}<path d="M5 8l2 2 4-4" />{/if}
-        </svg>
-        <span>{main.objective}</span>
-      </div>
+    {#if main.objectives.length}
+      <ul class="objectives">
+        {#each main.objectives as o, i (o.id ?? i)}
+          <li class="objective {o.state}">
+            <svg viewBox="0 0 16 16" aria-hidden="true">
+              <path d="M2.5 2.5h11v11h-11z" />
+              {#if o.state === "complete"}<path d="M5 8l2 2 4-4" />{/if}
+              {#if o.state === "failed"}<path d="M5.5 5.5l5 5M10.5 5.5l-5 5" />{/if}
+            </svg>
+            <span>{o.text}</span>
+          </li>
+        {/each}
+      </ul>
+      {#if count && count.total > 1}
+        <span class="count"><b class="num">{count.done}/{count.total}</b> objectives done</span>
+      {/if}
     {/if}
   </div>
   {#if others.length}
     <ul class="others">
       {#each others as m, i (i)}
-        <li class={m.state}><span class="dot"></span>{m.title ?? m.objective}<em>{STATE[m.state]}</em></li>
+        <li class={m.state}><span class="dot"></span>{m.title ?? currentObjective(m)?.text}<em>{STATE[m.state]}</em></li>
       {/each}
     </ul>
   {/if}
@@ -108,6 +118,20 @@
     font-weight: 700;
     line-height: 1.25;
   }
+  .objectives {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 3px;
+  }
+  .count {
+    font-size: 0.7rem;
+    color: var(--text-3);
+  }
+  .count b {
+    color: var(--text-2);
+  }
   .objective {
     display: flex;
     align-items: flex-start;
@@ -128,9 +152,19 @@
     stroke-linecap: round;
     stroke-linejoin: round;
   }
-  .objective.done span {
+  .objective.complete span,
+  .objective.withdrawn span {
     color: var(--text-3);
     text-decoration: line-through;
+  }
+  .objective.withdrawn {
+    opacity: 0.6;
+  }
+  .objective.failed path {
+    stroke: var(--bad);
+  }
+  .objective.failed span {
+    color: var(--bad);
   }
   .others {
     list-style: none;

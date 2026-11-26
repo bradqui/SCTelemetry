@@ -315,6 +315,14 @@ export interface HubMode {
   dev_login: boolean;
   /** No admin yet: the setup link is in the hub's log. */
   setup: boolean;
+  /** Someone else runs this hub for the org (spec decision 28). */
+  host?: HubHost | null;
+}
+
+export interface HubHost {
+  name: string;
+  /** Their page about hosted orgs (privacy, terms). */
+  url: string | null;
 }
 
 export interface UplinkStatus {

@@ -103,7 +103,7 @@ The database upgrades itself on start. Agents reconnect by themselves. Hub and a
 
 One SQLite file in the `hub-data` volume (`hub.sqlite3`): members, sign-in sessions, linked PCs, invites, API keys and the event log (30 days by default). Every token, code and key is stored as a hash. Live telemetry is held in memory only. Whoever runs the hub can see everything members share, so run it for people who trust you.
 
-Back up while running:
+Back up while running: **Admin → Settings → Download everything** saves a consistent copy (a zip with `hub.sqlite3`). For a scheduled backup on the server:
 
 ```bash
 docker compose exec -u hub hub python -c "import sqlite3; s=sqlite3.connect('/data/hub.sqlite3'); s.backup(sqlite3.connect('/data/backup.sqlite3'))"

@@ -9,7 +9,7 @@ One port (8100), behind a reverse proxy that terminates https.
 - ``/api/agent/*``, ``/ws/agent``        agents: join, link, telemetry (bearer token)
 - ``/api/me/*``, ``/api/link/<code>``    the signed-in member's account and PCs
 - ``/api/admin/*``                       admins: members, invites, settings, API keys,
-                                         problem reports
+                                         problem reports, the hub's data, closing a hosted org
 - ``/api/v1/*``                          integrations (bots, scripts): API key
 - ``/ws/view``                           pages watch the fleet (session cookie)
 """
@@ -18,10 +18,15 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import io
 import ipaddress
 import json
 import logging
+import re
+import sqlite3
+import tempfile
 import time
+import zipfile
 from collections import defaultdict, deque
 from pathlib import Path
 
@@ -37,6 +42,23 @@ from .db import API_SCOPES, ROLES, Database, Member, clean_name, now_ms
 from .fleet import Fleet, ProtocolError, Viewer
 
 log = logging.getLogger(__name__)
+
+CLOSE_REQUEST = "close_request"
+"""Settings key: {"at": ms, "by": name, "by_id": member id} while the org's admins have asked
+the host to close it (spec decision 28). Hosting tools read it from the database."""
+
+EXPORT_README = """Starglance hub data for "{org}", downloaded {day} from {url} (hub {version}).
+
+hub.sqlite3 is everything the hub keeps: members and their accounts, linked PCs, signed-in
+browsers, invites, API keys and sign-in codes (every token, code and key as a hash only),
+the org's settings, the event history and problem reports. Live telemetry isn't stored.
+Open it with any SQLite tool.
+
+To run it as your own hub: set one up (deploy/README.md in the Starglance project) and put
+this hub.sqlite3 in its data folder before its first start, with HUB_URL set to the new
+address. Members keep their accounts and history; each links their PC to the new address
+once (starglance link <new address>) and confirms the code there.
+"""
 
 HUB = web.AppKey("hub", "Hub")
 AGENT_MAX_MESSAGE = 64 * 1024
@@ -253,6 +275,9 @@ class Hub:
                 web.delete("/api/admin/invites/{id}", self.admin_invite_revoke),
                 web.get("/api/admin/settings", self.admin_settings),
                 web.put("/api/admin/settings", self.admin_settings_update),
+                web.get("/api/admin/export", self.admin_export),
+                web.post("/api/admin/close", self.admin_close_request),
+                web.delete("/api/admin/close", self.admin_close_cancel),
                 web.get("/api/admin/keys", self.admin_keys),
                 web.post("/api/admin/keys", self.admin_key_new),
                 web.delete("/api/admin/keys/{id}", self.admin_key_delete),
@@ -344,6 +369,7 @@ class Hub:
                 "discord": self.auth.discord is not None,
                 "dev_login": self.cfg.dev_login_on,
                 "setup": self.setup_url is not None,
+                "host": self.cfg.host,
             }
         )
 
@@ -781,6 +807,8 @@ class Hub:
                 "discord_autojoin": self.auth.discord_autojoin(),
                 "discord_member_role_id": self.auth.member_role(),
                 "event_retention_days": self.cfg.event_retention_days,
+                "host": self.cfg.host,
+                "close_request": self._close_request(),
             }
         )
 
@@ -794,6 +822,85 @@ class Hub:
         if "discord_member_role_id" in body:
             role = str(body["discord_member_role_id"] or "").strip()
             self.db.set_setting("discord_member_role_id", role or None)
+        return await self.admin_settings(request)
+
+    # -- the org's data, and closing a hosted org (spec decision 28)
+
+    async def admin_export(self, request: web.Request) -> web.Response:
+        admin = await self._admin(request)
+        data = await asyncio.to_thread(self._export_zip)
+        log.info("%s downloaded the hub's data (%d KB)", admin.name, len(data) // 1024)
+        slug = re.sub(r"[^a-z0-9]+", "-", self.auth.org_name().lower()).strip("-") or "fleet"
+        day = time.strftime("%Y-%m-%d", time.gmtime())
+        return web.Response(
+            body=data,
+            content_type="application/zip",
+            headers={
+                "Content-Disposition": f'attachment; filename="starglance-{slug}-{day}.zip"',
+                "Cache-Control": "no-store",
+            },
+        )
+
+    def _export_zip(self) -> bytes:
+        """A consistent copy of the whole database (safe while the hub writes), zipped with
+        a note on what it is and how to run it as your own hub."""
+        with tempfile.TemporaryDirectory() as tmp:
+            copy = Path(tmp) / "hub.sqlite3"
+            src = sqlite3.connect(self.cfg.db_path, timeout=30)
+            dst = sqlite3.connect(copy)
+            try:
+                src.backup(dst)
+                dst.execute("PRAGMA journal_mode=DELETE")
+            finally:
+                dst.close()
+                src.close()
+            note = EXPORT_README.format(
+                org=self.auth.org_name(),
+                url=self.cfg.hub_url,
+                day=time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime()),
+                version=__version__,
+            )
+            buf = io.BytesIO()
+            with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+                z.write(copy, "hub.sqlite3")
+                z.writestr("README.txt", note)
+            return buf.getvalue()
+
+    def _close_request(self) -> dict | None:
+        raw = self.db.setting(CLOSE_REQUEST)
+        try:
+            return json.loads(raw) if raw else None
+        except ValueError:
+            return None
+
+    def _hosted(self) -> dict:
+        if self.cfg.host is None:
+            raise _json_error(404, "this hub isn't hosted for the org; whoever runs it decides")
+        return self.cfg.host
+
+    async def admin_close_request(self, request: web.Request) -> web.Response:
+        admin = await self._admin(request)
+        host = self._hosted()
+        typed = " ".join(str((await _body(request)).get("confirm", "")).split())
+        if typed.casefold() != self.auth.org_name().casefold():
+            raise _json_error(400, "type the org's name to confirm")
+        if self._close_request() is None:
+            self.db.set_setting(
+                CLOSE_REQUEST, json.dumps({"at": now_ms(), "by": admin.name, "by_id": admin.id})
+            )
+            log.warning(
+                "%s asked %s to close this org and delete its data (Admin → Settings).",
+                admin.name,
+                host["name"],
+            )
+        return await self.admin_settings(request)
+
+    async def admin_close_cancel(self, request: web.Request) -> web.Response:
+        admin = await self._admin(request)
+        self._hosted()
+        if self._close_request() is not None:
+            self.db.set_setting(CLOSE_REQUEST, None)
+            log.warning("%s withdrew the request to close this org.", admin.name)
         return await self.admin_settings(request)
 
     async def admin_keys(self, request: web.Request) -> web.Response:

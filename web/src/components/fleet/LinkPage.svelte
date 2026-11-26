@@ -38,7 +38,7 @@
   }
 </script>
 
-<Card title={mode.org} subtitle="Link a PC">
+<Card title={mode.org} subtitle="Link a PC" host={mode.host}>
   {#if phase === "loading"}
     <p>Checking the code…</p>
   {:else if phase === "error"}

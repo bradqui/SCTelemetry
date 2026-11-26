@@ -37,7 +37,7 @@
   }
 </script>
 
-<Card title={info?.org ?? mode.org} subtitle="Starglance">
+<Card title={info?.org ?? mode.org} subtitle="Starglance" host={mode.host}>
   {#if mode.me}
     <h1>You're already a member</h1>
     <p>You're signed in as <b>{mode.me.name}</b>. To link another PC, run <code>starglance link {location.origin}</code> on it.</p>

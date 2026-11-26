@@ -29,7 +29,7 @@
   }
 </script>
 
-<Card title={mode.org} subtitle="Starglance">
+<Card title={mode.org} subtitle="Starglance" host={mode.host}>
   {#if mode.setup}
     <p class="warn">
       This hub has no admin yet. Its setup link is in the hub's log (for Docker: <code>docker compose logs hub</code>).

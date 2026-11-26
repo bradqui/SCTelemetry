@@ -3,7 +3,7 @@
   import { api, copy } from "../../lib/api";
   import { ago } from "../../lib/format";
   import { issueUrl, type IssueFields } from "../../lib/issue";
-  import type { Account } from "../../lib/types";
+  import type { Account, HubHost } from "../../lib/types";
   import Dialog from "./Dialog.svelte";
 
   let { me, onClose }: { me: Account; onClose: () => void } = $props();
@@ -38,6 +38,8 @@
     discord: boolean;
     discord_autojoin: boolean;
     discord_member_role_id: string | null;
+    host: HubHost | null;
+    close_request: { at: number; by: string } | null;
   }
 
   let members = $state<MemberRow[]>([]);
@@ -232,6 +234,49 @@
       setTimeout(() => (saved = false), 1500);
     });
   }
+
+  // -- the org's data, and closing a hosted org (spec decision 28)
+  let exporting = $state<"busy" | "saved" | null>(null);
+  async function downloadAll() {
+    if (exporting === "busy") return;
+    exporting = "busy";
+    error = "";
+    try {
+      const res = await fetch("/api/admin/export");
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error((body as { error?: string }).error ?? `The hub said ${res.status}.`);
+      }
+      const name = /filename="([^"]+)"/.exec(res.headers.get("Content-Disposition") ?? "")?.[1] ?? "starglance-data.zip";
+      const url = URL.createObjectURL(await res.blob());
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = name;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 10_000);
+      exporting = "saved";
+      setTimeout(() => {
+        if (exporting === "saved") exporting = null;
+      }, 2500);
+    } catch (e) {
+      exporting = null;
+      error = `Couldn't download the data: ${(e as Error).message}`;
+    }
+  }
+  let closeName = $state("");
+  async function askToClose() {
+    await run(async () => {
+      settings = await api<Settings>("POST", "/api/admin/close", { confirm: closeName });
+      closeName = "";
+    });
+  }
+  async function cancelClose() {
+    await run(async () => {
+      settings = await api<Settings>("DELETE", "/api/admin/close");
+    });
+  }
+
+  const day = (ms: number) => new Date(ms).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
 
   function expires(i: Invite): string {
     if (!i.expires_at) return "never expires";
@@ -439,6 +484,50 @@
       {/if}
     </section>
     <div class="row"><button class="btn primary" onclick={saveSettings}>{saved ? "Saved" : "Save"}</button></div>
+    <section class="apart">
+      <h3>Your data</h3>
+      <p>
+        Everything this hub keeps, as one file: members, linked PCs, invites, settings, the event history and problem
+        reports (tokens and keys only as hashes). Keep it as a backup, or run it as your own hub.
+      </p>
+      <div class="row">
+        <button class="btn" class:saved={exporting === "saved"} disabled={exporting === "busy"} onclick={downloadAll}
+          >{exporting === "busy" ? "Preparing…" : exporting === "saved" ? "Saved ✓" : "Download everything"}</button
+        >
+      </div>
+    </section>
+    {#if settings.host}
+      <section>
+        <h3>Hosting</h3>
+        <p>
+          {settings.host.name} runs this hub for {settings.org_name}{#if settings.host.url}{" "}(<a
+              href={settings.host.url}
+              target="_blank"
+              rel="noopener noreferrer">privacy and terms</a
+            >){/if}.
+        </p>
+        {#if settings.close_request}
+          <p class="closing">
+            {settings.close_request.by} asked {settings.host.name} on {day(settings.close_request.at)} to close this org.
+            They delete the org and all its data; download it first if you want to keep it.
+          </p>
+          <div class="row"><button class="btn" onclick={cancelClose}>Withdraw the request</button></div>
+        {:else}
+          <p>
+            Closing the org asks {settings.host.name} to delete it and everything in it. Download your data first if you
+            want to keep it or move to your own hub. To confirm, type the org's name.
+          </p>
+          <div class="row">
+            <input type="text" bind:value={closeName} placeholder={settings.org_name} aria-label="The org's name" />
+            <button
+              class="btn danger"
+              disabled={closeName.trim().toLowerCase() !== settings.org_name.trim().toLowerCase()}
+              onclick={askToClose}>Ask to close this org</button
+            >
+          </div>
+        {/if}
+      </section>
+    {/if}
   {/if}
 </Dialog>
 
@@ -519,6 +608,12 @@
   .btn.saved {
     color: var(--good);
     border-color: var(--good);
+  }
+  .apart {
+    margin-top: 22px;
+  }
+  .closing {
+    color: var(--warn);
   }
   .item.off b {
     color: var(--text-3);

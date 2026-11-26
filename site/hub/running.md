@@ -91,6 +91,7 @@ The ones in `.env` you'll most likely touch:
 | `HUB_REPORT_RETENTION_DAYS` | How long problem reports are kept (30 days by default) |
 | `DISCORD_*` | Optional Discord sign-in ([Admin](/hub/admin#discord)) |
 | `HUB_VERSION` | Stay on one version, e.g. `0.7.0` |
+| `HUB_HOST_NAME`, `HUB_HOST_URL` | Only if you run this hub for another org: "Hosted by" on the page, and their admins can ask you to close it ([Admin](/hub/admin#hosted-orgs)) |
 
 The comments in `.env.example` explain each one.
 
@@ -106,7 +107,7 @@ The database upgrades itself on start, and agents reconnect by themselves. Hub a
 
 One SQLite file in the `hub-data` volume (`hub.sqlite3`): members, sign-in sessions, linked PCs, invites, API keys, the event log and problem reports. Every token, code and key is stored as a hash. Live telemetry is held in memory only.
 
-Back up while running:
+Back up while running: **Admin → Settings → Download everything** saves a consistent copy (a zip with `hub.sqlite3`). For a scheduled backup on the server:
 
 ```bash
 docker compose exec -u hub hub python -c "import sqlite3; s=sqlite3.connect('/data/hub.sqlite3'); s.backup(sqlite3.connect('/data/backup.sqlite3'))"

@@ -40,6 +40,13 @@ class Config:
     discord_api: str = "https://discord.com/api/v10"
     discord_authorize: str = "https://discord.com/oauth2/authorize"
 
+    # Optional: someone else runs this hub for the org (spec decision 28).
+    host_name: str | None = None
+    """Shown as "Hosted by <name>" on the sign-in and join pages; turns on Admin → Settings
+    → Close this org, a request for the host."""
+    host_url: str | None = None
+    """The host's page about hosted orgs (privacy, terms), linked beside the name."""
+
     dev_login: bool = False
     """Sign in by name without anything else (``/auth/dev``). Local testing only; refused
     on an https hub."""
@@ -74,6 +81,14 @@ class Config:
     def dev_login_on(self) -> bool:
         return self.dev_login and not self.secure
 
+    @property
+    def host(self) -> dict | None:
+        """Who hosts this hub for the org, for the page: {"name", "url"}, or None."""
+        if not self.host_name:
+            return None
+        url = self.host_url if _web_url(self.host_url) else None
+        return {"name": self.host_name, "url": url}
+
     @classmethod
     def from_env(cls) -> Config:
         web = _env("HUB_WEB_DIR")
@@ -88,6 +103,8 @@ class Config:
             discord_client_secret=_env("DISCORD_CLIENT_SECRET"),
             discord_guild_id=_env("DISCORD_GUILD_ID"),
             discord_member_role_id=_env("DISCORD_MEMBER_ROLE_ID"),
+            host_name=" ".join((_env("HUB_HOST_NAME") or "").split())[:64] or None,
+            host_url=_env("HUB_HOST_URL"),
             dev_login=_env("HUB_DEV_LOGIN", "0") == "1",
             event_retention_days=int(_env("HUB_EVENT_RETENTION_DAYS", "30") or 30),
             report_retention_days=int(_env("HUB_REPORT_RETENTION_DAYS", "30") or 30),
@@ -107,4 +124,12 @@ class Config:
             )
         if not self.secure and not self.hub_url.startswith("http://127.0.0.1"):
             out.append(f"HUB_URL is {self.hub_url}: use https for anything but local testing.")
+        if self.host_url and not _web_url(self.host_url):
+            out.append("HUB_HOST_URL must start with https:// (or http://); it's not shown.")
+        if self.host_url and not self.host_name:
+            out.append("HUB_HOST_URL is shown only with HUB_HOST_NAME set.")
         return out
+
+
+def _web_url(url: str | None) -> bool:
+    return bool(url) and urlsplit(url).scheme in ("http", "https") and bool(urlsplit(url).netloc)

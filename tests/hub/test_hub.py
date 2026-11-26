@@ -5,7 +5,10 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import io
 import json
+import sqlite3
+import zipfile
 from pathlib import Path
 
 import aiohttp
@@ -390,6 +393,92 @@ def test_admins_suspend_and_remove_members(tmp_path):
             assert (await admin.delete(f"{url}/api/me", headers=origin)).status == 409
 
     asyncio.run(main())
+
+
+def test_admins_download_everything(tmp_path):
+    async def main():
+        hub_ctx = running_hub(tmp_path, org_name="Kestrel Wing")
+        async with hub_ctx as (hub, _srv), browser() as admin, browser() as member:
+            await sign_in(admin, hub, "Admin")
+            code = await make_invite(admin, hub, uses=1)
+            await agent_join(hub, code, "Rook")
+            hub.db.set_setting("org_name", "Kestrel Wing!")
+            url = f"{hub.cfg.hub_url}/api/admin/export"
+
+            resp = await admin.get(url)
+            assert resp.status == 200
+            assert resp.headers["Cache-Control"] == "no-store"
+            assert 'filename="starglance-kestrel-wing-' in resp.headers["Content-Disposition"]
+            data = await resp.read()
+
+            await sign_in(member, hub, "Ace")
+            assert (await member.get(url)).status == 403
+            async with aiohttp.ClientSession() as anon:
+                assert (await anon.get(url)).status == 401
+
+        with zipfile.ZipFile(io.BytesIO(data)) as z:
+            assert sorted(z.namelist()) == ["README.txt", "hub.sqlite3"]
+            readme = z.read("README.txt").decode()
+            (tmp_path / "copy.sqlite3").write_bytes(z.read("hub.sqlite3"))
+        assert '"Kestrel Wing!"' in readme and "starglance link" in readme
+        copy = sqlite3.connect(tmp_path / "copy.sqlite3")
+        try:
+            names = {row[0] for row in copy.execute("SELECT name FROM members")}
+            assert names == {"Admin", "Rook"}  # as it was when downloaded
+            assert copy.execute("PRAGMA journal_mode").fetchone()[0] == "delete"
+        finally:
+            copy.close()
+
+    asyncio.run(main())
+
+
+def test_closing_a_hosted_org(tmp_path):
+    async def main():
+        # Self-hosted: nothing about a host, and nothing to ask.
+        async with running_hub(tmp_path / "own") as (hub, _srv), browser() as admin:
+            await sign_in(admin, hub, "Admin")
+            assert (await mode(admin, hub))["host"] is None
+            settings = await (await admin.get(f"{hub.cfg.hub_url}/api/admin/settings")).json()
+            assert settings["host"] is None and settings["close_request"] is None
+            resp = await post(admin, hub, "/api/admin/close", {"confirm": "Fleet"})
+            assert resp.status == 404
+
+        host = {"host_name": "Example Hosting", "host_url": "https://hosting.example.org/privacy"}
+        hub_ctx = running_hub(tmp_path / "hosted", org_name="Kestrel Wing", **host)
+        async with hub_ctx as (hub, _), browser() as admin, browser() as member, browser() as anon:
+            assert (await mode(anon, hub))["host"] == {
+                "name": "Example Hosting",
+                "url": "https://hosting.example.org/privacy",
+            }
+            await sign_in(admin, hub, "Admin")
+            await sign_in(member, hub, "Ace")
+
+            wrong = await post(admin, hub, "/api/admin/close", {"confirm": "Kestrel"})
+            assert wrong.status == 400
+            assert (await post(member, hub, "/api/admin/close", {})).status == 403
+
+            resp = await post(admin, hub, "/api/admin/close", {"confirm": " kestrel  wing "})
+            assert resp.status == 200
+            req = (await resp.json())["close_request"]
+            assert req["by"] == "Admin" and req["at"] > 0
+            assert json.loads(hub.db.setting("close_request"))["by_id"] == req["by_id"]
+            again = await post(admin, hub, "/api/admin/close", {"confirm": "Kestrel Wing"})
+            assert (await again.json())["close_request"] == req, "asking twice keeps the first"
+
+            origin = {"Origin": hub.cfg.origin}
+            resp = await admin.delete(f"{hub.cfg.hub_url}/api/admin/close", headers=origin)
+            assert resp.status == 200 and (await resp.json())["close_request"] is None
+            assert hub.db.setting("close_request") is None
+
+    asyncio.run(main())
+
+
+def test_host_settings():
+    cfg = Config(host_name="Example Hosting", host_url="javascript:alert(1)")
+    assert cfg.host == {"name": "Example Hosting", "url": None}
+    assert any("HUB_HOST_URL" in p for p in cfg.problems())
+    assert Config(host_url="https://hosting.example.org").host is None
+    assert any("HUB_HOST_NAME" in p for p in Config(host_url="https://x.example.org").problems())
 
 
 def test_members_can_delete_themselves(tmp_path):

@@ -1,8 +1,14 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
+  import type { HubHost } from "../../lib/types";
 
   // A centred card for the pages before the fleet (sign in, join, link).
-  let { title, subtitle, children }: { title: string; subtitle?: string; children: Snippet } = $props();
+  let {
+    title,
+    subtitle,
+    host = null,
+    children,
+  }: { title: string; subtitle?: string; host?: HubHost | null; children: Snippet } = $props();
 </script>
 
 <main>
@@ -14,6 +20,13 @@
     </div>
     {@render children()}
   </section>
+  {#if host}
+    <p class="host">
+      Hosted by {host.name}{#if host.url}{" · "}<a href={host.url} target="_blank" rel="noopener noreferrer"
+          >Privacy and terms</a
+        >{/if}
+    </p>
+  {/if}
 </main>
 
 <style>
@@ -21,7 +34,18 @@
     min-height: calc(100dvh / var(--z, 1));
     display: grid;
     place-items: center;
+    align-content: center;
+    gap: 10px;
     padding: 16px;
+  }
+  .host {
+    margin: 0;
+    font-size: 0.75rem;
+    color: var(--text-3);
+    text-align: center;
+  }
+  .host a {
+    color: var(--text-2);
   }
   .card {
     width: min(440px, 100%);

@@ -35,7 +35,15 @@ API keys for a Discord bot, a stream overlay or a script: read the roster and an
 
 ## Settings
 
-The org's name, and Discord options.
+The org's name, Discord options, and the org's data.
+
+### Your data
+
+**Download everything** saves the whole hub as one file (a zip with `hub.sqlite3`): members, linked PCs, invites, settings, the event history and problem reports, with every token and key only as a hash. Keep it as a backup, or use it to run your own hub: put it in the new hub's data folder before its first start, and members link their PCs to the new address. Their accounts and history are already there.
+
+### Hosted orgs
+
+If someone else runs your hub for you, the sign-in page says **Hosted by** them, with a link to their privacy and terms page, and Settings shows a **Hosting** section. **Ask to close this org** (type the org's name to confirm) asks them to delete the org and everything in it; download your data first if you want to keep it. You can withdraw the request until they act on it. A hub you run yourself doesn't have this: you just stop it.
 
 ### Discord
 

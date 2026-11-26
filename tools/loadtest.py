@@ -308,8 +308,9 @@ def free_port() -> int:
 class Proc:
     """CPU seconds and memory of a process: /proc on Linux, else psutil if it's there."""
 
-    def __init__(self, pid: int) -> None:
+    def __init__(self, pid: int, children: bool = True) -> None:
         self.pid = pid
+        self.children = children
         self.ok = Path(f"/proc/{pid}/stat").exists()
         self.tick = os.sysconf("SC_CLK_TCK") if self.ok else 100
         self.ps = None
@@ -323,7 +324,7 @@ class Proc:
 
     def _tree(self) -> list:
         """The process and its children (a venv's python.exe on Windows is a launcher)."""
-        return [self.ps, *self.ps.children(recursive=True)]
+        return [self.ps, *(self.ps.children(recursive=True) if self.children else [])]
 
     def cpu(self) -> float | None:
         if self.ps is not None:
@@ -450,7 +451,7 @@ async def run(args: argparse.Namespace) -> None:
     ) as tmp:
         hub, url = await start_hub(Path(tmp))
         proc = Proc(hub.pid)
-        me = Proc(os.getpid())
+        me = Proc(os.getpid(), children=False)  # the hub is our child: not ours to count
         ws_base = url.replace("http://", "ws://")
         stats, stop = Stats(), asyncio.Event()
         tasks: list[asyncio.Task] = []

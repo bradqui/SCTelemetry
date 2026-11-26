@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import json
 import logging
 from collections import deque
 from collections.abc import Callable
@@ -399,6 +400,9 @@ class Fleet:
         self.recent: deque[dict] = deque(db.recent_events(100), maxlen=RECENT_EVENTS)
         self.roster: dict[str, dict] = {}
         self.roster_version = 0
+        self.roster_delta: str | None = None
+        """The step from the previous roster version to this one, as sent: worked out once
+        per change and the same text for every viewer that's in step (most of them)."""
         linked, seen = db.linked_member_ids(), db.member_last_seen()
         for member in db.members():
             if member.active and member.id in linked:
@@ -566,6 +570,8 @@ class Fleet:
         resolve_aboard(roster)
         if roster == self.roster:
             return False
+        patch = make_patch(self.roster, roster)
+        self.roster_delta = json.dumps({"type": "roster_delta", "patch": patch}) if patch else None
         self.roster = roster
         self.roster_version += 1
         for viewer in self.viewers:
@@ -581,10 +587,18 @@ class Fleet:
             while viewer.queue:
                 await ws.send_json(viewer.queue.popleft())
             if viewer.roster_version != self.roster_version:
-                patch = make_patch(viewer.sent_roster, self.roster)
-                viewer.sent_roster, viewer.roster_version = self.roster, self.roster_version
-                if patch:
-                    await ws.send_json({"type": "roster_delta", "patch": patch})
+                # In step (one version behind): the shared step, already worked out and
+                # in text. Behind further (a slow connection, a skipped tick): a catch-up
+                # from what this viewer has, then it's in step again.
+                roster, version = self.roster, self.roster_version
+                if viewer.roster_version == version - 1:
+                    text = self.roster_delta
+                else:
+                    patch = make_patch(viewer.sent_roster, roster)
+                    text = json.dumps({"type": "roster_delta", "patch": patch}) if patch else None
+                viewer.sent_roster, viewer.roster_version = roster, version
+                if text:
+                    await ws.send_str(text)
             focus = viewer.focus
             if focus != viewer.sent_focus_id:
                 viewer.sent_focus_id = focus

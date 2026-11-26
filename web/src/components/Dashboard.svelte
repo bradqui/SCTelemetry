@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { zoomOf } from "../lib/scale";
   import type { Component } from "svelte";
   import { cubicOut } from "svelte/easing";
   import type { PanelCtx } from "../lib/context";
@@ -92,9 +93,10 @@
   });
 
   /** Slide panels to their new places; no scaling (it stretches the text mid-move). */
-  function slide(_node: Element, { from, to }: { from: DOMRect; to: DOMRect }) {
-    const dx = from.left - to.left;
-    const dy = from.top - to.top;
+  function slide(node: Element, { from, to }: { from: DOMRect; to: DOMRect }) {
+    const z = zoomOf(node); // the rects are on-screen; the transform is in layout px
+    const dx = (from.left - to.left) / z;
+    const dy = (from.top - to.top) / z;
     if (!dx && !dy) return { duration: 0 };
     return {
       duration: 220,

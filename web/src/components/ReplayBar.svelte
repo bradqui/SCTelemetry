@@ -98,7 +98,8 @@
   function onMove(e: PointerEvent) {
     const p = posAt(e.clientX);
     const r = track.getBoundingClientRect();
-    hover = { x: e.clientX - r.left, pos: p, marker: scrub == null ? nearestMarker(p) : null };
+    // the tip's left is in layout px; the pointer is on screen (they differ when zoomed)
+    hover = { x: ((e.clientX - r.left) / r.width) * track.offsetWidth, pos: p, marker: scrub == null ? nearestMarker(p) : null };
     if (scrub != null) scrub = p;
   }
   function onUp() {

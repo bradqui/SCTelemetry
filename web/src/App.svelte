@@ -17,6 +17,7 @@
   import ReportProblem from "./components/ReportProblem.svelte";
   import ResizeEdges from "./components/ResizeEdges.svelte";
   import TopBar from "./components/TopBar.svelte";
+  import { autoScale } from "./lib/scale";
   import { keepAwake } from "./lib/wakelock.svelte";
 
   // The demo page (GitHub Pages) passes a recording player instead of the agent's socket,
@@ -138,6 +139,23 @@
     root.classList.toggle("fx", prefs.effects);
   });
 
+  // The page's size (Settings -> Look -> Size): Auto zooms big screens to fill them like
+  // 1080p does. The whole page zooms, Settings and the replay bar too.
+  let winW = $state(innerWidth);
+  let winH = $state(innerHeight);
+  onMount(() => {
+    const onResize = () => {
+      winW = innerWidth;
+      winH = innerHeight;
+    };
+    addEventListener("resize", onResize);
+    return () => removeEventListener("resize", onResize);
+  });
+  const zoom = $derived(prefs.scale === "auto" ? autoScale(winW, winH, compact) : prefs.scale);
+  $effect(() => {
+    document.documentElement.style.zoom = zoom === 1 ? "" : String(zoom);
+  });
+
   // Wingmates: the fleet, relayed by the agent, only while that panel is on screen.
   const wingShown = $derived(
     !fleetOpen &&
@@ -235,7 +253,7 @@
 {/if}
 
 {#if customizing && !fleetOpen}
-  <Customize {store} {compact} agent={!view.remote && !demo} uplinks={live.uplinks} updater={live.updater} tab={settingsTab} onClose={() => (customizing = false)} />
+  <Customize {store} {compact} {zoom} agent={!view.remote && !demo} uplinks={live.uplinks} updater={live.updater} tab={settingsTab} onClose={() => (customizing = false)} />
 {/if}
 
 <style>

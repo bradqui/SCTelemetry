@@ -91,6 +91,7 @@
     tone={gTone === "bad" ? "bad" : gTone === "warn" ? "warn" : "accent"}
   /></div>
   {#if history}
+    <div class="trs">
     <div class="tr sp">
       <Sparkline
         samples={ctx.trends.samples}
@@ -106,6 +107,7 @@
     </div>
     <div class="tr gt">
       <Sparkline samples={ctx.trends.samples} pick={(s) => s.g} label="G" unit="g" format={(v) => v.toFixed(1)} height={44} />
+    </div>
     </div>
   {/if}
 
@@ -204,14 +206,26 @@
       grid-template-areas:
         "dial dial dial"
         "tape vsi g"
-        "sp sp sp"
-        "al al al"
-        "gt gt gt"
+        "trs trs trs"
         "chips chips chips";
+    }
+    /* Narrow: the three histories side by side in a row of their own, not three rows. */
+    .flight .trs {
+      grid-area: trs;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .flight .trs .tr {
+      grid-area: auto;
     }
     .dial {
       max-width: 200px;
     }
+  }
+  /* Wide: no box of its own; each history sits under its gauge in the panel's grid. */
+  .trs {
+    display: contents;
   }
   .chips .route {
     flex: 1 1 240px;

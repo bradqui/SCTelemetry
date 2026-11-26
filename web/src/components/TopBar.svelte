@@ -288,13 +288,16 @@
     align-items: baseline;
     gap: 10px;
     min-width: 0;
-    flex: 1;
+    flex: 1 1 auto;
     overflow: hidden;
     white-space: nowrap;
   }
+  /* When it's tight, the maker gives way first, then the seat; the ship's name last. */
   .ship {
     font-size: 1.15rem;
     font-weight: 700;
+    flex: none;
+    max-width: 22ch;
     overflow: hidden;
     text-overflow: ellipsis;
   }
@@ -302,6 +305,15 @@
   .seat {
     color: var(--text-2);
     font-size: 0.9rem;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .maker {
+    flex: 0 100 auto;
+  }
+  .seat {
+    flex: 0 30 auto;
   }
   .seat::before {
     content: "·";
@@ -447,12 +459,31 @@
       display: none;
     }
   }
+  /* Narrower windows drop things in order (the ship's name stays): the maker, then the
+     location chips, then (on a phone) the seat. */
+  @media (max-width: 960px) {
+    .maker {
+      display: none;
+    }
+  }
+  @media (max-width: 760px) {
+    .top > :global(.where) {
+      display: none;
+    }
+  }
+  @media (max-width: 480px) {
+    .seat {
+      display: none;
+    }
+  }
+  /* Short of room, the location chips give way first, then the alarm's text, and the
+     ship's name last (inside .who the maker goes before the seat). */
   .alarm {
     display: flex;
     align-items: center;
     gap: 8px;
     min-width: 0;
-    flex: 0 1 auto;
+    flex: 0 4 auto;
     overflow: hidden;
     font-size: 0.82rem;
     font-weight: 650;
@@ -508,6 +539,9 @@
   @media (max-width: 640px) {
     .what {
       display: none;
+    }
+    .alarm {
+      min-width: min-content; /* just the tag now: keep it whole */
     }
   }
   /* The title bar's job when it's hidden: drag by the bar or the logo, not their text. */

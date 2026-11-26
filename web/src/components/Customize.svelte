@@ -6,6 +6,7 @@
   import type { Destroyed } from "../lib/format";
   import type { Focus } from "../lib/phase";
   import type { UpdaterStatus, UplinkStatus } from "../lib/types";
+  import { SCALES } from "../lib/scale";
   import { awake, wakeSupport } from "../lib/wakelock.svelte";
   import AgentSettings from "./AgentSettings.svelte";
   import HeaderAlerts from "./HeaderAlerts.svelte";
@@ -19,6 +20,7 @@
     updater = null,
     tab: startTab = "dashboard",
     selfAlerts = true,
+    zoom = 1,
   }: {
     store: PrefsStore;
     compact: boolean;
@@ -30,6 +32,8 @@
     tab?: "dashboard" | "agent";
     /** Header alerts: your top bar's columns too (the cockpit view, not the hub's page). */
     selfAlerts?: boolean;
+    /** The page's zoom right now (what Auto picked, for the hint). */
+    zoom?: number;
   } = $props();
   let tab = $state<"dashboard" | "agent">("dashboard");
   $effect.pre(() => {
@@ -228,6 +232,28 @@
         <button class:on={prefs.speedUnit === "kmh"} onclick={() => (prefs.speedUnit = "kmh")}>km/h</button>
       </div>
     </div>
+    <div class="units">
+      <span class="label">Size</span>
+      <div class="seg" role="group" aria-label="Size">
+        <button class:on={prefs.scale === "auto"} onclick={() => (prefs.scale = "auto")} aria-pressed={prefs.scale === "auto"}
+          >Auto</button
+        >
+        {#each SCALES as z (z)}
+          <button class:on={prefs.scale === z} onclick={() => (prefs.scale = z)} aria-pressed={prefs.scale === z}
+            >{Math.round(z * 100)}</button
+          >
+        {/each}
+      </div>
+    </div>
+    <p class="hint">
+      {#if prefs.scale === "auto"}
+        <b>Auto</b> fits the dashboard to big screens (1440p, 4K), everything in proportion{zoom !== 1
+          ? `: ${Math.round(zoom * 100)}% here`
+          : ""}. Or pick a size, in percent.
+      {:else}
+        Everything at {Math.round(prefs.scale * 100)}%. <b>Auto</b> fits it to the screen.
+      {/if}
+    </p>
   </section>
 
   <section>

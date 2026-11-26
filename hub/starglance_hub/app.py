@@ -947,9 +947,11 @@ class Hub:
                 "me": member.public(),
             }
         )
-        await ws.send_json({"type": "roster", "members": fleet.roster})
-        await ws.send_json({"type": "history", "events": list(fleet.recent)})
+        # What this page has is the roster sent now: noted before the sends, since the
+        # roster can change while they're under way (the pump then catches it up).
         viewer.sent_roster, viewer.roster_version = fleet.roster, fleet.roster_version
+        await ws.send_json({"type": "roster", "members": viewer.sent_roster})
+        await ws.send_json({"type": "history", "events": list(fleet.recent)})
         fleet.add_viewer(viewer)
         pump = asyncio.create_task(fleet.pump(viewer))
         try:

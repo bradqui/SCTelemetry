@@ -39,6 +39,7 @@
     place-items: center;
     gap: 1px;
     padding: 5px 2px 4px;
+    min-height: var(--tile-h, 0px);
     border-radius: var(--radius-sm);
     border: 1px solid var(--line);
     background: var(--bg-2);
@@ -62,7 +63,7 @@
   .code {
     font-family: var(--mono);
     font-weight: 700;
-    font-size: 0.8rem;
+    font-size: var(--tile-code, 0.8rem);
     letter-spacing: 0.06em;
   }
   .name {

@@ -120,7 +120,10 @@ async function demoShots(browser) {
   await shot(page, "cockpit-customize");
   await page.locator("aside.drawer").getByRole("button", { name: /^Combat/ }).first().click();
   await page.locator("aside.drawer button.done").click();
-  await sleep(800);
+  // Play into the fight so Flight's history under the gauges has something in it.
+  await page.goto(cockpit("at=588"));
+  await ready(page);
+  await sleep(12_000);
   await shot(page, "cockpit-combat");
   await page.goto(replay("at=600&pause"));
   await ready(page);
@@ -139,8 +142,9 @@ async function demoShots(browser) {
   ]) {
     const c = await browser.newContext({ viewport: { width: 1280, height: 800 } });
     const p = await c.newPage();
-    await p.goto(cockpit(`at=200&pause&${q}`));
+    await p.goto(cockpit(`at=190&${q}`));
     await ready(p);
+    await sleep(10_000); // some history under Flight's gauges
     await shot(p, name);
     await c.close();
   }

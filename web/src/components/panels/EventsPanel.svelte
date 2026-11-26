@@ -344,8 +344,8 @@
     margin-bottom: 8px;
     padding: 5px 9px;
     border-radius: var(--radius-sm);
-    border-left: 3px solid var(--accent-2, var(--accent));
-    background: color-mix(in srgb, var(--accent-2, var(--accent)) 8%, transparent);
+    border-left: 3px solid var(--accent);
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
   }
   .pinned .badge {
     grid-area: badge;
@@ -353,7 +353,7 @@
     font-weight: 750;
     letter-spacing: 0.12em;
     text-transform: uppercase;
-    color: var(--accent-2, var(--accent));
+    color: var(--accent);
   }
   .pinned.complete .badge {
     color: var(--good);

@@ -9,6 +9,7 @@
     since,
     type EventCategory,
     type Destroyed,
+    auec,
   } from "../../lib/format";
   import type { FleetEvent, MemberSummary } from "../../lib/types";
   import EventIcon from "../EventIcon.svelte";
@@ -51,7 +52,7 @@
     { label: "Quantum trips", value: totals.quantum, tone: "" },
     {
       label: "aUEC earned",
-      value: totals.earned >= 10000 ? `${Math.round(totals.earned / 1000)}k` : totals.earned.toLocaleString(),
+      value: auec(totals.earned),
       tone: totals.earned ? "good" : "",
     },
     { label: "Ships lost", value: totals.lost, tone: totals.lost ? "bad" : "" },

@@ -4,6 +4,7 @@
   import { fly } from "svelte/transition";
   import type { PanelCtx } from "../../lib/context";
   import {
+    auec,
     CATEGORIES,
     clock,
     eventCategory,
@@ -44,11 +45,19 @@
           { label: "Contracts", value: session.contracts, tone: session.contracts ? "good" : "" },
           { label: "Quantum", value: session.quantum_trips, tone: "" },
           ...(session.system_jumps ? [{ label: "Jumps", value: session.system_jumps, tone: "" }] : []),
-          {
-            label: "aUEC",
-            value: session.earned >= 10000 ? `${Math.round(session.earned / 1000)}k` : session.earned.toLocaleString(),
-            tone: session.earned ? "good" : "",
-          },
+          // Your wallet, with what this session brought in beside the label; without a
+          // balance (not shared, or not in the stream), what was earned, as before.
+          ctx.snap.uec != null
+            ? {
+                label: "Wallet",
+                value: auec(ctx.snap.uec),
+                tone: "",
+                plus: session.earned ? `+${auec(session.earned)}` : "",
+                title:
+                  `Wallet: ${ctx.snap.uec.toLocaleString()} aUEC` +
+                  (session.earned ? ` · earned this session: ${session.earned.toLocaleString()} aUEC` : ""),
+              }
+            : { label: "aUEC earned", value: auec(session.earned), tone: session.earned ? "good" : "" },
           ...(session.ships_lost ? [{ label: "Ships lost", value: session.ships_lost, tone: "bad" }] : []),
           ...(session.incaps + session.deaths
             ? [{ label: "Downed", value: session.incaps + session.deaths, tone: "bad" }]
@@ -83,9 +92,11 @@
   {#if stats.length}
     <div class="stats">
       {#each stats as s (s.label)}
-        <div class="stat {s.tone}">
+        <div class="stat {s.tone}" title={"title" in s ? s.title : undefined}>
           <span class="n num display">{s.value}</span>
-          <span class="label">{s.label}</span>
+          <span class="label"
+            >{s.label}{#if "plus" in s && s.plus}<span class="sep">·</span><b class="plus num">{s.plus}</b><span class="sess">session</span>{/if}</span
+          >
         </div>
       {/each}
     </div>
@@ -163,6 +174,7 @@
     gap: 3px;
   }
   .stat {
+    container-type: inline-size; /* the wallet's label shortens when its tile is narrow */
     flex: 1;
     min-width: 0;
     display: grid;
@@ -186,6 +198,30 @@
   .stat .label {
     font-size: 0.56rem;
     white-space: nowrap;
+  }
+  .stat .plus {
+    color: var(--good);
+    letter-spacing: 0.02em;
+    text-transform: none; /* 45.2k, not 45.2K */
+  }
+  .stat .sep {
+    margin: 0 5px;
+    color: var(--text-3);
+  }
+  .stat .sess {
+    margin-left: 4px;
+  }
+  /* A narrow tile: "WALLET" over "+45.2k" (the tooltip says the rest). */
+  @container (max-width: 170px) {
+    .stat .sess,
+    .stat .sep {
+      display: none;
+    }
+    .stat .plus {
+      display: block;
+      line-height: 1.2;
+      text-align: center;
+    }
   }
 
   .latest {

@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { Tween } from "svelte/motion";
+
   // A small arc gauge: a label, the arc, the number in it. Two kinds:
   //   from zero (G: filled from 0, with a peak marker and a danger zone), or
   //   centred (climb rate: a needle either side of zero, up good, down warn).
@@ -43,9 +45,15 @@
     return `M${x0.toFixed(1)} ${y0.toFixed(1)} A${R} ${R} 0 ${hi - lo > 180 ? 1 : 0} 1 ${x1.toFixed(1)} ${y1.toFixed(1)}`;
   }
   const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
-  const angle = $derived(
+  const target = $derived(
     frac == null ? null : centred ? clamp(frac, -1, 1) * A : -A + clamp(frac, 0, 1) * 2 * A,
   );
+  // The angle glides to each new value, and the arc is drawn afresh from it every frame.
+  // (Letting CSS blend the path itself broke on big jumps: an arc's "long way round" flag
+  // can't be blended, so mid-way the arc swept round the outside.)
+  const still = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const eased = Tween.of(() => target ?? (centred ? 0 : -A), { duration: still ? 0 : 150 });
+  const angle = $derived(target == null ? null : eased.current);
   const valueArc = $derived(angle == null ? "" : centred ? arc(0, angle) : arc(-A, angle));
   const needle = $derived(angle == null || !centred ? null : pt(angle, R - 4));
   const peakAt = $derived(peak == null || centred ? null : pt(-A + clamp(peak, 0, 1) * 2 * A, R + 6));
@@ -123,7 +131,6 @@
     stroke-width: var(--gs-mini-w, 6);
     stroke-linecap: var(--gs-mini-cap, round);
     stroke-dasharray: var(--gs-mini-dash, none);
-    transition: d 0.15s linear;
   }
   .zero {
     stroke: var(--text-3);

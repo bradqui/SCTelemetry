@@ -37,6 +37,14 @@ export function ago(t: number, now: number): string {
   return `${Math.floor(m / 60)}h ${m % 60}m ago`;
 }
 
+/** aUEC short enough for a tile: 9,850 · 45.2k · 845k · 1.24M · 12.4M. */
+export function auec(n: number): string {
+  const a = Math.abs(n);
+  if (a < 10_000) return n.toLocaleString();
+  if (a < 1_000_000) return `${(n / 1000).toFixed(a < 100_000 ? 1 : 0)}k`;
+  return `${(n / 1_000_000).toFixed(a < 10_000_000 ? 2 : 1)}M`;
+}
+
 export function clock(t: number): string {
   return new Date(t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }

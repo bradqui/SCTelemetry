@@ -4,6 +4,7 @@
   import { fly } from "svelte/transition";
   import type { PanelCtx } from "../../lib/context";
   import {
+    auec,
     CATEGORIES,
     clock,
     eventCategory,
@@ -44,11 +45,11 @@
           { label: "Contracts", value: session.contracts, tone: session.contracts ? "good" : "" },
           { label: "Quantum", value: session.quantum_trips, tone: "" },
           ...(session.system_jumps ? [{ label: "Jumps", value: session.system_jumps, tone: "" }] : []),
-          {
-            label: "aUEC",
-            value: session.earned >= 10000 ? `${Math.round(session.earned / 1000)}k` : session.earned.toLocaleString(),
-            tone: session.earned ? "good" : "",
-          },
+          // Your wallet, with what this session brought in beside the label; without a
+          // balance (not shared, or not in the stream), what was earned, as before.
+          ctx.snap.uec != null
+            ? { label: "aUEC", value: auec(ctx.snap.uec), tone: "", plus: session.earned ? `+${auec(session.earned)}` : "" }
+            : { label: "aUEC earned", value: auec(session.earned), tone: session.earned ? "good" : "" },
           ...(session.ships_lost ? [{ label: "Ships lost", value: session.ships_lost, tone: "bad" }] : []),
           ...(session.incaps + session.deaths
             ? [{ label: "Downed", value: session.incaps + session.deaths, tone: "bad" }]
@@ -85,7 +86,7 @@
       {#each stats as s (s.label)}
         <div class="stat {s.tone}">
           <span class="n num display">{s.value}</span>
-          <span class="label">{s.label}</span>
+          <span class="label">{s.label}{#if "plus" in s && s.plus}<b class="plus num">{s.plus}</b>{/if}</span>
         </div>
       {/each}
     </div>
@@ -186,6 +187,12 @@
   .stat .label {
     font-size: 0.56rem;
     white-space: nowrap;
+  }
+  .stat .plus {
+    margin-left: 5px;
+    color: var(--good);
+    letter-spacing: 0.02em;
+    text-transform: none; /* 45.2k, not 45.2K */
   }
 
   .latest {

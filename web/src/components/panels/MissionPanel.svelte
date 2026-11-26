@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { PanelCtx } from "../../lib/context";
+  import { auec } from "../../lib/format";
   import { currentObjective, objectiveCount } from "../../lib/missions";
 
   // Current contract (from Game.log), its objectives, and how the session's going.
@@ -64,7 +65,7 @@
   <div class="tally">
     <span><b class="num">{session.contracts}</b> done</span>
     {#if session.failed}<span class="bad"><b class="num">{session.failed}</b> failed</span>{/if}
-    <span class="earned"><b class="num">{session.earned.toLocaleString()}</b> aUEC</span>
+    {#if session.earned}<span class="earned"><b class="num">+{auec(session.earned)}</b> aUEC</span>{/if}
   </div>
 {/if}
 

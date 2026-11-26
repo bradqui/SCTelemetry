@@ -39,18 +39,18 @@
   }
   .lg .value.word {
     font-size: 1.15rem;
-    line-height: clamp(1.9rem, 3.3vw, 2.6rem);
+    line-height: clamp(1.9rem, calc(3.3vw / var(--z, 1)), 2.6rem);
   }
   .xl .value.word {
     font-size: 1.6rem;
-    line-height: clamp(2.8rem, 5.4vw, 4.6rem);
+    line-height: clamp(2.8rem, calc(5.4vw / var(--z, 1)), 4.6rem);
   }
   .xl .value {
-    font-size: clamp(2.6rem, 5.2vw, 4.4rem);
+    font-size: clamp(2.6rem, calc(5.2vw / var(--z, 1)), 4.4rem);
     font-weight: 700;
   }
   .lg .value {
-    font-size: clamp(1.7rem, 3vw, 2.4rem);
+    font-size: clamp(1.7rem, calc(3vw / var(--z, 1)), 2.4rem);
   }
   .md .value {
     font-size: 1.05rem;

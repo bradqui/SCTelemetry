@@ -17,6 +17,7 @@
   import ReportProblem from "./components/ReportProblem.svelte";
   import ResizeEdges from "./components/ResizeEdges.svelte";
   import TopBar from "./components/TopBar.svelte";
+  import { usePageZoom } from "./lib/pagezoom.svelte";
   import { keepAwake } from "./lib/wakelock.svelte";
 
   // The demo page (GitHub Pages) passes a recording player instead of the agent's socket,
@@ -138,6 +139,10 @@
     root.classList.toggle("fx", prefs.effects);
   });
 
+  // The page's size (Settings -> Look -> Size): Auto zooms big screens to fill them like
+  // 1080p does. The whole page zooms (Settings, the replay bar, the fleet view too).
+  usePageZoom(() => ({ scale: prefs.scale, compact: compact && !fleetOpen }));
+
   // Wingmates: the fleet, relayed by the agent, only while that panel is on screen.
   const wingShown = $derived(
     !fleetOpen &&
@@ -242,7 +247,7 @@
   main {
     max-width: 1920px;
     margin: 0 auto;
-    padding: 8px clamp(8px, 1.2vw, 16px) 12px;
+    padding: 8px clamp(8px, calc(1.2vw / var(--z, 1)), 16px) 12px;
     display: grid;
     grid-template-columns: minmax(0, 1fr);
     gap: var(--gap);

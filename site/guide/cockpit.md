@@ -57,7 +57,7 @@ Four layouts come built in, and you can change any of them:
 - **Explorer**: Flight with environment and vitals, then activity and fuel.
 - **Minimal**: Flight and Ship.
 
-The whole dashboard fits on a 1080p screen without scrolling. Heading, Hull & shields, Warnings, Trends and Contract are still there to add on their own in Customize.
+The whole dashboard fits on a 1080p screen without scrolling, and on bigger screens (1440p, 4K) it grows to fill them, everything in proportion (**Settings → Look → Size**). On smaller windows, tablets and phones the panels rearrange into fewer columns. Heading, Hull & shields, Warnings, Trends and Contract are still there to add on their own in Customize.
 
 ![The Combat layout](/shots/cockpit-combat.jpg)
 

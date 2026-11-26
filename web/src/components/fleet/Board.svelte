@@ -252,8 +252,8 @@
   main {
     max-width: 2200px;
     margin: 0 auto;
-    padding: 8px clamp(8px, 1vw, 14px);
-    height: 100dvh;
+    padding: 8px clamp(8px, calc(1vw / var(--z, 1)), 14px);
+    height: calc(100dvh / var(--z, 1));
     display: grid;
     grid-template-rows: auto minmax(0, 1fr);
     gap: var(--gap);
@@ -303,16 +303,16 @@
     background: var(--accent);
     border-color: var(--accent);
   }
-  @media (max-width: 1100px) {
+  @container page (max-width: 1100px) {
     .body {
       grid-template-columns: 270px minmax(0, 1fr);
     }
   }
   /* Phones: the roster is the page; a member opens full screen. */
-  @media (max-width: 760px) {
+  @container page (max-width: 760px) {
     main {
       height: auto;
-      min-height: 100dvh;
+      min-height: calc(100dvh / var(--z, 1));
     }
     .embedded main {
       min-height: 100%;
@@ -325,7 +325,7 @@
       display: none;
     }
     aside {
-      height: calc(100dvh - 70px);
+      height: calc(calc(100dvh / var(--z, 1)) - 70px);
     }
     .embedded aside {
       height: 620px;

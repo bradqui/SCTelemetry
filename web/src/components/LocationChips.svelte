@@ -49,7 +49,7 @@
     align-items: center;
     gap: 4px;
     min-width: 0;
-    flex: 0 1 auto;
+    flex: 0 10 auto; /* in the top bar: gives way before the ship's name and the alarm */
     overflow: hidden;
     white-space: nowrap;
   }
@@ -136,12 +136,12 @@
   .kv.same > b {
     color: var(--good);
   }
-  @media (max-width: 1100px) {
+  @container page (max-width: 1100px) {
     .srv {
       display: none;
     }
   }
-  @media (max-width: 760px) {
+  @container page (max-width: 760px) {
     .sys,
     .jur {
       display: none;

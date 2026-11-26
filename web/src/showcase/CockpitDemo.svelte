@@ -72,7 +72,7 @@
     align-items: center;
     flex-wrap: wrap;
     gap: 6px 12px;
-    max-width: min(560px, calc(100vw - 24px));
+    max-width: min(560px, calc(calc(100vw / var(--z, 1)) - 24px));
     padding: 6px 10px;
     border: 1px solid var(--line-2);
     border-radius: var(--radius-sm, 6px);

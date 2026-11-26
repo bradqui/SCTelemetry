@@ -324,8 +324,8 @@
     left: 50%;
     top: 50%;
     transform: translate(-50%, -50%);
-    width: min(860px, calc(100vw - 24px));
-    max-height: calc(100vh - 24px);
+    width: min(860px, calc(calc(100vw / var(--z, 1)) - 24px));
+    max-height: calc(calc(100vh / var(--z, 1)) - 24px);
     overflow-y: auto;
     box-sizing: border-box;
     padding: 14px 16px 16px;
@@ -365,7 +365,7 @@
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 16px;
   }
-  @media (max-width: 680px) {
+  @container page (max-width: 680px) {
     .grid {
       grid-template-columns: minmax(0, 1fr);
     }

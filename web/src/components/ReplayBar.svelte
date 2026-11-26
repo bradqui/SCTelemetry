@@ -98,7 +98,8 @@
   function onMove(e: PointerEvent) {
     const p = posAt(e.clientX);
     const r = track.getBoundingClientRect();
-    hover = { x: e.clientX - r.left, pos: p, marker: scrub == null ? nearestMarker(p) : null };
+    // the tip's left is in layout px; the pointer is on screen (they differ when zoomed)
+    hover = { x: ((e.clientX - r.left) / r.width) * track.offsetWidth, pos: p, marker: scrub == null ? nearestMarker(p) : null };
     if (scrub != null) scrub = p;
   }
   function onUp() {
@@ -246,7 +247,7 @@
     left: 50%;
     bottom: 10px;
     transform: translateX(-50%);
-    width: min(1440px - 32px, calc(100vw - 20px));
+    width: min(1440px - 32px, calc(calc(100vw / var(--z, 1)) - 20px));
     z-index: 20;
     padding: 10px 14px 6px;
     border-radius: var(--radius);
@@ -439,7 +440,7 @@
     color: var(--text-3);
     text-align: right;
   }
-  @media (max-width: 640px) {
+  @container page (max-width: 640px) {
     .keys,
     .chapter {
       display: none;
@@ -453,8 +454,8 @@
     position: absolute;
     right: 0;
     bottom: 40px;
-    width: min(360px, calc(100vw - 30px));
-    max-height: min(60vh, 520px);
+    width: min(360px, calc(calc(100vw / var(--z, 1)) - 30px));
+    max-height: min(calc(60vh / var(--z, 1)), 520px);
     overflow-y: auto;
     padding: 8px;
     border-radius: var(--radius-sm);

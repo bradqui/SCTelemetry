@@ -18,7 +18,7 @@
 
 <style>
   main {
-    min-height: 100dvh;
+    min-height: calc(100dvh / var(--z, 1));
     display: grid;
     place-items: center;
     padding: 16px;

@@ -78,6 +78,9 @@ html.fx body::after {
 #app {
   position: relative;
   z-index: 1;
+  /* Breakpoints ask the page's width (@container page), not the screen's: with the page
+     zoomed (Settings -> Look -> Size) the page is narrower than the screen. */
+  container: page / inline-size;
 }
 
 * {

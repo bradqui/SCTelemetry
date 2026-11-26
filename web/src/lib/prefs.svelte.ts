@@ -2,6 +2,7 @@ import { defaultAlerts, loadAlerts, type Alerts } from "./alerts";
 import type { Destroyed } from "./format";
 import type { Focus } from "./phase";
 import { COMPACT_PRESETS, PRESETS, repairLayout, upgradeLayout, type Layout } from "./panels";
+import { readScale, type Scale } from "./scale";
 import { DEFAULT_THEME, THEME_BY_ID, type Scheme } from "./themes";
 
 export interface Prefs {
@@ -24,6 +25,8 @@ export interface Prefs {
   awake: boolean;
   /** Following the flight (lib/phase): Spotlight, the Focus strip, both, or off. */
   focus: Focus;
+  /** The page's size: Auto fits big screens (lib/scale), or a fixed zoom. */
+  scale: Scale;
   full: Layout;
   compact: Layout;
 }
@@ -42,6 +45,7 @@ export function defaultPrefs(): Prefs {
     destroyed: "fleet",
     awake: false,
     focus: "off",
+    scale: "auto",
     full: structuredClone(PRESETS[0].layout),
     compact: structuredClone(COMPACT_PRESETS[0].layout),
   };
@@ -63,6 +67,7 @@ function load(): Prefs {
       destroyed: ["none", "fleet", "players", "all"].includes(raw.destroyed) ? raw.destroyed : d.destroyed,
       awake: raw.awake === true,
       focus: ["spot", "strip", "both"].includes(raw.focus) ? raw.focus : "off",
+      scale: readScale(raw.scale),
       full: upgradeLayout(repairLayout(raw.full, d.full)),
       compact: upgradeLayout(repairLayout(raw.compact, d.compact)),
     };

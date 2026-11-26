@@ -368,7 +368,7 @@
   .menu button:hover {
     background: var(--accent-dim);
   }
-  @media (max-width: 760px) {
+  @container page (max-width: 760px) {
     .counts .kv:nth-child(n + 2),
     .conn {
       display: none;

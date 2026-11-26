@@ -149,6 +149,8 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+    flex-wrap: wrap; /* narrow: the grouping buttons go under the title, whole */
+    gap: 6px 10px;
     padding: 7px 8px 7px 10px;
     border-bottom: 1px solid var(--line);
   }
@@ -167,6 +169,7 @@
     letter-spacing: 0.08em;
     text-transform: uppercase;
     padding: 3px 8px;
+    white-space: nowrap;
     cursor: pointer;
   }
   .seg button + button {

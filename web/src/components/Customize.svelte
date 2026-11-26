@@ -6,6 +6,7 @@
   import type { Destroyed } from "../lib/format";
   import type { Focus } from "../lib/phase";
   import type { UpdaterStatus, UplinkStatus } from "../lib/types";
+  import { pageZoom } from "../lib/pagezoom.svelte";
   import { SCALES } from "../lib/scale";
   import { awake, wakeSupport } from "../lib/wakelock.svelte";
   import AgentSettings from "./AgentSettings.svelte";
@@ -20,7 +21,6 @@
     updater = null,
     tab: startTab = "dashboard",
     selfAlerts = true,
-    zoom = 1,
   }: {
     store: PrefsStore;
     compact: boolean;
@@ -32,9 +32,8 @@
     tab?: "dashboard" | "agent";
     /** Header alerts: your top bar's columns too (the cockpit view, not the hub's page). */
     selfAlerts?: boolean;
-    /** The page's zoom right now (what Auto picked, for the hint). */
-    zoom?: number;
   } = $props();
+  const zoom = $derived(pageZoom.value);
   let tab = $state<"dashboard" | "agent">("dashboard");
   $effect.pre(() => {
     tab = agent ? startTab : "dashboard";
@@ -289,7 +288,7 @@
     top: 0;
     right: 0;
     bottom: 0;
-    width: min(400px, 100vw);
+    width: min(400px, calc(100vw / var(--z, 1)));
     z-index: 30;
     overflow-y: auto;
     background: color-mix(in srgb, var(--bg) 92%, transparent);

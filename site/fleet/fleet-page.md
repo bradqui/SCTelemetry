@@ -41,6 +41,8 @@ Click a name to open their dashboard: the same panels as your own cockpit view, 
 
 The top bar shows anyone's master warning, or a bad injury, as it happens. Click it to go straight to their screen. Which lights count is up to you: **Settings → Header alerts**.
 
+On a big screen (1440p, 4K) the page grows to fill it, everything in proportion, the same as the cockpit view; on a phone the roster is the page and a member opens full screen. **Settings → Look → Size** picks a fixed size instead.
+
 ## Wingmates
 
 The **Wingmates** panel puts the fleet in your own cockpit view: everyone's ship, mode, speed and altitude next to your own numbers. It's in the Pilot and Combat layouts, or add it in **Settings → Panels**.

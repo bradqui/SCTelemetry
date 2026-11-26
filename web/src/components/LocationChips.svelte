@@ -136,12 +136,12 @@
   .kv.same > b {
     color: var(--good);
   }
-  @media (max-width: 1100px) {
+  @container page (max-width: 1100px) {
     .srv {
       display: none;
     }
   }
-  @media (max-width: 760px) {
+  @container page (max-width: 760px) {
     .sys,
     .jur {
       display: none;

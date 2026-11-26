@@ -443,7 +443,7 @@
     outline: 2px solid var(--accent);
     outline-offset: 2px;
   }
-  @media (max-width: 640px) {
+  @container page (max-width: 640px) {
     .top {
       padding: 10px 12px;
       gap: 10px;
@@ -461,17 +461,17 @@
   }
   /* Narrower windows drop things in order (the ship's name stays): the maker, then the
      location chips, then (on a phone) the seat. */
-  @media (max-width: 960px) {
+  @container page (max-width: 960px) {
     .maker {
       display: none;
     }
   }
-  @media (max-width: 760px) {
+  @container page (max-width: 760px) {
     .top > :global(.where) {
       display: none;
     }
   }
-  @media (max-width: 480px) {
+  @container page (max-width: 480px) {
     .seat {
       display: none;
     }
@@ -536,7 +536,7 @@
     background: color-mix(in srgb, var(--nav) 16%, transparent);
     animation: pulse 1.2s ease-in-out infinite;
   }
-  @media (max-width: 640px) {
+  @container page (max-width: 640px) {
     .what {
       display: none;
     }

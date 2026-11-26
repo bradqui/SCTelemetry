@@ -366,7 +366,7 @@
     display: block;
     border: 0;
   }
-  @media (max-width: 1100px) {
+  @container page (max-width: 1100px) {
     .overview {
       grid-template-columns: minmax(0, 1fr);
       grid-template-rows: auto auto minmax(0, 1fr);

@@ -58,7 +58,7 @@ The Focus strip takes about 45 px; everything else fits a 1080p screen as it is.
 - **Hide ship panels on foot**: otherwise they wait on standby.
 - **Keep the screen awake**: for a phone or tablet beside the game, while the page is open. It needs the hub's https page or this PC; on iPhone and iPad, iOS 18.4 or later.
 - **Speed in** m/s or km/h.
-- **Size**: **Auto** (the default) fits the dashboard to big screens: on a 1440p or 4K monitor everything grows evenly, so it fills the screen the way it fills a 1080p one. Or pick a size from 90% to 200%. It's saved per browser or window, so a tablet keeps its own.
+- **Size**: **Auto** (the default) fits the dashboard to big screens: on a 1440p or 4K monitor everything grows evenly, so it fills the screen the way it fills a 1080p one (the fleet page too). Or pick a size from 90% to 200%. It's saved per browser or window, so a tablet keeps its own.
 
 ## Activity
 

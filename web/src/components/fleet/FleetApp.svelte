@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { usePageZoom } from "../../lib/pagezoom.svelte";
+  import { PrefsStore } from "../../lib/prefs.svelte";
   import type { HubMode } from "../../lib/types";
   import Board from "./Board.svelte";
   import JoinPage from "./JoinPage.svelte";
@@ -12,6 +14,9 @@
   $effect(() => {
     document.title = `${mode.org} · Starglance`;
   });
+  // Big screens: the same Size setting as the cockpit (Settings -> Look -> Size).
+  const store = new PrefsStore();
+  usePageZoom(() => ({ scale: store.value.scale }));
 </script>
 
 {#if join}
@@ -21,5 +26,5 @@
 {:else if path === "/link"}
   <LinkPage {mode} me={mode.me} />
 {:else}
-  <Board {mode} me={mode.me} />
+  <Board {mode} me={mode.me} {store} />
 {/if}

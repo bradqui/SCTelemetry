@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import Board from "../components/fleet/Board.svelte";
   import { DemoFleet, type DemoData } from "../lib/demo-fleet.svelte";
+  import { usePageZoom } from "../lib/pagezoom.svelte";
   import { PrefsStore } from "../lib/prefs.svelte";
   import { applyTheme, palette, THEME_BY_ID, THEMES } from "../lib/themes";
   import type { Account, HubMode } from "../lib/types";
@@ -15,6 +16,7 @@
   store.value.scheme = "dark";
   store.value.matchShip = true;
   const prefs = $derived(store.value);
+  usePageZoom(() => ({ scale: prefs.scale })); // big screens, like the real fleet page
 
   const me = $derived.by<Account | null>(() => {
     const row = data?.members.find((m) => m.id === data?.me);
@@ -307,7 +309,7 @@
     letter-spacing: var(--display-spacing);
   }
   h1 {
-    font-size: clamp(2.2rem, 5vw, 3.6rem);
+    font-size: clamp(2.2rem, calc(5vw / var(--z, 1)), 3.6rem);
     line-height: 1.05;
     margin: 4px 0 10px;
   }
@@ -501,7 +503,7 @@
     outline-offset: 2px;
   }
   .frame {
-    height: min(900px, 92vh);
+    height: min(900px, calc(92vh / var(--z, 1)));
     min-height: 640px;
     border: 1px solid var(--line-2);
     border-radius: 8px;
@@ -607,12 +609,12 @@
     max-width: none;
   }
 
-  @media (max-width: 1100px) {
+  @container page (max-width: 1100px) {
     .demo-head {
       grid-template-columns: minmax(0, 1fr);
     }
   }
-  @media (max-width: 860px) {
+  @container page (max-width: 860px) {
     .cols,
     .facts {
       grid-template-columns: minmax(0, 1fr);

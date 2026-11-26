@@ -34,11 +34,11 @@
   .dialog {
     position: fixed;
     z-index: 31;
-    top: 8vh;
+    top: calc(8vh / var(--z, 1));
     left: 50%;
     transform: translateX(-50%);
-    width: min(520px, calc(100vw - 32px));
-    max-height: 84vh;
+    width: min(520px, calc(calc(100vw / var(--z, 1)) - 32px));
+    max-height: calc(84vh / var(--z, 1));
     display: grid;
     grid-template-rows: auto minmax(0, 1fr);
     border: 1px solid var(--line-2);
@@ -46,7 +46,7 @@
     background: var(--panel-2);
   }
   .dialog.wide {
-    width: min(860px, calc(100vw - 32px));
+    width: min(860px, calc(calc(100vw / var(--z, 1)) - 32px));
   }
   header {
     display: flex;

@@ -80,11 +80,11 @@
 
 <style>
   .local-fleet {
-    height: 100dvh;
+    height: calc(100dvh / var(--z, 1));
   }
   .waiting {
     max-width: 560px;
-    margin: 12vh auto 0;
+    margin: calc(12vh / var(--z, 1)) auto 0;
     padding: 0 16px;
     text-align: center;
     color: var(--text-2);

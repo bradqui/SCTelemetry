@@ -160,6 +160,7 @@ class Pipeline:
         if not self._log_active:
             return snap
         quantum = snap.ship.flight.quantum if snap.ship else None
+        self._log.balance(snap.uec)
         update: dict = {
             "location": self._log.location(t, quantum),
             "missions": self._log.mission_list(t),
@@ -214,6 +215,7 @@ class Pipeline:
             self._emit(Event(t=now_ms(), kind="game_exit"))
             self.trend.clear()
             self.latest = None
+            self._log.balance_lost()
             # A new game session starts fresh (seat, ship, debounce state).
             self._normalizer = Normalizer()
             self._deriver = EventDeriver()

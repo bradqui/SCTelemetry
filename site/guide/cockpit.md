@@ -40,7 +40,7 @@ Every panel can be shown, hidden, resized and moved ([Customizing](/guide/custom
 | **Weapons** | A pip per gun around a reticle (lit when ready), gimbals, decoys and noise as dials that empty, and each gun by name. |
 | **Vitals** | Health, oxygen, hunger and thirst, heart rate, body temperature, and injuries. |
 | **Environment** | Temperature, gravity, pressure and air outside. |
-| **Contract** | Your current contracts, with the objective and the reward. |
+| **Contract** | Your current contracts with every objective (a hauling contract can have several), ticked off as they're done, and this session's rewards. |
 | **Activity** | What just happened (seats, takeoff and landing, NAV and SCM, quantum jumps, warnings, kills, contracts, zones), with this session's counts and filters. When the Contract panel is off, your current contract is pinned at the top. |
 | **Wingmates** | Your fleet next to your own dashboard: everyone's ship, mode, speed and altitude ([The fleet page](/fleet/fleet-page#wingmates)). |
 
@@ -69,6 +69,8 @@ Some things the game doesn't send, and some Starglance works out for itself. The
 
 - **Hull and shield levels** aren't in the stream, only their warning lights and power.
 - **NAV and SCM** are worked out from the quantum drive's light and shield power.
+- **Delivery progress** (12/168 SCU) isn't in the game's log: a hauling contract's objectives show what to deliver, and tick off when the contract's done.
+- **aUEC earned** counts rises in your balance (hauling payouts come without a notice), so money from selling or a friend's transfer counts too.
 - **Quantum travel** has no signal of its own; it's worked out from the THR light, the quantum drive and the speed freezing. A jump can start or end a moment late.
 
 The full list is in [Know before you use it](/know-before).

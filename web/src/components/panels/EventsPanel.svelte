@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { currentObjective, objectiveCount } from "../../lib/missions";
   import { showing } from "../../lib/panels";
   import { fly } from "svelte/transition";
   import type { PanelCtx } from "../../lib/context";
@@ -60,6 +61,8 @@
   const pinned = $derived(
     !showing(ctx.prefs, ctx.compact, "mission") ? (ctx.snap.missions?.[0] ?? null) : null,
   );
+  const pinnedObjective = $derived(pinned ? currentObjective(pinned) : null);
+  const pinnedCount = $derived(pinned ? objectiveCount(pinned) : null);
 </script>
 
 <div class="activity">
@@ -68,9 +71,12 @@
     <div class="pinned {pinned.state}" title={pinned.title ?? "Contract"}>
       <span class="badge">{pinned.state === "active" ? "Contract" : pinned.state}</span>
       <span class="ptitle">{pinned.title ?? "Objective"}</span>
-      {#if pinned.objective}
-        <span class="pobj" class:done={pinned.objective_done}>{pinned.objective_done ? "✓" : "▢"} {pinned.objective}</span>
+      {#if pinnedObjective}
+        <span class="pobj" class:done={pinnedObjective.state === "complete"}
+          >{pinnedObjective.state === "complete" ? "✓" : "▢"} {pinnedObjective.text}</span
+        >
       {/if}
+      {#if pinnedCount && pinnedCount.total > 1}<span class="pcount num">{pinnedCount.done}/{pinnedCount.total}</span>{/if}
       {#if (ctx.snap.missions?.length ?? 0) > 1}<span class="more">+{(ctx.snap.missions?.length ?? 1) - 1}</span>{/if}
     </div>
   {/if}
@@ -338,7 +344,7 @@
   .pinned {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr) auto;
-    grid-template-areas: "badge title more" "obj obj obj";
+    grid-template-areas: "badge title more" "obj obj pcount";
     gap: 2px 8px;
     align-items: baseline;
     margin-bottom: 8px;
@@ -368,6 +374,12 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+  .pcount {
+    grid-area: pcount;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--text-2);
   }
   .pobj {
     grid-area: obj;

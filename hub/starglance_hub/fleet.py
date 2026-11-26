@@ -314,7 +314,14 @@ def summarize(m: MemberLive, now: int, cfg: Config) -> dict:
     missions = s.get("missions") or []
     active = next((x for x in missions if x.get("state") == "active"), None)
     if active:
-        out["mission"] = {"title": active.get("title"), "objective": active.get("objective")}
+        objectives = active.get("objectives") or []
+        current = next((o for o in objectives if o.get("state") == "active"), None)
+        out["mission"] = {
+            "title": active.get("title"),
+            "objective": (current or (objectives[-1] if objectives else {})).get("text"),
+            "objectives_done": sum(o.get("state") == "complete" for o in objectives),
+            "objectives": len(objectives),
+        }
     return out
 
 

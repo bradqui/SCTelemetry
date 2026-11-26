@@ -156,6 +156,36 @@
       await load.reports();
     });
   }
+  // Download: fetched here so the button can say what happened (a plain link saves with
+  // no sign in many browsers, and a hub error would be a silent failed download).
+  let saving = $state<Record<number, "busy" | "saved">>({});
+  async function download(r: Report) {
+    if (saving[r.id] === "busy") return;
+    saving[r.id] = "busy";
+    error = "";
+    try {
+      const res = await fetch(`/api/admin/reports/${r.id}/download`);
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error((body as { error?: string }).error ?? `The hub said ${res.status}.`);
+      }
+      const name =
+        /filename="([^"]+)"/.exec(res.headers.get("Content-Disposition") ?? "")?.[1] ?? `Starglance-report-${r.id}.zip`;
+      const url = URL.createObjectURL(await res.blob());
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = name;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 10_000);
+      saving[r.id] = "saved";
+      setTimeout(() => {
+        if (saving[r.id] === "saved") delete saving[r.id];
+      }, 2500);
+    } catch (e) {
+      delete saving[r.id];
+      error = `Couldn't download the report: ${(e as Error).message}`;
+    }
+  }
   function forward(r: Report) {
     window.open(
       issueUrl(r, "Sent through a fleet hub. Report file: drop it here."),
@@ -318,7 +348,13 @@
             </div>
             <div class="row">
               <button class="btn" onclick={() => viewReport(r)}>{openReport === r.id ? "Hide" : "View"}</button>
-              <a class="btn" href={`/api/admin/reports/${r.id}/download`} download>Download</a>
+              <button
+                class="btn"
+                class:saved={saving[r.id] === "saved"}
+                disabled={saving[r.id] === "busy"}
+                onclick={() => download(r)}
+                >{saving[r.id] === "busy" ? "Downloading…" : saving[r.id] === "saved" ? "Saved ✓" : "Download"}</button
+              >
               <button class="btn" onclick={() => forward(r)}>Open a GitHub issue</button>
               <button class="btn danger" onclick={() => deleteReport(r)}>Delete</button>
             </div>
@@ -480,9 +516,9 @@
     font-size: 0.72rem;
     white-space: pre;
   }
-  a.btn {
-    text-decoration: none;
-    color: var(--text);
+  .btn.saved {
+    color: var(--good);
+    border-color: var(--good);
   }
   .item.off b {
     color: var(--text-3);

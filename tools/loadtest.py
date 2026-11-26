@@ -1,14 +1,16 @@
-"""How much one hub costs: a throwaway hub, fake players in game, fake viewers watching.
+"""Will my server handle my org? What a hub needs for a given number of players in game.
 
 Starts its own hub (a temporary database, test sign-in on, 127.0.0.1 only) as a child
-process, so a real hub and its data are never touched. Then, step by step, adds players
-whose agents send what a real one does in flight (a full snapshot, then what changed ten
-times a second, a full one every 30 s, an event now and then) and viewers with the fleet
-page open (each watching one member), and measures the hub process: CPU, memory, and how
-long an update takes to reach a viewer. At the end: what a typical org costs, and how many
-such orgs this machine could hold.
+process, so a real hub and its data are never touched, and it can't be pointed at anyone
+else's. Then, step by step, adds players whose agents send what a real one does in flight
+(a full snapshot, then what changed ten times a second, a full one every 30 s, an event
+now and then) and viewers with the fleet page open (each watching one member), and
+measures the hub process: CPU, memory, and how long an update takes to reach a viewer. At
+the end: what your org needs at its busiest, and how many players one hub handles.
 
-On the server, inside the released hub image (it has Python and the hub already):
+Also for anyone changing the hub: run it before and after to see what a change costs.
+
+On your server, inside the released hub image (it has Python and the hub already):
 
     curl -fsSLO https://raw.githubusercontent.com/bradqui/starglance/main/tools/loadtest.py
     docker run --rm --entrypoint python \\
@@ -16,9 +18,10 @@ On the server, inside the released hub image (it has Python and the hub already)
       ghcr.io/bradqui/starglance-hub:latest /loadtest.py
 
 From a checkout:  uv run python tools/loadtest.py
-Options: --steps 10,25,50,100  --viewers 0.25 (per player)  --seconds 20  --org 25
+Options: --steps 10,25,50,100  --viewers 0.25 (per player)  --seconds 20  --players 25
 
-CPU and memory come from /proc (Linux); elsewhere only the delays are measured. The
+CPU and memory come from /proc on Linux, or psutil where it's installed (uv run --with
+psutil ...); without either only the delays are measured. The
 players and viewers run in this process: if its own CPU nears 100% of a core, the hub is
 waiting on the test, not the other way round, and the script says so.
 """
@@ -303,20 +306,36 @@ def free_port() -> int:
 
 
 class Proc:
-    """CPU seconds and memory of a process, from /proc (Linux); None elsewhere."""
+    """CPU seconds and memory of a process: /proc on Linux, else psutil if it's there."""
 
     def __init__(self, pid: int) -> None:
         self.pid = pid
         self.ok = Path(f"/proc/{pid}/stat").exists()
         self.tick = os.sysconf("SC_CLK_TCK") if self.ok else 100
+        self.ps = None
+        if not self.ok:
+            try:
+                import psutil
+
+                self.ps = psutil.Process(pid)
+            except Exception:
+                pass
+
+    def _tree(self) -> list:
+        """The process and its children (a venv's python.exe on Windows is a launcher)."""
+        return [self.ps, *self.ps.children(recursive=True)]
 
     def cpu(self) -> float | None:
+        if self.ps is not None:
+            return sum(t.user + t.system for t in (p.cpu_times() for p in self._tree()))
         if not self.ok:
             return None
         fields = Path(f"/proc/{self.pid}/stat").read_text().rsplit(")", 1)[1].split()
         return (int(fields[11]) + int(fields[12])) / self.tick  # utime + stime
 
     def rss_mb(self) -> float | None:
+        if self.ps is not None:
+            return sum(p.memory_info().rss for p in self._tree()) / 1024 / 1024
         if not self.ok:
             return None
         for line in Path(f"/proc/{self.pid}/status").read_text().splitlines():
@@ -509,47 +528,44 @@ async def run(args: argparse.Namespace) -> None:
                     hub.wait(10)
                 except subprocess.TimeoutExpired:
                     hub.kill()
-        summary(rows, args.org, args.viewers)
+        summary(rows, args.players, args.viewers)
 
 
-def summary(rows: list[Row], org: int, ratio: float) -> None:
+def summary(rows: list[Row], players: int, ratio: float) -> None:
     measured = [r for r in rows if r.cpu is not None and r.rss is not None and r.players]
     if not measured:
-        print("\nCPU and memory need Linux (/proc): run it on the server for the estimate.")
+        print("\nCPU and memory need Linux, or psutil: run it on your server for the summary.")
         return
     idle = rows[0]
-    # A typical org by interpolating the steps around it (or scaling the nearest).
-    below = max(
-        (r for r in measured if r.players <= org), key=lambda r: r.players, default=measured[0]
-    )
-    above = min(
-        (r for r in measured if r.players >= org), key=lambda r: r.players, default=measured[-1]
-    )
-    if above.players == below.players:
-        cpu = below.cpu * org / below.players
-        rss = below.rss
-    else:
-        f = (org - below.players) / (above.players - below.players)
-        cpu = below.cpu + f * (above.cpu - below.cpu)
-        rss = below.rss + f * (above.rss - below.rss)
-    cores, avail = os.cpu_count() or 1, mem_available_gb()
-    viewers = max(1, math.ceil(org * ratio))
+
+    def at(n: float, key: str) -> float:
+        """A measure at n players, between the steps around it (or scaled from the last)."""
+        pts = [(r.players, getattr(r, key)) for r in measured]
+        lo = max((p for p in pts if p[0] <= n), default=pts[0])
+        hi = min((p for p in pts if p[0] >= n), default=pts[-1])
+        if hi[0] == lo[0]:
+            return lo[1] * (n / lo[0] if key == "cpu" else 1)
+        return lo[1] + (n - lo[0]) / (hi[0] - lo[0]) * (hi[1] - lo[1])
+
+    viewers = max(1, math.ceil(players * ratio))
     print(f"\nIdle hub: {fmt(idle.rss, '.0f', ' MB')}, {fmt(idle.cpu, '.1f', '%')} of a core.")
     print(
-        f"A busy org ({org} players in game at once, {viewers} with the fleet page open): "
-        f"about {rss:.0f} MB and {cpu:.1f}% of a core."
+        f"Your org at its busiest ({players} players in game, {viewers} with the fleet page "
+        f"open): about {at(players, 'rss'):.0f} MB and {at(players, 'cpu'):.0f}% of one core."
     )
-    by_cpu = int(cores * 100 * 0.7 / cpu) if cpu > 0 else None
-    by_mem = int(avail * 1024 * 0.7 / rss) if avail else None
-    print(
-        f"On this machine (70% of {cores} CPUs, 70% of {fmt(avail, '.0f', ' GB')} available): "
-        f"{fmt(by_mem, 'd')} such orgs by memory, {fmt(by_cpu, 'd')} by CPU, "
-        "if every one were that busy at once."
-    )
-    print(
-        "Most orgs are quiet most of the time (an idle hub costs only its memory), "
-        "so memory is the real limit."
-    )
+    # A hub works on one core: past about 80% of it, updates start to queue.
+    over = [(a, b) for a, b in zip(measured, measured[1:], strict=False) if b.cpu >= 80 > a.cpu]
+    if over:
+        a, b = over[0]
+        most = a.players + (80 - a.cpu) / (b.cpu - a.cpu) * (b.players - a.players)
+        print(f"One hub handles about {most:.0f} players in game at once (80% of its core).")
+    elif measured[0].cpu >= 80:
+        print(f"Even {measured[0].players} players take most of a core on this machine.")
+    else:
+        print(
+            f"One hub handled {measured[-1].players} players in game at once within 80% of "
+            "its core; try bigger --steps to find its limit."
+        )
 
 
 def main() -> None:
@@ -568,10 +584,10 @@ def main() -> None:
         "--seconds", type=float, default=20, help="measuring time per step (default 20)"
     )
     ap.add_argument(
-        "--org",
+        "--players",
         type=int,
         default=25,
-        help="players in game for the 'busy org' estimate (default 25)",
+        help="your org's players in game at its busiest, for the summary (default 25)",
     )
     asyncio.run(run(ap.parse_args()))
 

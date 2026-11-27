@@ -1,20 +1,20 @@
 import { defineConfig } from "vitepress";
 
-// The docs site, on GitHub Pages at https://bradqui.github.io/starglance/ (pages.yml).
+// The docs site, on GitHub Pages at https://www.starglance.app/ (pages.yml).
 // The live demos are built separately (npm run demo) into public/demo/.
 const repo = "https://github.com/bradqui/starglance";
-const site = "https://bradqui.github.io/starglance";
+const site = "https://www.starglance.app";
 
 export default defineConfig({
   title: "Starglance",
   description: "Your Star Citizen ship and crew, at a glance: a cockpit dashboard and a fleet page, from the game's own telemetry.",
-  base: "/starglance/",
+  base: "/",
   lang: "en-US",
   cleanUrls: true,
   lastUpdated: true,
   appearance: "dark",
   head: [
-    ["link", { rel: "icon", type: "image/svg+xml", href: "/starglance/favicon.svg" }],
+    ["link", { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" }],
     ["meta", { property: "og:title", content: "Starglance" }],
     ["meta", { property: "og:description", content: "Your Star Citizen ship and crew, at a glance." }],
     ["meta", { property: "og:image", content: `${site}/shots/cockpit-pilot.jpg` }],

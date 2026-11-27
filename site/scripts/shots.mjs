@@ -33,20 +33,20 @@ const ROOT = path.resolve(SITE, "..");
 const PUBLIC = path.join(SITE, "public");
 const OUT = path.join(PUBLIC, "shots");
 const PORT = 4190;
-const BASE = `http://127.0.0.1:${PORT}/starglance`;
+const BASE = `http://127.0.0.1:${PORT}`;
 const groups = process.argv.slice(2).length ? process.argv.slice(2) : ["demo", "clips", "app"];
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 fs.mkdirSync(OUT, { recursive: true });
 
-// -- a static server for public/ at /starglance/, as on GitHub Pages
+// -- a static server for public/, as on the docs site
 
 const TYPES = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".json": "application/json",
   ".svg": "image/svg+xml", ".woff2": "font/woff2", ".woff": "font/woff", ".jpg": "image/jpeg", ".png": "image/png" };
 function serve() {
   const server = http.createServer((req, res) => {
     const url = new URL(req.url, "http://x");
-    let p = decodeURIComponent(url.pathname).replace(/^\/starglance/, "");
+    let p = decodeURIComponent(url.pathname);
     if (p.endsWith("/")) p += "index.html";
     const file = path.join(PUBLIC, path.normalize(p));
     if (!file.startsWith(PUBLIC) || !fs.existsSync(file)) {

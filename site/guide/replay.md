@@ -1,6 +1,6 @@
 # Replaying recordings
 
-Starglance can play recorded sessions instead of the live game: to try layouts and themes without loading in, or to look again at something that happened. The [live demo](https://bradqui.github.io/starglance/demo/cockpit.html) is exactly this, in your browser.
+Starglance can play recorded sessions instead of the live game: to try layouts and themes without loading in, or to look again at something that happened. The [live demo](https://www.starglance.app/demo/cockpit.html) is exactly this, in your browser.
 
 ![The replay bar, with its list of events](/shots/replay-events.jpg)
 

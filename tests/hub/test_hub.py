@@ -403,6 +403,11 @@ def test_admins_download_everything(tmp_path):
             code = await make_invite(admin, hub, uses=1)
             await agent_join(hub, code, "Rook")
             hub.db.set_setting("org_name", "Kestrel Wing!")
+            hub.db.set_setting("discord_client_secret", "org-secret-value")
+            rook = next(m for m in hub.db.members() if m.name == "Rook")
+            hub.db.set_discord(
+                rook.id, "id-rook", access="member-access", refresh="member-refresh", expires=1
+            )
             url = f"{hub.cfg.hub_url}/api/admin/export"
 
             resp = await admin.get(url)
@@ -419,12 +424,18 @@ def test_admins_download_everything(tmp_path):
         with zipfile.ZipFile(io.BytesIO(data)) as z:
             assert sorted(z.namelist()) == ["README.txt", "hub.sqlite3"]
             readme = z.read("README.txt").decode()
-            (tmp_path / "copy.sqlite3").write_bytes(z.read("hub.sqlite3"))
+            raw = z.read("hub.sqlite3")
+            (tmp_path / "copy.sqlite3").write_bytes(raw)
         assert '"Kestrel Wing!"' in readme and "starglance link" in readme
+        # Discord credentials aren't in the file at all (not even in free pages).
+        for secret in (b"org-secret-value", b"member-access", b"member-refresh"):
+            assert secret not in raw
         copy = sqlite3.connect(tmp_path / "copy.sqlite3")
         try:
             names = {row[0] for row in copy.execute("SELECT name FROM members")}
             assert names == {"Admin", "Rook"}  # as it was when downloaded
+            discord = copy.execute("SELECT discord_id FROM members WHERE name = 'Rook'")
+            assert discord.fetchone()[0] == "id-rook"  # who they are on Discord stays
             assert copy.execute("PRAGMA journal_mode").fetchone()[0] == "delete"
         finally:
             copy.close()
@@ -607,6 +618,8 @@ class FakeDiscord:
     def __init__(self) -> None:
         # Who's who, by the code Discord would hand back. Anyone else isn't in the server.
         self.roles = {"ace": ["42"], "norole": ["7"], "newbie": ["42"]}
+        self.apps = {"cid": "csecret", "123456789": "org-secret"}  # application id: secret
+        self.guilds = {"1", "55555"}
         app = web.Application()
         app.add_routes(
             [
@@ -618,6 +631,10 @@ class FakeDiscord:
 
     async def token(self, request: web.Request) -> web.Response:
         form = await request.post()
+        if self.apps.get(str(form.get("client_id"))) != form.get("client_secret"):
+            return web.json_response({"error": "invalid_client"}, status=401)
+        if form.get("grant_type") == "client_credentials":
+            return web.json_response({"access_token": "app-token", "expires_in": 604800})
         who = form.get("code") or str(form.get("refresh_token", "")).removeprefix("refresh-")
         return web.json_response(
             {"access_token": f"tok-{who}", "refresh_token": f"refresh-{who}", "expires_in": 604800}
@@ -625,7 +642,7 @@ class FakeDiscord:
 
     async def member(self, request: web.Request) -> web.Response:
         who = request.headers["Authorization"].removeprefix("Bearer tok-")
-        if who not in self.roles:
+        if who not in self.roles or request.match_info["guild"] not in self.guilds:
             return web.json_response({"message": "Unknown Guild"}, status=404)
         return web.json_response(
             {
@@ -725,6 +742,83 @@ def test_discord_is_optional_and_follows_the_role(tmp_path):
                     assert forged.status == 400
                 for session in sessions:
                     await session.close()
+        finally:
+            await discord.server.close()
+
+    asyncio.run(main())
+
+
+def test_admins_set_up_discord_on_the_page(tmp_path):
+    """A hosted org's admins can't reach the hub's settings file: they set up their own
+    Discord application and server on the admin page (spec decision 29)."""
+
+    async def main():
+        discord = FakeDiscord()
+        await discord.server.start_server()
+        base = str(discord.server.make_url("")).rstrip("/")
+        try:
+            async with (
+                running_hub(
+                    tmp_path, discord_api=f"{base}/api", discord_authorize=f"{base}/authorize"
+                ) as (hub, _srv),
+                browser() as admin,
+            ):
+                url = f"{hub.cfg.hub_url}/api/admin/settings"
+                origin = {"Origin": hub.cfg.origin}
+                await sign_in(admin, hub, "Admin")
+
+                async def save(**body) -> tuple[int, dict]:
+                    resp = await admin.put(url, json=body, headers=origin)
+                    return resp.status, await resp.json()
+
+                settings = await (await admin.get(url)).json()
+                assert settings["discord"] is False and settings["discord_secret_set"] is False
+                assert settings["discord_redirect_uri"] == (
+                    f"{hub.cfg.hub_url}/auth/discord/callback"
+                )
+
+                # Ids are numbers; a wrong secret is caught by asking Discord, and nothing
+                # of a refused save is kept.
+                status, body = await save(discord_client_id="my app")
+                assert status == 400 and "number" in body["error"]
+                status, body = await save(
+                    discord_client_id="123456789",
+                    discord_client_secret="wrong",
+                    discord_guild_id="55555",
+                )
+                assert status == 400 and "didn't accept" in body["error"]
+                assert (await (await admin.get(url)).json())["discord_client_id"] is None
+
+                status, body = await save(
+                    discord_client_id=" 123456789 ",
+                    discord_client_secret="org-secret",
+                    discord_guild_id="55555",
+                    discord_member_role_id="42",
+                )
+                assert status == 200 and body["discord"] is True
+                assert body["discord_client_id"] == "123456789" and body["discord_secret_set"]
+                assert "org-secret" not in json.dumps(body)  # never sent back
+                assert (await mode(admin, hub))["discord"] is True
+
+                # Sign-in now uses the org's app and server.
+                code = await make_invite(admin, hub)
+                status, ace = await discord_sign_in(hub, base, "ace", mode="join", invite=code)
+                async with ace:
+                    assert status == 302 and (await mode(ace, hub))["me"]["discord"] is True
+
+                # Saving other things leaves the secret alone; clearing turns Discord off.
+                status, body = await save(org_name="Wing", discord_client_secret="")
+                assert status == 200 and body["discord"] is True
+                status, body = await save(discord_client_id="", discord_clear_secret=True)
+                assert status == 200 and body["discord"] is False
+                assert body["discord_secret_set"] is False
+                assert (await mode(admin, hub))["discord"] is False
+
+                # Members can't change it.
+                async with browser() as member:
+                    await sign_in(member, hub, "Rook")
+                    resp = await member.put(url, json={"discord_guild_id": "1"}, headers=origin)
+                    assert resp.status == 403
         finally:
             await discord.server.close()
 

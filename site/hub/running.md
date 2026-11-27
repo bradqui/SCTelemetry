@@ -89,7 +89,7 @@ The ones in `.env` you'll most likely touch:
 | `HUB_ORG_NAME` | Your org's name on the page (you can change it later under Admin → Settings) |
 | `HUB_EVENT_RETENTION_DAYS` | How long fleet events are kept (30 days by default) |
 | `HUB_REPORT_RETENTION_DAYS` | How long problem reports are kept (30 days by default) |
-| `DISCORD_*` | Optional Discord sign-in ([Admin](/hub/admin#discord)) |
+| `DISCORD_*` | Optional defaults for Discord sign-in; easier to set up on the page ([Admin](/hub/admin#discord)) |
 | `HUB_VERSION` | Stay on one version, e.g. `0.7.0` |
 | `HUB_HOST_NAME`, `HUB_HOST_URL` | Only if you run this hub for another org: "Hosted by" on the page, and their admins can ask you to close it ([Admin](/hub/admin#hosted-orgs)) |
 

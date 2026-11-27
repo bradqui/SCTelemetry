@@ -36,7 +36,7 @@ from starglance_shared import RELEASES_URL
 
 from . import MIN_AGENT_VERSION, __version__
 from . import reports as reports_mod
-from .auth import SESSION_COOKIE, Auth, Discord, page, valid_next
+from .auth import SESSION_COOKIE, SNOWFLAKE, Auth, page, valid_next
 from .config import Config
 from .db import API_SCOPES, ROLES, Database, Member, clean_name, now_ms
 from .fleet import Fleet, ProtocolError, Viewer
@@ -52,12 +52,15 @@ EXPORT_README = """Starglance hub data for "{org}", downloaded {day} from {url} 
 hub.sqlite3 is everything the hub keeps: members and their accounts, linked PCs, signed-in
 browsers, invites, API keys and sign-in codes (every token, code and key as a hash only),
 the org's settings, the event history and problem reports. Live telemetry isn't stored.
-Open it with any SQLite tool.
+Open it with any SQLite tool. Discord credentials are left out: the org's Discord client
+secret and members' Discord sign-in tokens.
 
 To run it as your own hub: set one up (deploy/README.md in the Starglance project) and put
 this hub.sqlite3 in its data folder before its first start, with HUB_URL set to the new
 address. Members keep their accounts and history; each links their PC to the new address
-once (starglance link <new address>) and confirms the code there.
+once (starglance link <new address>) and confirms the code there. With Discord: add the
+new address's redirect to your Discord application and enter its client secret again
+(Admin → Settings).
 """
 
 HUB = web.AppKey("hub", "Hub")
@@ -166,7 +169,7 @@ class Hub:
 
     async def startup(self, _app: web.Application) -> None:
         self.http = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=15))
-        self.auth = Auth(self.cfg, self.db, Discord(self.cfg, self.http))
+        self.auth = Auth(self.cfg, self.db, self.http)
         self._tasks = [
             asyncio.create_task(self.fleet.run()),
             asyncio.create_task(self._housekeeping()),
@@ -800,10 +803,17 @@ class Hub:
 
     async def admin_settings(self, request: web.Request) -> web.Response:
         await self._admin(request)
+        app = self.auth.discord_app()
         return web.json_response(
             {
                 "org_name": self.auth.org_name(),
                 "discord": self.auth.discord is not None,
+                # The org's own Discord application (spec decision 29); the secret is never
+                # sent back, only whether there is one.
+                "discord_client_id": app.client_id,
+                "discord_secret_set": bool(app.client_secret),
+                "discord_guild_id": app.guild_id,
+                "discord_redirect_uri": f"{self.cfg.hub_url}/auth/discord/callback",
                 "discord_autojoin": self.auth.discord_autojoin(),
                 "discord_member_role_id": self.auth.member_role(),
                 "event_retention_days": self.cfg.event_retention_days,
@@ -813,16 +823,62 @@ class Hub:
         )
 
     async def admin_settings_update(self, request: web.Request) -> web.Response:
-        await self._admin(request)
+        admin = await self._admin(request)
         body = await _body(request)
+        discord = await self._discord_changes(body)
         if "org_name" in body:
             self.db.set_setting("org_name", clean_name(str(body["org_name"])) or None)
         if "discord_autojoin" in body:
             self.db.set_setting("discord_autojoin", "1" if body["discord_autojoin"] else None)
-        if "discord_member_role_id" in body:
-            role = str(body["discord_member_role_id"] or "").strip()
-            self.db.set_setting("discord_member_role_id", role or None)
+        for key, value in discord.items():
+            self.db.set_setting(key, value)
+        if discord.keys() - {"discord_member_role_id"}:
+            log.info(
+                "%s changed the Discord setup (Discord sign-in %s)",
+                admin.name,
+                "on" if self.auth.discord else "off",
+            )
         return await self.admin_settings(request)
+
+    async def _discord_changes(self, body: dict) -> dict[str, str | None]:
+        """The Discord settings in this save, checked (spec decision 29). An empty value
+        clears the setting; the secret is left alone unless a new one is given."""
+        labels = {
+            "discord_client_id": "The Client ID",
+            "discord_guild_id": "The server ID",
+            "discord_member_role_id": "The member role ID",
+        }
+        out: dict[str, str | None] = {}
+        for key, label in labels.items():
+            if key in body:
+                value = "".join(str(body[key] or "").split())
+                if value and not SNOWFLAKE.match(value):
+                    raise _json_error(400, f"{label} is a number; copy it from Discord.")
+                out[key] = value or None
+        secret = "".join(str(body.get("discord_client_secret") or "").split())
+        if len(secret) > 128:
+            raise _json_error(400, "That's not a Discord client secret.")
+        if secret or body.get("discord_clear_secret"):
+            out["discord_client_secret"] = secret or None
+        if self.auth.client and {"discord_client_id", "discord_client_secret"} & out.keys():
+            now = self.auth.discord_app()
+            # A cleared setting goes back to the environment's.
+            client_id = out.get("discord_client_id", now.client_id) or self.cfg.discord_client_id
+            client_secret = (
+                out.get("discord_client_secret", now.client_secret)
+                or self.cfg.discord_client_secret
+            )
+            if (
+                client_id
+                and client_secret
+                and await self.auth.client.accepts(client_id, client_secret) is False
+            ):
+                raise _json_error(
+                    400,
+                    "Discord didn't accept that Client ID and Client Secret. Copy "
+                    "both from the application's OAuth2 page (reset the secret if needed).",
+                )
+        return out
 
     # -- the org's data, and closing a hosted org (spec decision 28)
 
@@ -850,6 +906,15 @@ class Hub:
             dst = sqlite3.connect(copy)
             try:
                 src.backup(dst)
+                # Credentials, not data: Discord's for the org and for each member. VACUUM
+                # so they're gone from the file, not just unlisted.
+                dst.execute("DELETE FROM settings WHERE key = 'discord_client_secret'")
+                dst.execute(
+                    "UPDATE members SET discord_access = NULL, discord_refresh = NULL, "
+                    "discord_expires = NULL"
+                )
+                dst.commit()
+                dst.execute("VACUUM")
                 dst.execute("PRAGMA journal_mode=DELETE")
             finally:
                 dst.close()

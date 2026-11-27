@@ -10,6 +10,9 @@ Members are the hub's own accounts. A browser gets signed in by:
 
 Sessions are random ids in an HttpOnly cookie; only their hash is stored.
 
+The org's admins set up Discord on the admin page (the org's own Discord application and
+server); the DISCORD_* environment settings are only defaults (spec decision 29).
+
 With Discord set up and a member role configured, members who connected
 Discord are re-checked at most hourly with their own token (scope
 ``guilds.members.read``): losing the role suspends them, getting it back
@@ -19,7 +22,9 @@ restores them. Members who never connected Discord are managed by admins only.
 from __future__ import annotations
 
 import logging
+import re
 import secrets
+from collections.abc import Callable
 from dataclasses import dataclass
 from urllib.parse import urlencode
 
@@ -39,6 +44,23 @@ RECHECK_MS = 3_600_000
 SCOPES = "identify guilds.members.read"
 
 
+@dataclass(frozen=True)
+class DiscordApp:
+    """The org's Discord application and server, as set up now."""
+
+    client_id: str | None
+    client_secret: str | None
+    guild_id: str | None
+
+    @property
+    def ready(self) -> bool:
+        return bool(self.client_id and self.client_secret and self.guild_id)
+
+
+SNOWFLAKE = re.compile(r"^[0-9]{1,25}$")
+"""Discord ids (application, server, role): numbers."""
+
+
 @dataclass
 class DiscordIdentity:
     id: str
@@ -50,9 +72,12 @@ class DiscordIdentity:
 class Discord:
     """The few Discord API calls sign-in needs."""
 
-    def __init__(self, cfg: Config, http: aiohttp.ClientSession) -> None:
+    def __init__(
+        self, cfg: Config, http: aiohttp.ClientSession, app: Callable[[], DiscordApp]
+    ) -> None:
         self.cfg = cfg
         self.http = http
+        self.app = app
 
     @property
     def redirect_uri(self) -> str:
@@ -60,7 +85,7 @@ class Discord:
 
     def authorize_url(self, state: str, *, prompt: bool = False) -> str:
         query = {
-            "client_id": self.cfg.discord_client_id,
+            "client_id": self.app().client_id,
             "redirect_uri": self.redirect_uri,
             "response_type": "code",
             "scope": SCOPES,
@@ -71,15 +96,32 @@ class Discord:
         return f"{self.cfg.discord_authorize}?{urlencode(query)}"
 
     async def _token(self, data: dict) -> dict:
-        data = {
-            "client_id": self.cfg.discord_client_id,
-            "client_secret": self.cfg.discord_client_secret,
-            **data,
-        }
+        app = self.app()
+        data = {"client_id": app.client_id, "client_secret": app.client_secret, **data}
         async with self.http.post(f"{self.cfg.discord_api}/oauth2/token", data=data) as resp:
             if resp.status != 200:
                 raise web.HTTPBadGateway(text=f"Discord refused the sign-in ({resp.status}).")
             return await resp.json()
+
+    async def accepts(self, client_id: str, client_secret: str) -> bool | None:
+        """Does Discord know this application id and secret? None: couldn't tell."""
+        form = {
+            "grant_type": "client_credentials",
+            "scope": "identify",
+            "client_id": client_id,
+            "client_secret": client_secret,
+        }
+        try:
+            async with self.http.post(f"{self.cfg.discord_api}/oauth2/token", data=form) as resp:
+                if resp.status == 200:
+                    return True
+                if resp.status == 401:
+                    return False
+                log.info("Discord answered %s checking application %s", resp.status, client_id)
+                return None
+        except (aiohttp.ClientError, TimeoutError) as exc:
+            log.warning("Couldn't check the Discord application with Discord: %s", exc)
+            return None
 
     async def exchange(self, code: str) -> dict:
         return await self._token(
@@ -91,7 +133,7 @@ class Discord:
 
     async def guild_member(self, access_token: str) -> DiscordIdentity | None:
         """The member's profile in the configured Discord server; None if they aren't in it."""
-        url = f"{self.cfg.discord_api}/users/@me/guilds/{self.cfg.discord_guild_id}/member"
+        url = f"{self.cfg.discord_api}/users/@me/guilds/{self.app().guild_id}/member"
         headers = {"Authorization": f"Bearer {access_token}"}
         async with self.http.get(url, headers=headers) as resp:
             if resp.status in (403, 404):
@@ -115,10 +157,15 @@ def expires_at(token: dict) -> int:
 
 
 class Auth:
-    def __init__(self, cfg: Config, db: Database, discord: Discord | None) -> None:
+    def __init__(self, cfg: Config, db: Database, http: aiohttp.ClientSession | None) -> None:
         self.cfg = cfg
         self.db = db
-        self.discord = discord if cfg.discord_ready else None
+        self.client = Discord(cfg, http, self.discord_app) if http is not None else None
+
+    @property
+    def discord(self) -> Discord | None:
+        """Discord sign-in, when the org's Discord app and server are set up."""
+        return self.client if self.client is not None and self.discord_app().ready else None
 
     # -- settings an admin can change
 
@@ -131,6 +178,14 @@ class Auth:
 
     def member_role(self) -> str | None:
         return self.db.setting("discord_member_role_id") or self.cfg.discord_member_role_id
+
+    def discord_app(self) -> DiscordApp:
+        """Set on the admin page, else from the environment."""
+        return DiscordApp(
+            self.db.setting("discord_client_id") or self.cfg.discord_client_id,
+            self.db.setting("discord_client_secret") or self.cfg.discord_client_secret,
+            self.db.setting("discord_guild_id") or self.cfg.discord_guild_id,
+        )
 
     def role_ok(self, ident: DiscordIdentity | None) -> bool:
         if ident is None:

@@ -120,6 +120,7 @@
     color: var(--bad);
   }
   .body :global(input[type="text"]),
+  .body :global(input[type="password"]),
   .body :global(select) {
     padding: 5px 8px;
     border: 1px solid var(--line-2);

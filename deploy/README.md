@@ -79,7 +79,7 @@ Admins can suspend or remove members (removing deletes their PCs and history), m
 
 ### Optional: Discord
 
-Fill in the `DISCORD_*` settings in `.env` (the comments there say where to find them) and restart. Then:
+Set it up under **Admin → Settings → Discord**: it shows the redirect to add to your Discord application and where to find each id. (The `DISCORD_*` settings in `.env` still work, as defaults.) Then:
 
 - invite pages offer **Join with Discord**, and members can connect Discord under **Your account**, then sign in with it anywhere;
 - members who connected Discord are suspended if they lose the member role, and restored if they get it back;

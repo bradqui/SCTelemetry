@@ -49,14 +49,14 @@ If you never join a fleet, the agent sends nothing anywhere.
 
 **Whoever runs your org's hub can see everything you share.** That's usually someone in your org; if the sign-in page says **Hosted by**, it's that host, who runs the hub for your org (their privacy and terms page is linked there). The hub keeps:
 
-- your account: display name; your Discord ID and avatar if you connect Discord;
+- your account: display name; your Discord ID and avatar if you connect Discord, and the tokens Discord gives the hub to re-check your server role;
 - your linked PCs: name, when last seen, and a hash of each PC's key;
 - the browsers signed in as you: a rough device name ("Safari on iPhone"), how and when they signed in, and when they were last active;
 - fleet events (seat changes, quantum jumps, contracts, kills…) for 30 days, by default;
 - problem reports you chose to send to the admins, for 30 days by default; you can delete yours under **Your account**;
 - live state (what you share right now) in memory only, while you're online.
 
-Org members see the fleet page. The org's admins can also manage members and invites, can create API keys for bots, which can read the same fleet information, and can download the hub's whole database (Admin → Settings → Download everything) as a backup or to move the org to another hub.
+Org members see the fleet page. The org's admins can also manage members and invites, can create API keys for bots, which can read the same fleet information, and can download the hub's whole database (Admin → Settings → Download everything) as a backup or to move the org to another hub; the download leaves out Discord tokens.
 
 On the hub's fleet page, **Your account** lets you unlink PCs, sign out devices and delete your account. Deleting your account removes your history from the hub.
 

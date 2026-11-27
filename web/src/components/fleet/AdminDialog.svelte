@@ -35,7 +35,13 @@
   }
   interface Settings {
     org_name: string;
+    /** Discord sign-in is on (the app and server below are set up). */
     discord: boolean;
+    discord_client_id: string | null;
+    /** There's a client secret; it's never sent back. */
+    discord_secret_set: boolean;
+    discord_guild_id: string | null;
+    discord_redirect_uri: string;
     discord_autojoin: boolean;
     discord_member_role_id: string | null;
     host: HubHost | null;
@@ -222,17 +228,41 @@
 
   // -- settings
   let saved = $state(false);
+  /** A new client secret; empty keeps the saved one. */
+  let discordSecret = $state("");
   async function saveSettings() {
     if (!settings) return;
     await run(async () => {
       settings = await api<Settings>("PUT", "/api/admin/settings", {
         org_name: settings!.org_name,
+        discord_client_id: settings!.discord_client_id,
+        discord_client_secret: discordSecret,
+        discord_guild_id: settings!.discord_guild_id,
         discord_autojoin: settings!.discord_autojoin,
         discord_member_role_id: settings!.discord_member_role_id,
       });
+      discordSecret = "";
       saved = true;
       setTimeout(() => (saved = false), 1500);
     });
+  }
+  async function discordOff() {
+    if (!confirm("Turn off Discord sign-in? Members sign in with their PCs' links or codes instead.")) return;
+    await run(async () => {
+      settings = await api<Settings>("PUT", "/api/admin/settings", {
+        discord_client_id: "",
+        discord_guild_id: "",
+        discord_clear_secret: true,
+      });
+      discordSecret = "";
+    });
+  }
+  let copiedRedirect = $state(false);
+  async function copyRedirect() {
+    if (!settings) return;
+    await copy(settings.discord_redirect_uri);
+    copiedRedirect = true;
+    setTimeout(() => (copiedRedirect = false), 1500);
   }
 
   // -- the org's data, and closing a hosted org (spec decision 28)
@@ -467,23 +497,66 @@
     <section>
       <h3>Discord</h3>
       {#if settings.discord}
-        <p>Members can connect Discord and sign in with it.</p>
+        <p>On: members can connect Discord and sign in with it, through your own Discord application.</p>
+      {:else}
+        <p>Off. To offer "Sign in with Discord", connect your org's Discord application and server:</p>
+      {/if}
+      <details class="howto" open={!settings.discord}>
+        <summary>How to set it up</summary>
+        <ol>
+          <li>
+            At <a href="https://discord.com/developers/applications" target="_blank" rel="noopener noreferrer"
+              >discord.com/developers</a
+            >, choose <b>New Application</b> and name it after your org (members see the name when they sign in).
+          </li>
+          <li>
+            On its <b>OAuth2</b> page, add this redirect, then copy the Client ID and Client Secret below:
+            <span class="row redirect"
+              ><code>{settings.discord_redirect_uri}</code>
+              <button class="btn" onclick={copyRedirect}>{copiedRedirect ? "Copied" : "Copy"}</button></span
+            >
+          </li>
+          <li>
+            In Discord, turn on <b>Developer Mode</b> (User Settings → Advanced). Right-click your server's icon →
+            <b>Copy Server ID</b>; for a member role, Server Settings → Roles → right-click it → <b>Copy Role ID</b>.
+          </li>
+        </ol>
+      </details>
+      <div class="fields">
+        <span>Client ID</span>
+        <input type="text" bind:value={settings.discord_client_id} inputmode="numeric" autocomplete="off" />
+        <span>Client secret</span>
+        <input
+          type="password"
+          bind:value={discordSecret}
+          autocomplete="new-password"
+          placeholder={settings.discord_secret_set ? "Saved (type a new one to change it)" : ""}
+        />
+        <span>Server ID</span>
+        <input type="text" bind:value={settings.discord_guild_id} inputmode="numeric" autocomplete="off" />
+        <span>Member role ID</span>
+        <input
+          type="text"
+          bind:value={settings.discord_member_role_id}
+          inputmode="numeric"
+          placeholder="Any member of the server"
+        />
+      </div>
+      <p>
+        Only Discord accounts in your server can sign in. With a member role, only its holders can, and members who
+        connected Discord are suspended if they lose it (restored if they get it back).
+      </p>
+      {#if settings.discord}
         <label class="row"
           ><input type="checkbox" bind:checked={settings.discord_autojoin} /> Holders of the member role can join without an
           invite</label
         >
-        <div class="row" style="margin-top:6px">
-          <span>Member role id</span>
-          <input type="text" bind:value={settings.discord_member_role_id} placeholder="Any member of the server" />
-        </div>
-        <p style="margin-top:6px">
-          Members who connected Discord are suspended if they lose this role, and restored if they get it back.
-        </p>
-      {:else}
-        <p>Off. To offer "Sign in with Discord", set the DISCORD_* settings in the hub's <code>.env</code>.</p>
       {/if}
     </section>
-    <div class="row"><button class="btn primary" onclick={saveSettings}>{saved ? "Saved" : "Save"}</button></div>
+    <div class="row">
+      <button class="btn primary" onclick={saveSettings}>{saved ? "Saved" : "Save"}</button>
+      {#if settings.discord}<button class="btn" onclick={discordOff}>Turn off Discord</button>{/if}
+    </div>
     <section class="apart">
       <h3>Your data</h3>
       <p>
@@ -614,6 +687,39 @@
   }
   .closing {
     color: var(--warn);
+  }
+  .howto {
+    margin: 4px 0 8px;
+    font-size: 0.82rem;
+    color: var(--text-2);
+  }
+  .howto summary {
+    cursor: pointer;
+    color: var(--text);
+  }
+  .howto ol {
+    margin: 6px 0 0;
+    padding-left: 20px;
+    display: grid;
+    gap: 6px;
+  }
+  .redirect {
+    margin-top: 4px;
+    flex-wrap: wrap;
+  }
+  .redirect code {
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    overflow-wrap: anywhere;
+  }
+  .fields {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: 6px 10px;
+    align-items: center;
+    max-width: 520px;
+    font-size: 0.82rem;
+    color: var(--text-2);
   }
   .item.off b {
     color: var(--text-3);

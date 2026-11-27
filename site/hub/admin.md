@@ -47,7 +47,14 @@ If someone else runs your hub for you, the sign-in page says **Hosted by** them,
 
 ### Discord
 
-Discord is optional; without it, everything works with invites and codes. Fill in the `DISCORD_*` settings in `.env` (the comments there say where to find each one) and restart the hub. Then:
+Discord is optional; without it, everything works with invites and codes. To turn it on, connect your org's own Discord application and server under **Admin → Settings → Discord**:
+
+1. At [discord.com/developers](https://discord.com/developers/applications), choose **New Application** and name it after your org (members see the name when they sign in).
+2. On its **OAuth2** page, add the redirect the Settings page shows (your hub's address followed by `/auth/discord/callback`), and copy the **Client ID** and **Client Secret** into Settings.
+3. In Discord, turn on **Developer Mode** (User Settings → Advanced). Right-click your server's icon → **Copy Server ID**. For a member role: Server Settings → Roles → right-click the role → **Copy Role ID**.
+4. **Save.** The hub checks the Client ID and secret with Discord; once saved, the secret is never shown again (type a new one to change it).
+
+This works the same whether you run the hub or someone [hosts it for you](#hosted-orgs). Then:
 
 - invite pages offer **Join with Discord**, and members can connect Discord under **Your account** and sign in with it anywhere;
 - members who connected Discord are suspended if they lose your server's member role, and restored if they get it back;

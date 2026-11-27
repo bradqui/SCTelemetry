@@ -55,6 +55,18 @@ MAX_DEVICES = 20
 COOKIE = "sg_device"
 COOKIE_MAX_AGE = 400 * 86400  # browsers keep cookies at most 400 days
 SEEN_SAVE_MS = 60_000
+# Served before pairing: the page's Home Screen name and icons (spec decision 31). Browsers
+# fetch the manifest without cookies, so behind the pairing check a tablet would get /pair
+# instead. They hold only the app's name and logo.
+PUBLIC_FILES = frozenset(
+    {
+        "/manifest.json",
+        "/apple-touch-icon.png",
+        "/icon-192.png",
+        "/icon-512.png",
+        "/icon-maskable-512.png",
+    }
+)
 _LAN_SUFFIXES = {"local", "lan", "home", "home.arpa", "localdomain"}
 
 
@@ -196,6 +208,8 @@ class LanView:
             return web.Response(status=403, text="Cross-origin access refused.")
         if request.path == "/pair":
             return await handler(request)
+        if request.path in PUBLIC_FILES and request.method in ("GET", "HEAD"):
+            return self._public_file(request.path)
         device = self._device(request)
         if device is None:
             if request.path.startswith(("/api/", "/ws")):
@@ -204,6 +218,13 @@ class LanView:
         request[DEVICE] = device
         self._seen(device)
         return await handler(request)
+
+    def _public_file(self, path: str) -> web.FileResponse:
+        """One of PUBLIC_FILES, or 404: never the page, which needs pairing."""
+        f = self.local.web_dir / path.lstrip("/")
+        if not f.is_file():
+            raise web.HTTPNotFound()
+        return web.FileResponse(f)
 
     def _seen(self, device: Device) -> None:
         device.seen = _now_ms()

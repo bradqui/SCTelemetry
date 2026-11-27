@@ -318,7 +318,7 @@
 <Dialog title="Admin" wide {onClose}>
   <nav class="tabs">
     {#each [["members", "Members"], ["invites", "Invites"], ["reports", "Reports"], ["integrations", "Integrations"], ["settings", "Settings"]] as [id, label] (id)}
-      <button class:on={tab === id} onclick={() => (tab = id as Tab)}
+      <button class="tap" style:--tap="7px" class:on={tab === id} onclick={() => (tab = id as Tab)}
         >{label}{#if id === "reports" && newReports}<span class="count">{newReports}</span>{/if}</button
       >
     {/each}

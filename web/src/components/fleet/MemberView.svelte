@@ -65,7 +65,7 @@
 
 <div class="member" bind:this={el}>
   <header>
-    <button class="back" onclick={onClose} title="Back to the fleet (Esc)">
+    <button class="back tap" onclick={onClose} title="Back to the fleet (Esc)">
       <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3 5 8l5 5" /></svg>
       <span>Fleet</span>
     </button>
@@ -146,10 +146,15 @@
     stroke: currentColor;
     stroke-width: 2;
   }
-  .back:hover,
   .back:focus-visible {
     border-color: var(--accent);
     color: var(--text);
+  }
+  @media (hover: hover) {
+    .back:hover {
+      border-color: var(--accent);
+      color: var(--text);
+    }
   }
   img {
     width: 28px;

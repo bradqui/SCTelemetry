@@ -198,8 +198,10 @@
     background: var(--bg-2);
     cursor: pointer;
   }
-  .ship:hover {
-    border-color: var(--accent);
+  @media (hover: hover) {
+    .ship:hover {
+      border-color: var(--accent);
+    }
   }
   .ship .mode {
     grid-row: span 2;
@@ -345,8 +347,10 @@
     cursor: pointer;
     white-space: nowrap;
   }
-  .name:hover {
-    color: var(--accent);
+  @media (hover: hover) {
+    .name:hover {
+      color: var(--accent);
+    }
   }
   .text {
     color: var(--text-2);

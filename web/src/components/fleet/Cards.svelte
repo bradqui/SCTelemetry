@@ -104,7 +104,7 @@
 <div class="tools">
   <span class="label">{custom ? "Your order" : "A to Z"}</span>
   <span class="hint">Drag a card to move it</span>
-  {#if custom}<button class="az" onclick={alphabetical} title="Back to A to Z">A–Z</button>{/if}
+  {#if custom}<button class="az tap" onclick={alphabetical} title="Back to A to Z">A–Z</button>{/if}
   <label class="hide"><input type="checkbox" bind:checked={hideOffline} /> Hide offline</label>
 </div>
 <div class="cards" role="list">

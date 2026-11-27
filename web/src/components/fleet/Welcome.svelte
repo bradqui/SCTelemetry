@@ -46,7 +46,9 @@
     font-size: 0.82rem;
     cursor: pointer;
   }
-  .skip:hover {
-    color: var(--accent);
+  @media (hover: hover) {
+    .skip:hover {
+      color: var(--accent);
+    }
   }
 </style>

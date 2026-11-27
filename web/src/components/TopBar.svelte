@@ -255,14 +255,14 @@
     background: color-mix(in srgb, var(--panel) 85%, transparent);
     backdrop-filter: blur(8px);
     position: sticky;
-    top: 10px;
+    top: calc(10px + var(--safe-top));
     z-index: 5;
     min-width: 0;
   }
   .compact.top {
     padding: 8px 12px;
     gap: 10px;
-    top: 6px;
+    top: calc(6px + var(--safe-top));
   }
   .brand {
     display: flex;
@@ -424,9 +424,11 @@
     stroke-width: 1.6;
     stroke-linecap: round;
   }
-  .toggle:hover {
-    color: var(--text);
-    border-color: var(--accent);
+  @media (hover: hover) {
+    .toggle:hover {
+      color: var(--text);
+      border-color: var(--accent);
+    }
   }
   .toggle:focus-visible {
     outline: 2px solid var(--accent);

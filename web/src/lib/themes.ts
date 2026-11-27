@@ -655,4 +655,21 @@ export function applyTheme(el: HTMLElement, theme: Theme, scheme: Scheme): void 
   el.dataset.scheme = scheme;
   el.dataset.deco = theme.deco;
   el.dataset.gauge = theme.gauge ?? "standard";
+  if (el === document.documentElement) syncChrome(p.bg, scheme);
+}
+
+/** The browser's own bars (the status bar on a phone, the tab strip) take the page's
+ *  background, so a light theme doesn't get the dark ones `index.html` starts with. */
+function syncChrome(bg: string, scheme: Scheme): void {
+  const meta = (name: string, content: string) => {
+    let m = document.head.querySelector<HTMLMetaElement>(`meta[name="${name}"]`);
+    if (!m) {
+      m = document.createElement("meta");
+      m.name = name;
+      document.head.append(m);
+    }
+    if (m.content !== content) m.content = content;
+  };
+  meta("theme-color", bg);
+  meta("color-scheme", scheme);
 }

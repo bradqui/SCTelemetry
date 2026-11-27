@@ -32,7 +32,7 @@
 
 <style>
   main {
-    min-height: calc(100dvh / var(--z, 1));
+    min-height: calc(100dvh / var(--z, 1) - var(--safe-top) - var(--safe-bottom));
     display: grid;
     place-items: center;
     align-content: center;
@@ -134,8 +134,10 @@
     font-size: 0.85rem;
     min-height: 34px;
   }
-  .card :global(.btn:hover) {
-    border-color: var(--accent);
+  @media (hover: hover) {
+    .card :global(.btn:hover) {
+      border-color: var(--accent);
+    }
   }
   .card :global(.btn.primary) {
     background: var(--accent);

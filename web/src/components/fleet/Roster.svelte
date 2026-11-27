@@ -73,7 +73,7 @@
     <span class="label">Roster</span>
     <div class="seg" role="radiogroup" aria-label="Group by">
       {#each [["ship", "Ship"], ["server", "Server"], ["status", "Status"], ["name", "A–Z"]] as [id, text] (id)}
-        <button role="radio" aria-checked={by === id} class:on={by === id} onclick={() => (by = id as GroupBy)}
+        <button class="tap" role="radio" aria-checked={by === id} class:on={by === id} onclick={() => (by = id as GroupBy)}
           >{text}</button
         >
       {/each}
@@ -160,6 +160,19 @@
     border-radius: var(--radius-sm);
     overflow: hidden;
   }
+  /* touch screens: the buttons' bigger touch areas (.tap) reach outside; the end buttons
+     round their own corners instead */
+  @media (pointer: coarse) {
+    .seg {
+      overflow: visible;
+    }
+    .seg button:first-child {
+      border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+    }
+    .seg button:last-child {
+      border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    }
+  }
   .seg button {
     border: 0;
     background: var(--bg-2);
@@ -228,8 +241,10 @@
     cursor: pointer;
     min-height: 40px;
   }
-  .row:hover {
-    background: color-mix(in srgb, var(--accent) 6%, transparent);
+  @media (hover: hover) {
+    .row:hover {
+      background: color-mix(in srgb, var(--accent) 6%, transparent);
+    }
   }
   .row.open {
     background: color-mix(in srgb, var(--accent) 11%, transparent);

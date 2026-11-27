@@ -150,4 +150,4 @@ docs/      field reference, hub API, themes, design spec
 
 ## License
 
-MIT, see [LICENSE](LICENSE).
+The code and docs are MIT, see [LICENSE](LICENSE). The Starglance logo isn't: see [brand/LICENSE](brand/LICENSE) for what you may do with it. The logo files and the Discord art are in [brand/](brand/).

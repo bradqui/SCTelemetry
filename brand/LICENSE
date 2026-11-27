@@ -1,0 +1,35 @@
+The Starglance logo
+
+Copyright (c) 2026 Brad Quillen. All rights reserved, except as below.
+
+The MIT license in this repository's LICENSE file covers Starglance's code and docs. It does
+not cover the Starglance logo (the wings: a star in a diamond between two sets of wings) or
+the artwork made from it. That is:
+
+- every image in this brand/ folder (masters/, discord/, site/);
+- the logo wherever else it appears in the repository: site/public/logo.svg,
+  site/public/logo-light.svg, site/public/favicon.svg, the drawing in
+  web/src/components/Logo.svelte, the favicon in web/index.html, and the icon that
+  draw_icon in agent/starglance/app.py draws for starglance.exe and the tray.
+
+The code in those files, brand/brand-export.cjs included, is MIT like the rest; the
+drawing it makes is not.
+
+You may, without asking:
+
+- use the logo to refer to Starglance: in an article, a video, a review, a link to the
+  project, or a post in its community;
+- keep it in copies of Starglance built from this repository's code, and in a fork while
+  you work on changes meant to come back to this project.
+
+You may not, without permission:
+
+- use the logo, or anything like it, on a modified version you distribute, or on another
+  product or service, in a way that suggests it is Starglance or is made or endorsed by
+  Starglance's maintainers. Before you distribute a fork, give it its own name and logo;
+- change the logo, or use it as part of another logo;
+- sell the logo, or things with it on.
+
+To ask for permission, open an issue at https://github.com/bradqui/starglance/issues.
+
+The images use the fonts Chakra Petch and IBM Plex Sans, under the SIL Open Font License.

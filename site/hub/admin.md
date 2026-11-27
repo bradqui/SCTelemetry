@@ -14,7 +14,9 @@ Pick how many people can use an invite and how long it lasts, and whether it mak
 
 ![Admin → Invites](/shots/app/hub-admin-invites.jpg)
 
-What a new member sees, and what they do with it: [Joining a fleet](/fleet/joining).
+A new member opens the link in a browser on their gaming PC, joins, and the page walks them through downloading Starglance and linking the PC: [Joining a fleet](/fleet/joining).
+
+<img src="/shots/app/hub-join.jpg" alt="An invite, as a new member sees it" style="max-width: 480px">
 
 ## Problem reports
 
@@ -58,4 +60,4 @@ This works the same whether you run the hub or someone [hosts it for you](#hoste
 
 - invite pages offer **Join with Discord**, and members can connect Discord under **Your account** and sign in with it anywhere;
 - members who connected Discord are suspended if they lose your server's member role, and restored if they get it back;
-- **Admin → Settings** can let holders of the role join without an invite.
+- **Admin → Settings** can let holders of the role join without an invite. Then you don't need invites at all: post the hub's address in your Discord, and members sign in with Discord and set up Starglance from there.

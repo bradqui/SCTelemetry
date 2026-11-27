@@ -82,6 +82,10 @@ class _Client:
             self.messages.append(json.dumps({"type": "uplink", **payload}))  # type: ignore[dict-item]
         elif kind == "updater":
             self.messages.append(json.dumps({"type": "updater", **payload}))  # type: ignore[dict-item]
+        elif kind == "offer":
+            if self.remote:  # linking this PC is decided on this PC
+                return
+            self.messages.append(json.dumps({"type": "offer", **payload}))  # type: ignore[dict-item]
         elif kind == "reports":
             if self.remote:  # another device: only the marks (reports are made on this PC)
                 payload = Reports.for_device(payload)  # type: ignore[arg-type]
@@ -164,6 +168,8 @@ class LocalServer:
                 web.post("/api/agent/report/send", self._report_send),
                 web.post("/api/agent/report/discard", self._report_discard),
                 web.post("/api/app/show", self._app_show),
+                web.post("/api/app/link", self._app_link),
+                web.post("/api/agent/offer", self._agent_offer),
                 web.get("/{tail:.*}", self.static),
             ]
         )
@@ -176,6 +182,8 @@ class LocalServer:
         """The Windows app: () -> bring its window forward (starting it again does this)."""
         self.control = None
         """The running agent's settings (control.AgentControl); None in tests."""
+        self._tasks: set[asyncio.Future] = set()
+        """Background work started by a request (checking a link with its hub)."""
         self.uplinks: dict[str, dict] = {}
         """Each fleet's latest link status, by hub, for pages that open later (Fleet chip)."""
         pipeline.subscribe(self._remember)
@@ -396,6 +404,28 @@ class LocalServer:
         self.on_show()
         return web.json_response({"ok": True})
 
+    async def _app_link(self, request: web.Request) -> web.Response:
+        """A starglance:// link Windows handed to a second copy of the app, passed on to
+        this one (app.py): show the window, and ask the person about it."""
+        if self.on_show is not None:
+            self.on_show()
+
+        def start(body: dict) -> dict:
+            url = str(body.get("url", ""))
+            self._tasks.add(task := asyncio.ensure_future(self.control.offer(url)))
+            task.add_done_callback(self._tasks.discard)
+            return {"ok": True}  # the page hears how it goes ("offer" messages)
+
+        return await self._agent_call(request, start)
+
+    async def _agent_offer(self, request: web.Request) -> web.Response:
+        return await self._agent_call(
+            request,
+            lambda b: self.control.answer(
+                int(b.get("id") or 0), bool(b.get("accept")), bool(b.get("telemetry"))
+            ),
+        )
+
     async def _api_mode(self, _request: web.Request) -> web.Response:
         return web.json_response({"mode": "local", "agent_version": __version__})
 
@@ -448,6 +478,9 @@ class LocalServer:
         updater = getattr(self.control, "updater", None)
         if updater is not None:
             await ws.send_str(json.dumps({"type": "updater", **updater.status()}))
+        offer = getattr(self.control, "_offer", None)
+        if offer is not None and not remote:
+            await ws.send_str(json.dumps({"type": "offer", "offer": offer}))
         reports = getattr(self.control, "reports", None)
         if reports is not None:
             status = Reports.for_device(reports.status()) if remote else reports.status()

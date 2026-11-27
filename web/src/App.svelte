@@ -12,6 +12,7 @@
   import Dashboard from "./components/Dashboard.svelte";
   import FocusStrip from "./components/FocusStrip.svelte";
   import { COMBAT_HOLD_MS, inCombat, phaseOf, SPOTLIGHT } from "./lib/phase";
+  import LinkOffer from "./components/LinkOffer.svelte";
   import LocalFleet from "./components/LocalFleet.svelte";
   import ReplayBar from "./components/ReplayBar.svelte";
   import ReportProblem from "./components/ReportProblem.svelte";
@@ -233,6 +234,10 @@
 
 {#if live.replay && !fleetOpen && (demo || !view.remote)}
   <ReplayBar {live} />
+{/if}
+
+{#if live.offer && !view.remote && !demo}
+  <LinkOffer offer={live.offer} />
 {/if}
 
 {#if reporting}

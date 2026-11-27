@@ -36,11 +36,26 @@
     </p>
   {/if}
 
-  <h1>Sign in to see the fleet</h1>
+  {#if mode.discord_join}
+    <h1>Join {mode.org}</h1>
+    <p>In the {mode.org} Discord? Sign in with Discord to join the fleet (or to sign back in). Next, this page helps you set up Starglance on your PC.</p>
+  {:else}
+    <h1>Sign in to see the fleet</h1>
+  {/if}
+
+  {#if mode.discord}
+    <section>
+      <a class="discord" href="/auth/discord?next={encodeURIComponent(next)}">Sign in with Discord</a>
+    </section>
+  {/if}
 
   <section>
-    <h3>From your gaming PC</h3>
-    <p>If your agent is linked, run <code>starglance open</code>, or in its cockpit view open <b>Fleet</b>, then <b>Open on the hub</b> in your name's menu.</p>
+    <h3>I have an invite</h3>
+    <form class="row" onsubmit={useInvite}>
+      <input bind:value={invite} placeholder="Paste the invite link" required />
+      <button class="btn">Open</button>
+    </form>
+    {#if !mode.discord_join}<p class="small">New here? Ask your org's admins for an invite link.</p>{/if}
   </section>
 
   <section>
@@ -53,18 +68,9 @@
   </section>
 
   <section>
-    <h3>I have an invite</h3>
-    <form class="row" onsubmit={useInvite}>
-      <input bind:value={invite} placeholder="Paste the invite link" required />
-      <button class="btn">Open</button>
-    </form>
+    <h3>From your gaming PC</h3>
+    <p>Already linked? In Starglance, open <b>Fleet</b>, then <b>Open on the hub</b> in your name's menu.</p>
   </section>
-
-  {#if mode.discord}
-    <section>
-      <a class="discord" href="/auth/discord?next={encodeURIComponent(next)}">Sign in with Discord</a>
-    </section>
-  {/if}
 
   {#if mode.dev_login}
     <section>
@@ -79,3 +85,10 @@
 
   {#if error}<p class="error">{error}</p>{/if}
 </Card>
+
+<style>
+  .small {
+    margin-top: 6px;
+    font-size: 0.78rem;
+  }
+</style>

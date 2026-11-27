@@ -4,6 +4,22 @@ What changed in each release of Starglance: the app (`starglance.exe`) and the h
 
 Each release's notes on GitHub, and its announcement, come from its section here (see [docs/RELEASING.md](docs/RELEASING.md)).
 
+## 0.10.8 (2026-11-27)
+
+Joining a fleet now starts in your browser, with nothing to copy or paste.
+
+### Hub
+
+- **Sign in, then set up Starglance from the page.** Open your org's link (an invite, or the hub's address if your org lets its Discord members join), join with Discord or a name, and the page walks you through it: **Download**, **Open it**, **Link this PC**. It tells you when your PC is linked. **Skip for now** if you only want to watch.
+- With **Holders of the member role can join without an invite** on, the sign-in page leads with **Sign in with Discord**: post the hub's address in your Discord and that's all anyone needs.
+- Another PC later: open the hub's `/setup` page on it.
+
+### App
+
+- **Link this PC** on your fleet's page opens Starglance, which asks you to confirm (the fleet, its address, your name) and can switch on the game's telemetry in the same click. Starglance registers itself for these links when it starts.
+- Settings → Agent → Fleet explains this instead of asking for a link; you can still enter the hub's address (or an invite) there.
+- Settings → Agent no longer gets stuck on "Loading…" when two installs share a channel (Star Citizen on two drives).
+
 ## 0.10.7 (2026-11-26)
 
 - **A new logo**: the Starglance wings, a star in a diamond between two sets of wings. You'll see it in the system tray, on `starglance.exe`, in the cockpit and fleet pages, and on the hub. It follows your colour theme in the app.

@@ -1,6 +1,7 @@
 """Agent settings while it runs: the cockpit page's Agent tab (localserver /api/agent/*).
 
-Joins or leaves fleets (a PC can be in several: one per org's hub), switches each on or
+Joins or leaves fleets (a PC can be in several: one per org's hub), takes "Link this PC"
+links from a hub's page (an offer the person confirms in the app), switches each on or
 off, chooses what's shared with each, and switches the game's telemetry on or off,
 without a restart. Owns the hub uplinks, one per fleet that's on: starts them, restarts
 one when its sharing changes (the hub learns the categories from the uplink's hello),
@@ -23,12 +24,17 @@ from .fleetlink import (
     Fleet,
     FleetSettings,
     LinkError,
+    check_pc_link,
     game_handle,
+    is_app_link,
     join,
     link,
     load_settings,
     load_token,
+    machine_name,
+    parse_app_link,
     parse_target,
+    redeem_pc_link,
     save_settings,
     unlink,
 )
@@ -85,6 +91,11 @@ class AgentControl:
         """Hub URL -> its running Uplink."""
         self._lock = asyncio.Lock()
         self._joining: str | None = None
+        self._offer: dict | None = None
+        """A link from a hub's page, waiting for the person to confirm it (what pages see)."""
+        self._offer_code: str | None = None
+        """Its secret: never sent to pages."""
+        self._offers = 0
         self.lan = None
         """Show on other devices (lanview.LanView), when the agent serves one."""
         self.updater = None
@@ -200,6 +211,7 @@ class AgentControl:
             ],
             "can_send": self.uplink_wanted,
             "joining": self._joining,
+            "offer": self._offer,
             "suggested_name": game_handle(self.install.game_log if self.install else None),
             "installs": [
                 {
@@ -317,11 +329,93 @@ class AgentControl:
             self.announce(f"Fleet {fleet.label}: {'sending' if on else 'paused'}.")
         return self.state()
 
+    # -- "Link this PC" from a hub's page (starglance://link): check, ask, then link
+
+    def _set_offer(self, offer: dict | None) -> None:
+        self._offer = offer
+        if offer is None:
+            self._offer_code = None
+        self.pipeline._notify("offer", {"offer": offer})
+
+    def _telemetry_to_switch_on(self) -> dict | None:
+        """The install whose telemetry the confirm dialog offers to switch on, if it's off:
+        the one in use, else the first found (LIVE before the others)."""
+        found = installs.find_installs()
+        current = [i for i in found if self.install is not None and i.path == self.install.path]
+        for i in current + [i for i in found if i not in current]:
+            if not gamecfg.status(i.user_cfg).telemetry_enabled:
+                return {"channel": i.channel, "path": str(i.path)}
+            if i in current:
+                return None  # the one in use is already on
+        return None
+
+    async def offer(self, url: str) -> dict:
+        """A link the browser handed the app. Nothing is linked until ``answer(True)``."""
+        self._offers += 1
+        offer: dict = {"id": self._offers, "state": "checking", "machine": machine_name()}
+        try:
+            hub, code = parse_app_link(url)
+        except LinkError as exc:
+            self._set_offer({**offer, "state": "error", "error": str(exc)})
+            return self.state()
+        settings = load_settings()
+        current = next((f for f in settings.fleets if f.hub_url == hub and load_token(hub)), None)
+        offer.update(
+            hub=hub,
+            already=current is not None,
+            already_as=current.member_name if current else None,
+            telemetry=self._telemetry_to_switch_on(),
+        )
+        self._offer_code = code
+        self._set_offer(offer)
+        try:
+            info = await check_pc_link(hub, code)
+        except LinkError as exc:
+            self._set_offer({**offer, "state": "error", "error": str(exc)})
+            return self.state()
+        if self._offer is None or self._offer.get("id") != offer["id"]:
+            return self.state()  # answered or replaced while checking
+        member = info.get("member") or {}
+        self._set_offer(
+            {**offer, "state": "ready", "org": info.get("org"), "member": member.get("name")}
+        )
+        return self.state()
+
+    async def answer(self, offer_id: int, accept: bool, telemetry: bool) -> dict:
+        """The person's answer to the confirm dialog."""
+        offer, code = self._offer, self._offer_code
+        if offer is None or offer.get("id") != offer_id:
+            raise LinkError("That link was already dealt with.")
+        if not accept or offer.get("state") != "ready" or code is None:
+            self._set_offer(None)
+            return self.state()
+        self._set_offer({**offer, "state": "joining"})
+        try:
+            async with self._lock:
+                fleet = await redeem_pc_link(offer["hub"], code)
+                await self._restart(fleet)
+        except LinkError as exc:
+            self._set_offer({**offer, "state": "error", "error": str(exc)})
+            return self.state()
+        self.announce(f"Fleet {fleet.label}: this PC now sends to {fleet.hub_url}.")
+        changed = False
+        if telemetry and offer.get("telemetry"):
+            with contextlib.suppress(LinkError, OSError, gamecfg.CfgWriteError):
+                changed = bool(self.set_telemetry(offer["telemetry"]["channel"], True)["changed"])
+        self._set_offer({**offer, "state": "done", "org": fleet.org or offer.get("org")})
+        return {**self.state(), "telemetry_changed": changed}
+
     async def join(self, target: str, name: str) -> dict:
         """An invite link (new account) or a hub address (this PC, an existing account: the
         hub's page opens to confirm a code, and this waits until it's confirmed). Adds the
         fleet; the others carry on."""
         async with self._lock:
+            if is_app_link(target):  # pasted a "Link this PC" link: pasting it is the yes
+                hub, code = parse_app_link(target)
+                fleet = await redeem_pc_link(hub, code)
+                await self._restart(fleet)
+                self.announce(f"Fleet {fleet.label}: this PC now sends to {fleet.hub_url}.")
+                return self.state()
             hub, invite = parse_target(target)
             if invite:
                 name = name.strip() or self.state()["suggested_name"] or ""

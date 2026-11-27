@@ -436,6 +436,8 @@ def build_parser() -> argparse.ArgumentParser:
     p = add("app", cmd_app, "The Windows app: tray icon and its own window (the default)")
     p.add_argument("--ui-port", type=int, default=8740, help="Local view port (default 8740)")
     p.add_argument("--hidden", action="store_true", help="Start in the tray, window closed")
+    # A starglance:// link from a hub's page (Windows starts the app with it): ask, then link.
+    p.add_argument("--open-link", metavar="URL", help=argparse.SUPPRESS)
     # Started by the previous version after updating: wait for it to quit, then delete it.
     p.add_argument("--updated", action="store_true", help=argparse.SUPPRESS)
     p.set_defaults(game_port=None, hub=None, no_uplink=False, uplink=False, replay=None)

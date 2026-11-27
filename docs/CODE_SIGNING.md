@@ -49,7 +49,7 @@ Starglance's updater installs an unsigned update over an unsigned copy, and once
 
 This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it.
 
-In particular, the agent connects only to the game on the same PC and to the fleet hubs the user links it to (each from an invite link). It sends each hub only what the user chooses to share with that fleet. At start and every few hours it asks this repository's GitHub page which release is the latest (unless switched off), sending nothing else. When the user clicks **Update**, or has switched on automatic updates, it downloads the new release's `starglance.exe` and checksums from this repository's GitHub releases. Before replacing itself it checks the checksum and, for a signed build, that the new file is signed by the same publisher. See the [privacy policy](../PRIVACY.md) for exactly what's read, sent and stored.
+In particular, the agent connects only to the game on the same PC and to the fleet hubs the user links it to (each from an invite link, or a link from that hub's page that the user confirms in the app). It sends each hub only what the user chooses to share with that fleet. At start and every few hours it asks this repository's GitHub page which release is the latest (unless switched off), sending nothing else. When the user clicks **Update**, or has switched on automatic updates, it downloads the new release's `starglance.exe` and checksums from this repository's GitHub releases. Before replacing itself it checks the checksum and, for a signed build, that the new file is signed by the same publisher. See the [privacy policy](../PRIVACY.md) for exactly what's read, sent and stored.
 
 ## Reporting
 

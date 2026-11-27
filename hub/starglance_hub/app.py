@@ -29,6 +29,7 @@ import time
 import zipfile
 from collections import defaultdict, deque
 from pathlib import Path
+from urllib.parse import urlencode
 
 import aiohttp
 from aiohttp import WSMsgType, web
@@ -38,10 +39,14 @@ from . import MIN_AGENT_VERSION, __version__
 from . import reports as reports_mod
 from .auth import SESSION_COOKIE, SNOWFLAKE, Auth, page, valid_next
 from .config import Config
-from .db import API_SCOPES, ROLES, Database, Member, clean_name, now_ms
+from .db import API_SCOPES, PAIR_CODE_TTL_S, ROLES, Database, Member, clean_name, now_ms
 from .fleet import Fleet, ProtocolError, Viewer
 
 log = logging.getLogger(__name__)
+
+AGENT_DOWNLOAD_URL = f"{RELEASES_URL}/download/starglance.exe"
+"""The page's Download button: the latest release's exe, straight from GitHub (the browser
+fetches it; the hub never contacts GitHub)."""
 
 CLOSE_REQUEST = "close_request"
 """Settings key: {"at": ms, "by": name, "by_id": member id} while the org's admins have asked
@@ -249,6 +254,8 @@ class Hub:
                 web.post("/api/agent/join", self.agent_join),
                 web.post("/api/agent/link/start", self.link_start),
                 web.post("/api/agent/link/poll", self.link_poll),
+                web.post("/api/agent/pc-link/check", self.pc_link_check),
+                web.post("/api/agent/pc-link/redeem", self.pc_link_redeem),
                 web.post("/api/agent/login-link", self.agent_login_link),
                 web.post("/api/agent/unlink", self.agent_unlink),
                 web.get("/ws/agent", self.ws_agent),
@@ -260,6 +267,7 @@ class Hub:
                 web.patch("/api/me", self.me_update),
                 web.delete("/api/me", self.me_delete),
                 web.post("/api/me/device-code", self.device_code),
+                web.post("/api/me/pc-link", self.pc_link_new),
                 web.get("/api/me/sessions", self.my_sessions),
                 web.post("/api/me/sessions/others/end", self.end_other_sessions),
                 web.post("/api/me/sessions/{id}/end", self.end_session),
@@ -368,8 +376,13 @@ class Hub:
                 "mode": "fleet",
                 "hub_version": __version__,
                 "org": self.auth.org_name(),
-                "me": member.account() if member else None,
+                "me": {**member.account(), "pcs": len(self.db.agents_of(member.id))}
+                if member
+                else None,
                 "discord": self.auth.discord is not None,
+                # Holders of the Discord member role join by signing in: no invite needed.
+                "discord_join": self.auth.discord is not None and self.auth.discord_autojoin(),
+                "download_url": AGENT_DOWNLOAD_URL,
                 "dev_login": self.cfg.dev_login_on,
                 "setup": self.setup_url is not None,
                 "host": self.cfg.host,
@@ -500,6 +513,53 @@ class Hub:
                 "token": token,
                 "agent_id": agent.id,
                 "member": member.public() if member else None,
+            }
+        )
+
+    async def pc_link_new(self, request: web.Request) -> web.Response:
+        """The page's "Link this PC" button: a one-time starglance:// link for the app."""
+        member = await self._member(request)
+        if not member.active:
+            raise _json_error(403, "Your membership is suspended.")
+        secret = self.db.new_pc_link(member.id)
+        url = f"starglance://link?{urlencode({'hub': self.cfg.hub_url, 'code': secret})}"
+        return web.json_response({"url": url, "expires_in": PAIR_CODE_TTL_S})
+
+    def _pc_link_member(self, body: dict) -> Member:
+        member = self.db.pc_link(str(body.get("code") or ""))
+        if member is None or not member.active:
+            raise _json_error(
+                410, "This link has expired. Open the fleet page and click Link this PC again."
+            )
+        return member
+
+    async def pc_link_check(self, request: web.Request) -> web.Response:
+        """The app asks whose link it was handed, before you confirm it (nothing changes)."""
+        self._limited(request, "link", 10)
+        member = self._pc_link_member(await _body(request))
+        return web.json_response(
+            {"org": self.auth.org_name(), "member": member.public(), "hub_version": __version__}
+        )
+
+    async def pc_link_redeem(self, request: web.Request) -> web.Response:
+        """You confirmed it in the app: link the PC (the link works once)."""
+        self._limited(request, "link", 10)
+        body = await _body(request)
+        member = self._pc_link_member(body)
+        used = self.db.use_pc_link(str(body.get("code") or ""), str(body.get("machine") or "PC"))
+        if used is None:
+            raise _json_error(410, "This link was already used.")
+        agent, token = used
+        log.info("Linked PC %d (%s) to %s from the page", agent.id, agent.machine, member.id)
+        self.fleet.live(member)
+        self.fleet.refresh_roster()
+        return web.json_response(
+            {
+                "status": "linked",
+                "token": token,
+                "agent_id": agent.id,
+                "member": member.public(),
+                "org": self.auth.org_name(),
             }
         )
 

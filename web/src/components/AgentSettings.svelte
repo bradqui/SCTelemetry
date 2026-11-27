@@ -59,6 +59,8 @@
   let name = $state("");
   let restartFor = $state<string | null>(null);
   let adding = $state(false);
+  /** Typing the hub's address instead of linking from its page. */
+  let manual = $state(false);
   /** Which fleet's sharing is open (one at a time). */
   let open = $state<string | null>(null);
 
@@ -106,6 +108,16 @@
       busy = null;
     }
   }
+
+  // Linked from a hub's page (LinkOffer): show the new fleet.
+  onMount(() => {
+    const changed = () => {
+      adding = false;
+      void call("settings").catch(() => {});
+    };
+    addEventListener("ft:fleets-changed", changed);
+    return () => removeEventListener("ft:fleets-changed", changed);
+  });
 
   onMount(async () => {
     try {
@@ -215,12 +227,29 @@
     {/each}
 
     {#if !info.fleets.length || adding}
-      <p class="hint">
-        Paste the invite link from {info.fleets.length ? "the other" : "your"} org's admin. Already a member, on another PC? Paste the
-        hub's address instead: its page opens to confirm.
-      </p>
+      <div class="howto">
+        <b>Join {info.fleets.length ? "another org's" : "your org's"} fleet from its page</b>
+        <ol>
+          <li>Open the link your org gave you (an invite, or the hub's address) in your browser.</li>
+          <li>Sign in, then click <b>Link this PC</b>.</li>
+          <li>Starglance asks you here to confirm. That's all.</li>
+        </ol>
+      </div>
+      <button class="more" type="button" aria-expanded={manual} onclick={() => (manual = !manual)}
+        >{manual ? "▾" : "▸"} Or enter the hub's address here</button
+      >
+      {#if manual}
       <form onsubmit={joinFleet}>
-        <input type="url" placeholder="https://fleet.example.org/join/…" bind:value={target} required />
+        <input
+          type="text"
+          inputmode="url"
+          autocomplete="off"
+          spellcheck="false"
+          placeholder="fleet.example.org"
+          aria-label="The hub's address, or an invite link"
+          bind:value={target}
+          required
+        />
         {#if isInvite}
           <label class="field"
             ><span>Your name in this fleet</span>
@@ -233,7 +262,11 @@
           </button>
           {#if info.fleets.length}<button class="btn" type="button" onclick={() => (adding = false)}>Cancel</button>{/if}
         </div>
+        {#if !isInvite}<p class="hint">The hub's page opens in your browser to confirm it's you.</p>{/if}
       </form>
+      {:else if info.fleets.length}
+        <button class="btn" type="button" onclick={() => (adding = false)}>Cancel</button>
+      {/if}
     {:else}
       <button class="btn" onclick={() => (adding = true)}>Join another fleet</button>
     {/if}
@@ -246,7 +279,7 @@
     {:else}
       <p class="hint">The game's own setting (in its user.cfg) that lets the agent read it. Switching it off puts the file back as it was.</p>
       <ul class="installs">
-        {#each info.installs as i (i.channel)}
+        {#each info.installs as i (i.path)}
           <li>
             <span class="ch"><b>{i.channel}</b>{#if i.current}<em>this one</em>{/if}<small>{i.path}</small></span>
             <span class="tel" class:on={i.telemetry}>{i.telemetry ? "On" : "Off"}</span>
@@ -429,6 +462,31 @@
     text-transform: uppercase;
     color: var(--text-3);
   }
+  .howto {
+    padding: 8px 10px;
+    border: 1px solid var(--line-2);
+    border-radius: var(--radius-sm);
+    background: var(--bg-2);
+    font-size: 0.85rem;
+  }
+  .howto ol {
+    margin: 4px 0 0;
+    padding-left: 18px;
+    color: var(--text-2);
+  }
+  .more {
+    justify-self: start;
+    border: 0;
+    background: none;
+    padding: 2px 0;
+    color: var(--text-2);
+    font: inherit;
+    font-size: 0.82rem;
+    cursor: pointer;
+  }
+  .more:hover {
+    color: var(--accent);
+  }
   .hint {
     margin: 0;
     color: var(--text-3);
@@ -514,7 +572,7 @@
     font: inherit;
     font-size: 0.85rem;
   }
-  input[type="url"],
+  input[inputmode="url"],
   input[type="text"] {
     width: 100%;
     box-sizing: border-box;

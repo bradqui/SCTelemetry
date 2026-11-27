@@ -599,6 +599,32 @@ class Database:
         agent, token = self.new_agent(row["member_id"], row["machine"] or "PC")
         return "linked", agent, token
 
+    def new_pc_link(self, member_id: str) -> str:
+        """A signed-in member's page hands this PC's app a one-time link (starglance://):
+        the secret it redeems for the PC's key. A pair_codes row of kind "pc"."""
+        secret = secrets.token_urlsafe(32)
+        self._new_pair("pc", member_id=member_id, secret_hash=sha256(secret))
+        return secret
+
+    def pc_link(self, secret: str) -> Member | None:
+        """Whose PC link this is, while it's unused and fresh (it stays usable)."""
+        row = self._one(
+            "SELECT * FROM pair_codes WHERE secret_hash=? AND kind='pc' AND expires_at > ?",
+            sha256(secret),
+            now_ms(),
+        )
+        return self.member(row["member_id"]) if row is not None else None
+
+    def use_pc_link(self, secret: str, machine: str) -> tuple[Agent, str] | None:
+        """Redeem a PC link, once: the new PC and its key."""
+        member = self.pc_link(secret)
+        if member is None:
+            return None
+        self.conn.execute(
+            "DELETE FROM pair_codes WHERE secret_hash=? AND kind='pc'", (sha256(secret),)
+        )
+        return self.new_agent(member.id, clean_name(machine) or "PC")
+
     def new_signin_code(self, member_id: str) -> str:
         """A signed-in member adds a device: the code they type on it."""
         return self._new_pair("signin", member_id=member_id)

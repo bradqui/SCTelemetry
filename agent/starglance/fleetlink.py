@@ -7,6 +7,10 @@
   agent works for any org's hub.
 - **Another PC** (existing member): ``starglance link https://<hub>`` shows a
   code and opens the hub's page, where you confirm it while signed in.
+- **From the hub's page** (the easy way): signed in on the fleet page, **Link this PC**
+  opens a one-time ``starglance://link?hub=<hub>&code=<secret>`` link. Windows hands it
+  to the app (app.py registers the ``starglance:`` scheme), which asks the hub whose link
+  it is, asks you to confirm, and only then redeems it for this PC's key.
 - **Opening the page**: ``starglance open`` (or the Fleet chip in the cockpit
   view) signs a browser in with a one-time link.
 
@@ -24,6 +28,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import ipaddress
 import json
 import os
 import platform
@@ -32,7 +37,7 @@ import webbrowser
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 import aiohttp
 from starglance_shared import SHARE_CATEGORIES
@@ -263,6 +268,52 @@ def parse_target(target: str) -> tuple[str, str | None]:
     return f"{parts.scheme}://{parts.netloc}{parts.path}".rstrip("/"), None
 
 
+APP_LINK_SCHEME = "starglance"
+
+
+def is_app_link(target: str) -> bool:
+    return target.strip().lower().startswith(f"{APP_LINK_SCHEME}:")
+
+
+def _local_host(host: str) -> bool:
+    """Loopback or a private address: a hub on this PC or the LAN, which may be plain http."""
+    if host in ("localhost",) or host.endswith(".local"):
+        return True
+    try:
+        ip = ipaddress.ip_address(host.strip("[]"))
+    except ValueError:
+        return False
+    return ip.is_loopback or ip.is_private or ip.is_link_local
+
+
+def parse_app_link(url: str) -> tuple[str, str]:
+    """``starglance://link?hub=<hub address>&code=<secret>`` -> (hub URL, code).
+
+    Any website can open such a link, so this only checks its shape: the app shows the hub
+    and asks before anything is sent. Hubs must be https, except on this PC or the LAN."""
+    parts = urlsplit(url.strip())
+    if parts.scheme.lower() != APP_LINK_SCHEME or (parts.netloc or parts.path.strip("/")) != "link":
+        raise LinkError("That isn't a Starglance link.")
+    query = parse_qs(parts.query)
+    hub = (query.get("hub") or [""])[0].strip().rstrip("/")
+    code = (query.get("code") or [""])[0].strip()
+    hub_parts = urlsplit(hub)
+    if (
+        hub_parts.scheme not in ("https", "http")
+        or not hub_parts.hostname
+        or hub_parts.query
+        or hub_parts.fragment
+        or hub_parts.username
+        or hub_parts.password
+    ):
+        raise LinkError("The link doesn't name a hub.")
+    if hub_parts.scheme == "http" and not _local_host(hub_parts.hostname):
+        raise LinkError("The hub in that link isn't secure (https).")
+    if not re.fullmatch(r"[A-Za-z0-9_-]{16,128}", code):
+        raise LinkError("The link is incomplete: open it again from the fleet page.")
+    return hub, code
+
+
 def machine_name() -> str:
     return (platform.node() or "PC")[:32]
 
@@ -357,6 +408,34 @@ async def login_link(hub_url: str, token: str) -> str:
     if status != 200 or "url" not in body:
         raise LinkError(body.get("error") or f"The hub refused ({status}).")
     return body["url"]
+
+
+async def check_pc_link(hub_url: str, code: str) -> dict:
+    """Whose link this is (org, member), from the hub, before you confirm it."""
+    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=15)) as http:
+        status, body = await _post(http, f"{hub_url}/api/agent/pc-link/check", {"code": code})
+    if status != 200:
+        raise LinkError(body.get("error") or f"The hub refused ({status}).")
+    return body
+
+
+async def redeem_pc_link(hub_url: str, code: str, *, machine: str | None = None) -> Fleet:
+    """You confirmed a link from the hub's page: this PC gets its key (the link works once)."""
+    old = load_token(hub_url)
+    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=20)) as http:
+        status, body = await _post(
+            http,
+            f"{hub_url}/api/agent/pc-link/redeem",
+            {"code": code, "machine": machine or machine_name()},
+        )
+        if status != 200:
+            raise LinkError(body.get("error") or f"The hub refused ({status}).")
+        if old:  # linked again (another account, or a fresh start): the hub forgets the old key
+            with contextlib.suppress(aiohttp.ClientError, asyncio.TimeoutError):
+                await http.post(
+                    f"{hub_url}/api/agent/unlink", headers={"Authorization": f"Bearer {old}"}
+                )
+    return _save_link(hub_url, body)
 
 
 def unlink(hub_url: str) -> Fleet | None:

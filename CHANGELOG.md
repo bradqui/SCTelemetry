@@ -4,6 +4,10 @@ What changed in each release of Starglance: the app (`starglance.exe`) and the h
 
 Each release's notes on GitHub, and its announcement, come from its section here (see [docs/RELEASING.md](docs/RELEASING.md)).
 
+## 0.10.7 (2026-11-26)
+
+- **A new logo**: the Starglance wings, a star in a diamond between two sets of wings. You'll see it in the system tray, on `starglance.exe`, in the cockpit and fleet pages, and on the hub. It follows your colour theme in the app.
+
 ## 0.10.6 (2026-11-26)
 
 ### Hub

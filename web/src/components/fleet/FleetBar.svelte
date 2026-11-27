@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Logo from "../Logo.svelte";
   import { chosen, defaultAlerts, type Alerts } from "../../lib/alerts";
   import { LIGHT_NAMES } from "../../lib/format";
   import type { Account, MemberSummary } from "../../lib/types";
@@ -81,7 +82,7 @@
     </button>
   {/if}
   <div class="brand pywebview-drag-region">
-    <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 3 29 27H3z" /><circle cx="16" cy="20" r="3" /></svg>
+    <Logo />
     {#if fleets.length > 1 && onPickFleet}
       <select
         class="display orgpick"
@@ -196,18 +197,6 @@
     gap: 9px;
     font-weight: 700;
     flex: none;
-  }
-  .brand svg {
-    width: 22px;
-    height: 22px;
-    fill: none;
-    stroke: var(--accent);
-    stroke-width: 3;
-    stroke-linejoin: round;
-  }
-  .brand circle {
-    fill: var(--accent);
-    stroke: none;
   }
   .counts {
     display: flex;

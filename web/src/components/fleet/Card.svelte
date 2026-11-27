@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Logo from "../Logo.svelte";
   import type { Snippet } from "svelte";
   import type { HubHost } from "../../lib/types";
 
@@ -14,7 +15,7 @@
 <main>
   <section class="card">
     <div class="brand">
-      <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 3 29 27H3z" /><circle cx="16" cy="20" r="3" /></svg>
+      <Logo />
       <span class="display">{title}</span>
       {#if subtitle}<small>{subtitle}</small>{/if}
     </div>
@@ -67,18 +68,6 @@
     font-size: 0.72rem;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-  }
-  .brand svg {
-    width: 22px;
-    height: 22px;
-    fill: none;
-    stroke: var(--accent);
-    stroke-width: 3;
-    stroke-linejoin: round;
-  }
-  .brand circle {
-    fill: var(--accent);
-    stroke: none;
   }
   .card :global(h1) {
     font-size: 1.2rem;

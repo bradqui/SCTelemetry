@@ -8,7 +8,8 @@ hero:
   text: Your ship and crew, at a glance
   tagline: A cockpit dashboard for your second screen, tablet or VR overlay, and a live fleet page for your org. Built from Star Citizen's own telemetry. Free and open source.
   image:
-    src: /logo.svg
+    light: /logo-light.svg
+    dark: /logo.svg
     alt: Starglance
   actions:
     - theme: brand

@@ -1,8 +1,9 @@
 """Hub settings from the environment (see deploy/.env.example).
 
 Only what's needed before anyone can sign in lives here. Everything an admin
-might change later (the org name, Discord auto-join) is set on the admin page
-and stored in the database; the environment only gives defaults.
+might change later (the org name, the org's Discord app and server, Discord
+auto-join) is set on the admin page and stored in the database; the
+environment only gives defaults.
 """
 
 from __future__ import annotations
@@ -31,6 +32,7 @@ class Config:
     """Shown on the sign-in and join pages. Admins can change it on the page."""
 
     # Optional: "Sign in with Discord", and members kept in step with a Discord role.
+    # Defaults: the org's admins can set (or change) all four on the admin page.
     discord_client_id: str | None = None
     discord_client_secret: str | None = None
     discord_guild_id: str | None = None
@@ -120,7 +122,7 @@ class Config:
         ):
             out.append(
                 "Discord sign-in needs DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET and "
-                "DISCORD_GUILD_ID together; it's off."
+                "DISCORD_GUILD_ID together (or the rest on the admin page)."
             )
         if not self.secure and not self.hub_url.startswith("http://127.0.0.1"):
             out.append(f"HUB_URL is {self.hub_url}: use https for anything but local testing.")

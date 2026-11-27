@@ -15,7 +15,9 @@ Agents learn of the release from GitHub's "latest release" (they check at start 
    - `pyproject.toml`
    - `agent/starglance/__init__.py`
    - `hub/starglance_hub/__init__.py`
-   
+
+   and add its section at the top of [CHANGELOG.md](../CHANGELOG.md): `## 0.2.0 (2026-11-24)`, then what changed, in words players and org admins use (what they'll notice, not how it's done), under `### Hub` or `### App` when a release has both. The release's notes and its Discord announcement are that section, and the workflow refuses a tag without one.
+
    Commit it with `uv lock` if it changed anything (it can go in the pull request with the changes it releases), open a pull request, and merge it once the checks pass.
 2. Tag the merged commit on `main` and push the tag:
 
@@ -32,7 +34,8 @@ Agents learn of the release from GitHub's "latest release" (they check at start 
    - signs the exe (only if SignPath is set up, below; releases are unsigned for now);
    - records a build attestation for the exe (`actions/attest`), so anyone can check where it came from;
    - pushes the hub image;
-   - publishes the GitHub release with the exe and `SHA256SUMS.txt`.
+   - publishes the GitHub release with the exe and `SHA256SUMS.txt`, its notes starting with the changelog section;
+   - posts that section to Discord, if set up (below).
 
    Keep those two names: the app's **Update** button downloads exactly `starglance.exe` and `SHA256SUMS.txt` from the `v<version>` release, and checks one against the other.
 4. **If signing is set up**, SignPath emails you a signing request for approval. The workflow waits up to an hour, then the release appears with the signed exe.
@@ -40,6 +43,10 @@ Agents learn of the release from GitHub's "latest release" (they check at start 
 To publish a tag again, for example after setting up signing, use **Actions → Release → Run workflow** with the tag. Delete the old GitHub release first.
 
 To try a change to `release.yml` before it ships, run it from your branch with **dry run** ticked and an existing tag, or `gh workflow run release.yml --ref <branch> -f tag=v<version> -f dry_run=true`. It builds and tests the exe and the hub image and passes them between the jobs, but signs, pushes and publishes nothing.
+
+### Announcing releases on Discord
+
+Each release can post its changelog to a Discord channel through a webhook. In the channel's settings: **Integrations → Webhooks → New Webhook**, name it Starglance, **Copy Webhook URL**. Then in this repository: **Settings → Secrets and variables → Actions → New repository secret**, named `DISCORD_RELEASE_WEBHOOK`, with the URL as its value. Without the secret, releases just aren't announced; a failed post doesn't fail the release. Treat the URL like a password: anyone with it can post in that channel.
 
 The first time the hub image is pushed, make the package public on GitHub so servers can pull it without signing in: **Packages → starglance-hub → Package settings → Change visibility → Public**.
 

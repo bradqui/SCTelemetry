@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Logo from "./Logo.svelte";
   import { alertLights, chosen, defaultAlerts, type AlertPick } from "../lib/alerts";
   import { LIGHT_NAMES, placeText, ROLE_NAMES as ROLE } from "../lib/format";
   import { openOnHub } from "../lib/hub";
@@ -135,7 +136,7 @@
 
 <header class="top topbar pywebview-drag-region {alarm ? `alarm-${alarm.level}` : ''}" class:compact>
   <div class="brand pywebview-drag-region">
-    <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 3 29 27H3z" /><circle cx="16" cy="20" r="3" /></svg>
+    <Logo />
     {#if !compact}<span>Starglance</span>{/if}
   </div>
 
@@ -270,18 +271,6 @@
     font-weight: 700;
     letter-spacing: 0.02em;
     flex: none;
-  }
-  .brand svg {
-    width: 22px;
-    height: 22px;
-    fill: none;
-    stroke: var(--accent);
-    stroke-width: 3;
-    stroke-linejoin: round;
-  }
-  .brand circle {
-    fill: var(--accent);
-    stroke: none;
   }
   .who {
     display: flex;

@@ -47,25 +47,47 @@ RESIZE_EDGES = frozenset(
 # ---------------------------------------------------------------- the icon
 
 
+# The emblem (web/src/components/Logo.svelte), in its 64-unit drawing: three wing bars a
+# side, fading out, round a diamond with a star in it.
+_WING_BARS = (
+    ((21, 26.5), (3, 20.5), (6.5, 25.5), (21, 30.5)),
+    ((21, 33), (7.5, 28.5), (10.5, 33), (21.5, 37)),
+    ((22.5, 39.5), (12.5, 36.5), (15.5, 40.5), (24, 43)),
+)
+_STAR = (
+    (32, 25.3), (33.7, 30.15), (38.85, 30.28), (34.76, 33.4), (36.23, 38.32),
+    (32, 35.4), (27.77, 38.32), (29.24, 33.4), (25.15, 30.28), (30.3, 30.15),
+)  # fmt: skip
+
+
 def draw_icon(size: int = 64):
-    """The logo (the page's triangle and dot) on a dark rounded square, for the tray."""
+    """The logo (the wings) on a dark rounded square, for the tray and the exe."""
     from PIL import Image, ImageDraw
 
     s = size * 4  # draw big, scale down: smooth edges
     img = Image.new("RGBA", (s, s), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
-    d.rounded_rectangle((0, 0, s - 1, s - 1), radius=s // 5, fill=(11, 18, 30, 255))
-    cyan = (70, 211, 255, 255)
-    k = s / 32
-    w = max(2, round(2.6 * k))
-    d.line(
-        [(16 * k, 5 * k), (28 * k, 26.5 * k), (4 * k, 26.5 * k), (16 * k, 5 * k)],
-        fill=cyan,
-        width=w,
-        joint="curve",
-    )
-    r = 3.2 * k
-    d.ellipse((16 * k - r, 19.5 * k - r, 16 * k + r, 19.5 * k + r), fill=cyan)
+    ground, cyan, amber = (14, 19, 26), (95, 212, 232), (240, 180, 92)
+    d.rounded_rectangle((0, 0, s - 1, s - 1), radius=s // 5, fill=(*ground, 255))
+    k = s / 64 * 0.92  # the drawing, a little inside the square
+    off = (s - 64 * k) / 2
+
+    def at(points):
+        return [(off + x * k, off + y * k) for x, y in points]
+
+    def faded(a: float):  # cyan at opacity a, over the ground
+        return tuple(round(g + (c - g) * a) for g, c in zip(ground, cyan, strict=True)) + (255,)
+
+    for bar, a in zip(_WING_BARS, (1, 0.72, 0.45), strict=True):
+        d.polygon(at(bar), fill=faded(a))
+        d.polygon(at([(64 - x, y) for x, y in bar]), fill=faded(a))
+
+    def diamond(half_w: float, half_h: float):
+        return at([(32, 32 - half_h), (32 + half_w, 32), (32, 32 + half_h), (32 - half_w, 32)])
+
+    d.polygon(diamond(14.36, 19.53), fill=(*cyan, 255))  # its 3-unit outline...
+    d.polygon(diamond(10.64, 14.47), fill=faded(0.14))  # ...round a faintly lit middle
+    d.polygon(at(_STAR), fill=(*amber, 255))
     return img.resize((size, size), Image.LANCZOS)
 
 

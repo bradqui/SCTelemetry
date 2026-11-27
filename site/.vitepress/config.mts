@@ -14,7 +14,7 @@ export default defineConfig({
   lastUpdated: true,
   appearance: "dark",
   head: [
-    ["link", { rel: "icon", type: "image/svg+xml", href: "/starglance/logo.svg" }],
+    ["link", { rel: "icon", type: "image/svg+xml", href: "/starglance/favicon.svg" }],
     ["meta", { property: "og:title", content: "Starglance" }],
     ["meta", { property: "og:description", content: "Your Star Citizen ship and crew, at a glance." }],
     ["meta", { property: "og:image", content: `${site}/shots/cockpit-pilot.jpg` }],
@@ -22,7 +22,7 @@ export default defineConfig({
   // The demos are plain pages next to the docs, not VitePress pages.
   ignoreDeadLinks: [/^\/demo\//, /^\.\.?\/demo\//],
   themeConfig: {
-    logo: "/logo.svg",
+    logo: { light: "/logo-light.svg", dark: "/logo.svg" },
     nav: [
       { text: "Guide", link: "/guide/getting-started", activeMatch: "/guide/" },
       { text: "Fleets", link: "/fleet/joining", activeMatch: "/fleet/" },

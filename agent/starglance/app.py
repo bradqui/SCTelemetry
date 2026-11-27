@@ -8,7 +8,9 @@ window hides it to the tray; Quit in the tray menu stops everything. Starting it
 brings the window back instead of running twice. Window size, position, "always on top"
 and the title bar choice are remembered (app.json in the agent's folder); the page's own
 storage (dashboard layouts, themes) lives in its WebView2 profile there too. "Start with
-Windows" (off unless switched on) is one value under HKCU\\...\\Run. Output goes to
+Windows" (off unless switched on) is one value under HKCU\\...\\Run. Each start registers
+``starglance:`` links for this user (HKCU\\Software\\Classes\\starglance), so the "Link this
+PC" button on a hub's page opens the app, which asks before linking. Output goes to
 logs/starglance.log. Updates (selfupdate.py) put the new exe in place, start it with
 ``--updated`` and quit; it waits for this one to go, then deletes the old file.
 
@@ -94,11 +96,13 @@ def draw_icon(size: int = 64):
 # ---------------------------------------------------------------- one at a time
 
 
-def _local(port: int, path: str, method: str = "GET", timeout: float = 1.0) -> dict | None:
+def _local(
+    port: int, path: str, method: str = "GET", timeout: float = 1.0, body: dict | None = None
+) -> dict | None:
     req = Request(f"http://127.0.0.1:{port}{path}", method=method)
     if method == "POST":
         req.add_header("Content-Type", "application/json")
-        req.data = b"{}"
+        req.data = json.dumps(body or {}).encode()
     try:
         with urlopen(req, timeout=timeout) as resp:  # noqa: S310 (our own 127.0.0.1)
             return json.loads(resp.read() or b"{}")
@@ -106,11 +110,14 @@ def _local(port: int, path: str, method: str = "GET", timeout: float = 1.0) -> d
         return None
 
 
-def already_running(port: int) -> bool:
-    """Another Starglance on this port: ask it to show its window."""
+def already_running(port: int, link: str | None = None) -> bool:
+    """Another Starglance on this port: ask it to show its window (and pass it the link
+    Windows started this copy with)."""
     mode = _local(port, "/api/mode")
     if not mode or mode.get("mode") != "local":
         return False
+    if link and _local(port, "/api/app/link", "POST", body={"url": link}) is not None:
+        return True
     if _local(port, "/api/app/show", "POST") is None:
         webbrowser.open(f"http://127.0.0.1:{port}/")  # a plain `run`: open it in the browser
     return True
@@ -191,6 +198,48 @@ def _refresh_autostart() -> None:
             current, _ = winreg.QueryValueEx(key, APP_NAME)
         if current != command:
             set_autostart(True)
+
+
+# ---------------------------------------------------------------- starglance: links
+
+LINK_KEY = r"Software\Classes\starglance"
+"""starglance:// links (a hub page's "Link this PC"), for this user only."""
+
+
+def link_command() -> str | None:
+    if not getattr(sys, "frozen", False) or sys.platform != "win32":
+        return None
+    return f'"{sys.executable}" app --open-link "%1"'
+
+
+def register_links() -> bool:
+    """Point starglance:// links at this exe (written again when it has moved). Nothing
+    happens on a click until the person confirms it in the app."""
+    command = link_command()
+    if command is None:
+        return False
+    import winreg
+
+    values = {
+        LINK_KEY: [("", "URL:Starglance link"), ("URL Protocol", "")],
+        LINK_KEY + r"\DefaultIcon": [("", f'"{sys.executable}",0')],
+        LINK_KEY + r"\shell\open\command": [("", command)],
+    }
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, LINK_KEY + r"\shell\open\command") as key:
+            if winreg.QueryValueEx(key, "")[0] == command:
+                return True
+    except OSError:
+        pass
+    try:
+        for path, entries in values.items():
+            with winreg.CreateKey(winreg.HKEY_CURRENT_USER, path) as key:
+                for name, value in entries:
+                    winreg.SetValueEx(key, name, 0, winreg.REG_SZ, value)
+    except OSError:
+        log.warning("Couldn't register starglance: links", exc_info=True)
+        return False
+    return True
 
 
 # ---------------------------------------------------------------- the app
@@ -559,6 +608,7 @@ class App:
 
     def run(self) -> int:
         _refresh_autostart()
+        register_links()
         self.agent_thread = threading.Thread(target=self._agent, name="agent", daemon=True)
         self.agent_thread.start()
         self.ready.wait(60)
@@ -568,6 +618,9 @@ class App:
                 f"Details are in {paths.logs_dir() / 'starglance.log'}."
             )
             return 1
+        link = getattr(self.args, "open_link", None)
+        if link and self.loop is not None and self.server.control is not None:
+            asyncio.run_coroutine_threadsafe(self.server.control.offer(link), self.loop)
         try:
             import webview
         except Exception:  # noqa: BLE001 (not installed: tray and browser only)
@@ -666,7 +719,7 @@ def run_app(args) -> None:
     if getattr(args, "updated", False):
         log.info("Updated: waiting for the previous version to quit")
         _after_update(args.ui_port)
-    if already_running(args.ui_port):
+    if already_running(args.ui_port, getattr(args, "open_link", None)):
         log.info("Already running: showed its window")
         return
     sys.exit(App(args).run())

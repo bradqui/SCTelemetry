@@ -142,7 +142,7 @@
 
   <section>
     <h3>Your PCs</h3>
-    <p>These send your telemetry to the fleet. To add one, run on it: <code>starglance link {hub}</code></p>
+    <p>These send your telemetry to the fleet. To add one, open <a href="/setup">{hub}/setup</a> on it and follow the steps.</p>
     {#if pcs === null}
       <p>Loading…</p>
     {:else if pcs.length === 0}

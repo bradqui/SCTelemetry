@@ -66,6 +66,7 @@ async function tidy(page) {
     const swap = (s) =>
       s
         .replaceAll("http://127.0.0.1:8190", "https://fleet.example.org")
+        .replaceAll("127.0.0.1:8190", "fleet.example.org")
         .replace(/Windows-\d+-[\d.]+-SP\d/g, "Windows-11-10.0.26100-SP0");
     const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
     for (let n = walk.nextNode(); n; n = walk.nextNode()) {
@@ -304,12 +305,13 @@ async function appShots(browser) {
     if (!invite) throw new Error(`No invite link in ${JSON.stringify(inv)}`);
 
     // Ace links a PC called "Gaming PC" (not this PC's name) and starts the agent.
+    // Every PC name the pictures show is "Gaming PC" (the link command and the Link this PC dialog).
     const link =
-      "import sys, starglance.fleetlink as f; f.machine_name = lambda: 'Gaming PC'; " +
+      "import sys, starglance.fleetlink as f, starglance.control as c; f.machine_name = c.machine_name = lambda: 'Gaming PC'; " +
       "from starglance.__main__ import main; main(sys.argv[1:])";
     await run("uv", ["run", "python", "-c", `"${link}"`, "link", invite, "--name", "Ace", "--path", path.join(tmp, "sc", "StarCitizen")], agentEnv);
     procs.push(
-      start("agent", "uv", ["run", "python", "-m", "starglance", "run", "--path", path.join(tmp, "sc", "StarCitizen"),
+      start("agent", "uv", ["run", "python", "-c", `"${link}"`, "run", "--path", path.join(tmp, "sc", "StarCitizen"),
         "--channel", "LIVE", "--game-port", "2953", "--ui-port", "8760"], agentEnv),
     );
     await until(`${agentUrl}/api/agent/settings`);
@@ -374,6 +376,30 @@ async function appShots(browser) {
     await gp.goto(invite);
     await sleep(2000);
     await shot(gp, "app/hub-join");
+
+    // Joined: the setup steps, then Link this PC and the app's dialog (cancelled after).
+    await gp.getByPlaceholder(/Your name in the fleet/).fill("Nova");
+    await gp.getByRole("button", { name: "Join" }).click();
+    await gp.waitForURL(`${hubUrl}/`);
+    await sleep(1500);
+    await shot(gp, "app/hub-welcome");
+    const made = gp.waitForResponse((r) => r.url().endsWith("/api/me/pc-link"));
+    await gp.getByRole("button", { name: "Link this PC" }).click();
+    const { url: pcLink } = await (await made).json();
+    // A PC that's new to the fleet (its own agent, no game yet), as a new member's is.
+    const freshUrl = "http://127.0.0.1:8761";
+    procs.push(
+      start("agent2", "uv", ["run", "python", "-c", `"${link}"`, "run", "--path", path.join(tmp, "sc", "StarCitizen"),
+        "--channel", "LIVE", "--ui-port", "8761"], { STARGLANCE_HOME: path.join(tmp, "agent2") }),
+    );
+    await until(`${freshUrl}/api/agent/settings`);
+    const fresh = await agent.newPage();
+    await fresh.goto(freshUrl);
+    await sleep(1500);
+    await fresh.request.post(`${freshUrl}/api/app/link`, { data: { url: pcLink } });
+    await sleep(2500);
+    await shot(fresh, "app/link-this-pc");
+    await fresh.getByRole("button", { name: "Cancel" }).click();
   } finally {
     procs.forEach(kill);
     await sleep(1500);

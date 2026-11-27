@@ -70,10 +70,10 @@ Redirect plain http to https. **Cloudflare's proxy** (orange cloud) works: set S
 
 On the fleet page, **your name → Admin → Invites**: pick how many uses and how long it lasts, create, and send the link.
 
-- **Players** run `starglance link <invite link>` on their gaming PC. That creates their account (named after their in-game handle unless they pick another) and links the PC. `starglance open`, or **Fleet** in the cockpit view, opens the fleet page signed in.
-- **Watchers without the game** open the link in a browser and join there.
+- **Players** open the link in a browser on their gaming PC and join (with Discord, or a name). The page then walks them through downloading Starglance and **Link this PC**, which opens the app to confirm. (`starglance link <invite link>` still works too.) `starglance open`, or **Fleet** in the cockpit view, opens the fleet page signed in.
+- **Watchers without the game** join the same way and skip the setup.
 - **Another device**: **Your account → Sign in on another device** shows a short code to type on it.
-- **Another PC**: `starglance link https://fleet.example.org` on it, then confirm the code on the page.
+- **Another PC**: open `https://fleet.example.org/setup` on it, sign in, and follow the steps (or `starglance link https://fleet.example.org`, then confirm the code on the page).
 
 Admins can suspend or remove members (removing deletes their PCs and history), make other admins, and change the org name (**Admin → Members / Settings**).
 
@@ -83,7 +83,7 @@ Set it up under **Admin → Settings → Discord**: it shows the redirect to add
 
 - invite pages offer **Join with Discord**, and members can connect Discord under **Your account**, then sign in with it anywhere;
 - members who connected Discord are suspended if they lose the member role, and restored if they get it back;
-- **Admin → Settings** can let holders of the role join without an invite.
+- **Admin → Settings** can let holders of the role join without an invite: then just post the hub's address in your Discord. Members sign in with Discord and the page takes them through setting up Starglance.
 
 Nothing requires Discord: without it, everything above works with invites and codes.
 

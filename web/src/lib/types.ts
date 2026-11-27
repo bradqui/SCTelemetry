@@ -302,6 +302,8 @@ export interface Account extends Me {
   active: boolean;
   discord: boolean;
   created_at: number;
+  /** PCs linked to this account (in /api/mode only). */
+  pcs?: number;
 }
 
 export interface HubMode {
@@ -312,6 +314,10 @@ export interface HubMode {
   me: Account | null;
   /** "Sign in with Discord" is available. */
   discord: boolean;
+  /** Holders of the org's Discord member role join just by signing in with Discord. */
+  discord_join?: boolean;
+  /** Where the page's Download button gets starglance.exe. */
+  download_url?: string;
   dev_login: boolean;
   /** No admin yet: the setup link is in the hub's log. */
   setup: boolean;
@@ -371,4 +377,21 @@ export interface UpdaterStatus {
   checking: boolean;
   check_error: string | null;
   releases: string;
+}
+
+/** A "Link this PC" link from a hub's page, waiting in the app for the person's answer. */
+export interface LinkOffer {
+  id: number;
+  state: "checking" | "ready" | "joining" | "done" | "error";
+  hub?: string;
+  org?: string | null;
+  member?: string | null;
+  machine: string;
+  /** This PC is already in that hub's fleet (linking again replaces its key). */
+  already?: boolean;
+  /** Whose account this PC is linked to there now. */
+  already_as?: string | null;
+  /** The game install whose telemetry is off, to switch on with the same click. */
+  telemetry?: { channel: string; path: string } | null;
+  error?: string;
 }

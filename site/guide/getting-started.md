@@ -2,6 +2,10 @@
 
 Starglance runs on the Windows PC you play on. It's one file, `starglance.exe`, with nothing to install.
 
+::: tip Joining your org's fleet?
+Start with the link your org gave you (an invite, or its hub's address): open it in your browser on this PC and sign in. The page walks you through downloading Starglance and linking it, and Starglance can switch on the game's telemetry in the same step. See [Joining a fleet](/fleet/joining).
+:::
+
 ## 1. Download it
 
 Download **starglance.exe** from the [latest release](https://github.com/bradqui/starglance/releases/latest) and put it wherever you like, for example in a `Starglance` folder in Documents.

@@ -1,6 +1,7 @@
 import { checkPaired, view } from "./remote.svelte";
 import type {
   AgentState,
+  LinkOffer,
   ReplayIndex,
   ReplayStatus,
   ReportsStatus,
@@ -31,6 +32,8 @@ export class LiveConnection {
   /** Updates: available, downloading, failed (the packaged app). */
   updater = $state.raw<UpdaterStatus | null>(null);
   reports = $state.raw<ReportsStatus | null>(null);
+  /** A "Link this PC" link from a hub's page, for the person to confirm (this PC only). */
+  offer = $state.raw<LinkOffer | null>(null);
 
   replay = $state(false);
   replayIndex = $state.raw<ReplayIndex | null>(null);
@@ -141,6 +144,9 @@ export class LiveConnection {
         break;
       case "reports":
         this.reports = msg as unknown as ReportsStatus;
+        break;
+      case "offer":
+        this.offer = (msg.offer as LinkOffer | null) ?? null;
         break;
       case "replay_index":
         this.replayIndex = msg as unknown as ReplayIndex;

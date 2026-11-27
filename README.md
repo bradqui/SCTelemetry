@@ -2,7 +2,7 @@
 
 **Your Star Citizen ship and crew, at a glance.**
 
-**[📖 Docs and guide](https://bradqui.github.io/starglance/)** · **[▶ Live demo: cockpit view](https://bradqui.github.io/starglance/demo/cockpit.html)** · **[▶ Live demo: fleet page](https://bradqui.github.io/starglance/demo/)** · **[⬇ Download](https://github.com/bradqui/starglance/releases/latest)**
+**[📖 Docs and guide](https://www.starglance.app/)** · **[▶ Live demo: cockpit view](https://www.starglance.app/demo/cockpit.html)** · **[▶ Live demo: fleet page](https://www.starglance.app/demo/)** · **[⬇ Download](https://github.com/bradqui/starglance/releases/latest)**
 
 Starglance reads the game's own telemetry on your PC and turns it into a cockpit dashboard for a second monitor, a tablet or a VR overlay: flight, ship, warnings, fuel, weapons, vitals, location, contracts. On its own, that's all it does: nothing leaves your PC.
 

@@ -52,14 +52,14 @@ The first time the hub image is pushed, make the package public on GitHub so ser
 
 ## Docs site
 
-The docs and the live demos are published on GitHub Pages, at https://bradqui.github.io/starglance/, by the [Docs site workflow](../.github/workflows/pages.yml) whenever `main` changes (it also builds, without publishing, on pull requests that touch them). The guide is Markdown in `site/` ([VitePress](https://vitepress.dev)); the demos are `web/demo/` (the real cockpit view and fleet page on the bundled recordings).
+The docs and the live demos are published on GitHub Pages, at https://www.starglance.app/, by the [Docs site workflow](../.github/workflows/pages.yml) whenever `main` changes (it also builds, without publishing, on pull requests that touch them). The guide is Markdown in `site/` ([VitePress](https://vitepress.dev)); the demos are `web/demo/` (the real cockpit view and fleet page on the bundled recordings).
 
 ```
 cd site && npm install
 npm run demo                 # builds the demos into public/demo/ (needs uv and web's npm install)
 npx playwright install chromium
 npm run shots -- demo clips  # screenshots and clips of the demos (the workflow does this itself)
-npm run dev                  # the site with live reload on http://localhost:5173/starglance/
+npm run dev                  # the site with live reload on http://localhost:5173/
 ```
 
 The demo screenshots and clips are made fresh on every deploy, so they always match the release. The screens the demos can't show (Agent settings, problem reports, the hub's admin) come from a real agent and test hub: `npm run shots -- app` runs both in a temporary folder, with a made-up handle and PC name, and writes `site/public/shots/app/`, which is committed. Run it after changing those screens, and look at every picture before committing it.

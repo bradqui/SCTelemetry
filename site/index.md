@@ -17,7 +17,7 @@ hero:
       link: /guide/getting-started
     - theme: alt
       text: Try the live demo
-      link: https://bradqui.github.io/starglance/demo/cockpit.html
+      link: https://www.starglance.app/demo/cockpit.html
       target: _self
     - theme: alt
       text: Download
@@ -65,7 +65,7 @@ features:
   <figure><img src="/shots/theme-drake.jpg" alt="The cockpit view in the Drake theme, with hazard stripes"><figcaption>One of seventeen themes: Drake.</figcaption></figure>
 </div>
 
-Both views run live in your browser, on telemetry recorded in game: [the cockpit view](https://bradqui.github.io/starglance/demo/cockpit.html) and [the fleet page](https://bradqui.github.io/starglance/demo/).
+Both views run live in your browser, on telemetry recorded in game: [the cockpit view](https://www.starglance.app/demo/cockpit.html) and [the fleet page](https://www.starglance.app/demo/).
 
 ::: warning A fan-made tool
 Starglance isn't affiliated with or endorsed by Cloud Imperium Games. The game's telemetry is an undocumented feature that any patch can change. Read [Know before you use it](/know-before).

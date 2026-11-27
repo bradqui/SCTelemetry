@@ -1,6 +1,6 @@
 name: Docs site
 
-# The docs and live demos on GitHub Pages (https://bradqui.github.io/starglance/), from
+# The docs and live demos on GitHub Pages (https://www.starglance.app/), from
 # site/ (VitePress) and the demo pages in web/ (docs/RELEASING.md, "Docs site"). On a pull
 # request it's built to check it still works; on main it's published. The demo screenshots
 # and clips are taken fresh each time from the demos; the app ones are committed

@@ -5,7 +5,9 @@ name: Release
 #     attestation (gh attestation verify) that says so; unsigned, unless SignPath is set
 #     up (docs/CODE_SIGNING.md)
 #   - the hub image, ghcr.io/<owner>/starglance-hub:<version> and :latest
-#   - a GitHub release with the exe and its SHA-256
+#   - a GitHub release with the exe and its SHA-256, its notes from the version's section of
+#     CHANGELOG.md (required)
+#   - that section posted to Discord, if the DISCORD_RELEASE_WEBHOOK secret is set
 # Run it by hand with dry_run to try a change to this workflow: everything is built, nothing
 # is signed, attested, pushed or published.
 
@@ -48,6 +50,7 @@ jobs:
           for v in "$py" "$agent" "$hub"; do
             [ "$v" = "$version" ] || { echo "::error::Tag $tag doesn't match version $v"; exit 1; }
           done
+          sh .github/scripts/changelog.sh "$version" > /dev/null
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
@@ -176,13 +179,30 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.version.outputs.tag }}
+          fetch-depth: 0 # the previous tag, for the compare link
       - uses: actions/download-artifact@v8
         with:
           name: starglance
           path: out
       - name: Release notes
         run: |
+          tag="${{ needs.version.outputs.tag }}"
+          sh .github/scripts/changelog.sh "${{ needs.version.outputs.version }}" > whatsnew.md
+          prev=$(git describe --tags --abbrev=0 --match 'v*' "$tag^" 2>/dev/null || true)
           {
+            echo "## What's new"
+            echo
+            cat whatsnew.md
+            echo
+            if [ -n "$prev" ]; then
+              echo "[Every release's changes](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) · [Code changes since $prev](https://github.com/${{ github.repository }}/compare/$prev...$tag)"
+            else
+              echo "[Every release's changes](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md)"
+            fi
+            echo
             echo "## Agent (Windows)"
             echo
             echo "Download **starglance.exe** below and double-click it: Starglance opens in its own window, with an icon in the system tray (closing the window keeps it running there; Quit is in the tray icon's menu). **Settings → Agent** (the sliders button, top right) switches the game's telemetry on, joins a fleet with your invite link, and chooses what you share."
@@ -212,4 +232,29 @@ jobs:
         run: |
           gh release create "${{ needs.version.outputs.tag }}" out/starglance.exe out/SHA256SUMS.txt \
             --repo "${{ github.repository }}" --title "${{ needs.version.outputs.tag }}" \
-            --notes-file notes.md --generate-notes --verify-tag
+            --notes-file notes.md --verify-tag
+      - name: Announce on Discord
+        if: ${{ !inputs.dry_run }}
+        continue-on-error: true # the release is out either way
+        env:
+          WEBHOOK: ${{ secrets.DISCORD_RELEASE_WEBHOOK }}
+        run: |
+          if [ -z "$WEBHOOK" ]; then
+            echo "No DISCORD_RELEASE_WEBHOOK secret: not announced."
+            exit 0
+          fi
+          version="${{ needs.version.outputs.version }}"
+          url="https://github.com/${{ github.repository }}/releases/tag/${{ needs.version.outputs.tag }}"
+          # Discord embeds don't show ### headings: make them bold lines.
+          sed -E 's/^#{2,4} (.*)/**\1**/' whatsnew.md > discord.md
+          printf '\n[Download and notes](%s) · or use **Update** in the app.\n' "$url" >> discord.md
+          jq -n --arg title "Starglance $version is out" --arg url "$url" --rawfile text discord.md '{
+            username: "Starglance",
+            embeds: [{
+              title: $title,
+              url: $url,
+              color: 4641791,
+              description: (if ($text | length) > 4000 then $text[0:3990] + "…" else $text end)
+            }]
+          }' > discord.json
+          curl -fsS -H "Content-Type: application/json" --data @discord.json "$WEBHOOK"

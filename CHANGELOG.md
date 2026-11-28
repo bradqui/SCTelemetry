@@ -4,6 +4,13 @@ What changed in each release of Starglance: the app (`starglance.exe`) and the h
 
 Each release's notes on GitHub, and its announcement, come from its section here (see [docs/RELEASING.md](docs/RELEASING.md)).
 
+## 0.10.9 (2026-11-28)
+
+The fleet page and *Show on other devices* on a phone's Home Screen, like an app.
+
+- **Add it to your Home Screen** and it opens full screen with the Starglance icon: on iPhone and iPad, **Share → Add to Home Screen**; on Android, **Install app** in Chrome's menu. Android installs only https pages, so on *Show on other devices* (a plain `http://` address) it adds a shortcut instead, which opens in Chrome.
+- On a phone, the page keeps clear of the notch and the home bar, its status bar follows your colour theme, text fields no longer zoom in on iPhone, and small buttons are easier to tap.
+
 ## 0.10.8 (2026-11-27)
 
 Joining a fleet now starts in your browser, with nothing to copy or paste.

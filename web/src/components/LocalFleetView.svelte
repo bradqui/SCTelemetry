@@ -83,7 +83,7 @@
 
 <style>
   .local-fleet {
-    height: calc(100dvh / var(--z, 1));
+    height: calc(100dvh / var(--z, 1) - var(--safe-top) - var(--safe-bottom));
   }
   .waiting {
     max-width: 560px;

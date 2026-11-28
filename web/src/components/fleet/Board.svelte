@@ -213,10 +213,10 @@
           />
         {:else}
           <div class="views" role="tablist" aria-label="Fleet view">
-            <button role="tab" aria-selected={view === "overview"} class:on={view === "overview"} onclick={() => setView("overview")}
+            <button class="tap" role="tab" aria-selected={view === "overview"} class:on={view === "overview"} onclick={() => setView("overview")}
               >Overview</button
             >
-            <button role="tab" aria-selected={view === "cards"} class:on={view === "cards"} onclick={() => setView("cards")}
+            <button class="tap" role="tab" aria-selected={view === "cards"} class:on={view === "cards"} onclick={() => setView("cards")}
               >Cards</button
             >
           </div>
@@ -253,7 +253,7 @@
     max-width: 2200px;
     margin: 0 auto;
     padding: 8px clamp(8px, calc(1vw / var(--z, 1)), 14px);
-    height: calc(100dvh / var(--z, 1));
+    height: calc(100dvh / var(--z, 1) - var(--safe-top) - var(--safe-bottom));
     display: grid;
     grid-template-rows: auto minmax(0, 1fr);
     gap: var(--gap);
@@ -312,7 +312,7 @@
   @container page (max-width: 760px) {
     main {
       height: auto;
-      min-height: calc(100dvh / var(--z, 1));
+      min-height: calc(100dvh / var(--z, 1) - var(--safe-top) - var(--safe-bottom));
     }
     .embedded main {
       min-height: 100%;
@@ -325,7 +325,7 @@
       display: none;
     }
     aside {
-      height: calc(calc(100dvh / var(--z, 1)) - 70px);
+      height: calc(100dvh / var(--z, 1) - 70px - var(--safe-top) - var(--safe-bottom));
     }
     .embedded aside {
       height: 620px;

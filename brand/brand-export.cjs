@@ -1,5 +1,6 @@
 // Starglance brand pack: the Wings emblem in Deep Space. SVG masters + every Discord PNG.
 // Usage, from the repo root (needs site/ and web/ npm install): node brand/brand-export.cjs [out dir]
+// The page's icons always go to web/public.
 // The code is MIT; the artwork it draws is not (brand/LICENSE).
 const fs = require("fs");
 const path = require("path");
@@ -124,6 +125,15 @@ const page = (w, h, inner) => `<!doctype html><html><head>${HEAD}</head><body><d
   await shot("discord/release-bot-avatar-512.png", page(512, 512, iconInner()), 512, 512, false);
   for (const [id, draw] of Object.entries(EMOJI)) await shot(`discord/emoji/${id}.png`, page(128, 128, draw()), 128, 128, true);
   for (const [id, draw] of Object.entries(ROLES)) await shot(`discord/role-icons/${id}.png`, page(64, 64, draw()), 64, 64, true);
+  // The page's Home Screen and install icons (web/public, served at the page's root).
+  // Opaque squares: iOS rounds the corners itself. The maskable one keeps the wingtips
+  // inside the 80% circle Android may crop to.
+  const WEB = path.join(ROOT, "web/public");
+  const webShot = (name, px, scale) => shot(path.relative(OUT, path.join(WEB, name)), page(px, px, iconInner(scale)), px, px, false);
+  await webShot("apple-touch-icon.png", 180);
+  await webShot("icon-192.png", 192);
+  await webShot("icon-512.png", 512);
+  await webShot("icon-maskable-512.png", 512, 0.7);
   for (const [rel, make] of Object.entries(ART)) {
     const m = rel.match(/(\d+)x(\d+)/);
     await shot(rel, make(), +m[1], +m[2], false);

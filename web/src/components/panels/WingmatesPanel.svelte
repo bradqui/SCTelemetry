@@ -139,8 +139,10 @@
     text-align: left;
     cursor: pointer;
   }
-  button:hover {
-    border-color: var(--line-2);
+  @media (hover: hover) {
+    button:hover {
+      border-color: var(--line-2);
+    }
   }
   .who {
     display: grid;

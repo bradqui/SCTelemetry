@@ -75,9 +75,19 @@ html.fx body::after {
   z-index: 40;
   background: repeating-linear-gradient(0deg, #ffffff05 0 1px, transparent 1px 3px);
 }
+/* A phone's notch, Dynamic Island and home indicator (index.html has viewport-fit=cover):
+   the page keeps out of them. Divided by --z like viewport units, since they zoom with
+   the page. 0 everywhere else. */
+:root {
+  --safe-top: calc(env(safe-area-inset-top, 0px) / var(--z, 1));
+  --safe-right: calc(env(safe-area-inset-right, 0px) / var(--z, 1));
+  --safe-bottom: calc(env(safe-area-inset-bottom, 0px) / var(--z, 1));
+  --safe-left: calc(env(safe-area-inset-left, 0px) / var(--z, 1));
+}
 #app {
   position: relative;
   z-index: 1;
+  padding: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left);
   /* Breakpoints ask the page's width (@container page), not the screen's: with the page
      zoomed (Settings -> Look -> Size) the page is narrower than the screen. */
   container: page / inline-size;
@@ -101,6 +111,30 @@ body {
 
 body {
   overflow-x: hidden;
+}
+
+/* Touch screens: a small control (class "tap") gets a bigger touch area, about the 44pt
+   Apple asks for, without looking any different: --tap reaches above and below it, --tap-x
+   to the sides (keep it 0 where controls sit side by side). */
+@media (pointer: coarse) {
+  .tap {
+    position: relative;
+  }
+  .tap::after {
+    content: "";
+    position: absolute;
+    inset: calc(-1 * var(--tap, 12px)) calc(-1 * var(--tap-x, 0px));
+  }
+}
+
+/* iPhone Safari zooms the page into any text field under 16px when it's tapped, and leaves
+   it zoomed. On touch screens, fields are 16px; the components' own sizes stay for a mouse. */
+@media (pointer: coarse) {
+  input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
 }
 
 .num {

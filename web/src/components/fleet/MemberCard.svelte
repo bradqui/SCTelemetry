@@ -212,8 +212,10 @@
     cursor: pointer;
     position: relative;
   }
-  .card:hover {
-    border-color: var(--accent);
+  @media (hover: hover) {
+    .card:hover {
+      border-color: var(--accent);
+    }
   }
   .card:focus-visible {
     outline: 2px solid var(--accent);

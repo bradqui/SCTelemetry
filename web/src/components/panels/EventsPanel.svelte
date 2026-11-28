@@ -292,6 +292,15 @@
     text-transform: uppercase;
     cursor: pointer;
   }
+  /* touch screens: bigger filters (they wrap onto several rows, so they grow for real) */
+  @media (pointer: coarse) {
+    .filters {
+      gap: 6px;
+    }
+    .filters button {
+      padding: 8px 10px;
+    }
+  }
   .filters button b {
     font-weight: 600;
     color: var(--text-2);

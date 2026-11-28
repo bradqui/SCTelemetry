@@ -26,6 +26,8 @@ Starglance can show the cockpit view, and your fleet, to devices on your home ne
 2. Choose **Pair a device**.
 3. On the tablet, open the address shown (like `http://192.168.1.20:8741`) and type the code, or scan the QR code.
 
+The page can go on the tablet's Home Screen too (**Share → Add to Home Screen** on iPad), to open full screen.
+
 Windows asks once whether Starglance may use your network: allow it on **private networks**.
 
 - It's off until you switch it on, and only paired devices get in.

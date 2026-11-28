@@ -19,7 +19,7 @@
 <div class="dialog" class:wide role="dialog" aria-modal="true" aria-label={title}>
   <header>
     <h2>{title}</h2>
-    <button class="x" onclick={onClose} aria-label="Close">×</button>
+    <button class="x tap" style:--tap-x="10px" onclick={onClose} aria-label="Close">×</button>
   </header>
   <div class="body">{@render children()}</div>
 </div>
@@ -34,11 +34,14 @@
   .dialog {
     position: fixed;
     z-index: 31;
-    top: calc(8vh / var(--z, 1));
+    top: calc(8vh / var(--z, 1) + var(--safe-top));
+    top: calc(8dvh / var(--z, 1) + var(--safe-top));
     left: 50%;
     transform: translateX(-50%);
     width: min(520px, calc(calc(100vw / var(--z, 1)) - 32px));
-    max-height: calc(84vh / var(--z, 1));
+    /* dvh: the screen as it is now, with Safari's bars showing (vh assumes they're gone) */
+    max-height: calc(84vh / var(--z, 1) - var(--safe-top) - var(--safe-bottom));
+    max-height: calc(84dvh / var(--z, 1) - var(--safe-top) - var(--safe-bottom));
     display: grid;
     grid-template-rows: auto minmax(0, 1fr);
     border: 1px solid var(--line-2);
@@ -66,6 +69,17 @@
     line-height: 1;
     cursor: pointer;
     color: var(--text-2);
+  }
+  /* the buttons in the dialogs' rows: a bigger touch area on phones, as .tap does */
+  @media (pointer: coarse) {
+    .body :global(.btn) {
+      position: relative;
+    }
+    .body :global(.btn)::after {
+      content: "";
+      position: absolute;
+      inset: -8px 0;
+    }
   }
   .body {
     overflow-y: auto;
@@ -106,8 +120,10 @@
     cursor: pointer;
     white-space: nowrap;
   }
-  .body :global(.btn:hover) {
-    border-color: var(--accent);
+  @media (hover: hover) {
+    .body :global(.btn:hover) {
+      border-color: var(--accent);
+    }
   }
   .body :global(.btn.primary) {
     background: var(--accent);
@@ -115,9 +131,11 @@
     color: var(--bg);
     font-weight: 800;
   }
-  .body :global(.btn.danger:hover) {
-    border-color: var(--bad);
-    color: var(--bad);
+  @media (hover: hover) {
+    .body :global(.btn.danger:hover) {
+      border-color: var(--bad);
+      color: var(--bad);
+    }
   }
   .body :global(input[type="text"]),
   .body :global(input[type="password"]),

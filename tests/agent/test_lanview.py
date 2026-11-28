@@ -19,9 +19,9 @@ def _home(tmp_path, monkeypatch):
     monkeypatch.setenv("STARGLANCE_HOME", str(tmp_path))
 
 
-async def _agent(work):
+async def _agent(work, web_dir: Path = Path("does-not-exist")):
     pipeline = Pipeline()
-    server = LocalServer(pipeline, port=0, web_dir=Path("does-not-exist"))
+    server = LocalServer(pipeline, port=0, web_dir=web_dir)
     await server.start()
     control = AgentControl(pipeline, server, install=None, uplink_wanted=False, announce=str)
     lan = control.lan = LanView(server, announce=str)
@@ -270,3 +270,35 @@ def test_a_paired_device_can_mark_a_moment_and_nothing_more():
     [mark] = out["after"]["marks"]
     assert mark["source"] == "device" and out["after"]["remote"] is True
     assert out["blocked"] == [404, 404]
+
+
+def test_the_home_screen_files_need_no_pairing(tmp_path):
+    # Browsers fetch the manifest without cookies: its name and icons are served to an
+    # unpaired device (they hold nothing else), but nothing more is.
+    web_dir = tmp_path / "web"
+    (web_dir / "assets").mkdir(parents=True)
+    (web_dir / "index.html").write_text("<!doctype html><title>page</title>")
+    (web_dir / "manifest.json").write_text('{"name": "Starglance"}')
+    (web_dir / "icon-192.png").write_bytes(b"\x89PNG")
+    (web_dir / "assets" / "app.js").write_text("// the page")
+
+    async def work(server, lan):
+        async with aiohttp.ClientSession() as http:
+            await _settings(http, server, "lan", {"on": True})
+            url = f"http://127.0.0.1:{lan.port}"
+            got = {}
+            for path in ("/manifest.json", "/icon-192.png", "/icon-512.png", "/assets/app.js", "/"):
+                async with http.get(url + path, allow_redirects=False) as r:
+                    got[path] = (r.status, await r.read())
+            async with http.get(
+                f"{url}/manifest.json", headers={"Host": f"evil.example:{lan.port}"}
+            ) as r:
+                got["rebinding"] = r.status
+            return got
+
+    got = asyncio.run(_agent(work, web_dir))
+    assert got["/manifest.json"] == (200, b'{"name": "Starglance"}')
+    assert got["/icon-192.png"] == (200, b"\x89PNG")
+    assert got["/icon-512.png"][0] == 404  # missing: never the page instead
+    assert got["/assets/app.js"][0] == 303 and got["/"][0] == 303  # the rest needs pairing
+    assert got["rebinding"] == 403  # the Host check still comes first

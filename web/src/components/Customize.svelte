@@ -295,7 +295,7 @@
     backdrop-filter: blur(14px);
     border-left: 1px solid var(--line-2);
     box-shadow: -20px 0 60px #0009;
-    padding: 18px 18px 28px;
+    padding: calc(18px + var(--safe-top)) calc(18px + var(--safe-right)) calc(28px + var(--safe-bottom)) 18px;
     display: grid;
     gap: 22px;
     align-content: start;
@@ -383,8 +383,10 @@
     border: 1px solid var(--line-2);
     background: var(--panel);
   }
-  .preset:hover {
-    border-color: var(--accent);
+  @media (hover: hover) {
+    .preset:hover {
+      border-color: var(--accent);
+    }
   }
   .preset span {
     font-size: 0.75rem;
@@ -492,8 +494,10 @@
     background: var(--bg-2);
     cursor: pointer;
   }
-  .theme:hover {
-    border-color: var(--text-3);
+  @media (hover: hover) {
+    .theme:hover {
+      border-color: var(--text-3);
+    }
   }
   .theme.on {
     border-color: var(--accent);

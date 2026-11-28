@@ -77,7 +77,7 @@
 
 <header class="top topbar pywebview-drag-region {worst ? `alarm-${worst}` : ''}">
   {#if onBack}
-    <button class="back" onclick={onBack} title="Back to your cockpit view">
+    <button class="back tap" onclick={onBack} title="Back to your cockpit view">
       <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3 5 8l5 5" /></svg>Cockpit
     </button>
   {/if}
@@ -121,7 +121,7 @@
       <span class="dot"></span>{socket === "open" ? "Live" : "Reconnecting"}
     </span>
     <div class="me">
-      <button class="toggle" onclick={() => (menu = !menu)} aria-expanded={menu}>
+      <button class="toggle tap" onclick={() => (menu = !menu)} aria-expanded={menu}>
         {#if me.avatar}<img src={me.avatar} alt="" />{/if}{me.name}
       </button>
       {#if menu}
@@ -180,9 +180,11 @@
     font-weight: 600;
     cursor: pointer;
   }
-  .back:hover {
-    color: var(--text);
-    border-color: var(--accent);
+  @media (hover: hover) {
+    .back:hover {
+      color: var(--text);
+      border-color: var(--accent);
+    }
   }
   .back svg {
     width: 13px;
@@ -331,9 +333,11 @@
     height: 18px;
     border-radius: var(--radius-sm);
   }
-  .toggle:hover {
-    color: var(--text);
-    border-color: var(--accent);
+  @media (hover: hover) {
+    .toggle:hover {
+      color: var(--text);
+      border-color: var(--accent);
+    }
   }
   .menu {
     position: absolute;
@@ -354,8 +358,15 @@
     font-size: 0.82rem;
     cursor: pointer;
   }
-  .menu button:hover {
-    background: var(--accent-dim);
+  @media (pointer: coarse) {
+    .menu button {
+      padding: 12px 14px;
+    }
+  }
+  @media (hover: hover) {
+    .menu button:hover {
+      background: var(--accent-dim);
+    }
   }
   @container page (max-width: 760px) {
     .counts .kv:nth-child(n + 2),

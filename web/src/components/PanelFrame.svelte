@@ -186,10 +186,16 @@
     cursor: pointer;
     padding: 0 6px;
   }
-  .tool:hover,
   .tool:focus-visible {
     color: var(--text);
     border-color: var(--accent);
     outline: none;
+  }
+  @media (hover: hover) {
+    .tool:hover {
+      color: var(--text);
+      border-color: var(--accent);
+      outline: none;
+    }
   }
 </style>

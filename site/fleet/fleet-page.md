@@ -53,6 +53,8 @@ The roster is the page; tap someone to open them full screen. Sign your phone in
 
 <img src="/shots/fleet-phone.jpg" alt="The fleet page on a phone" style="max-width: 320px">
 
+**Add it to your Home Screen** to open it like an app, full screen with the Starglance icon: on iPhone, **Share → Add to Home Screen**; on Android, **Install app** (or **Add to Home screen**) in Chrome's menu. If it asks you to sign in, use **Your account → Sign in on another device** and type the code in the app. On iPhone, keeping the screen awake needs this (see [Tablets, phones and VR](/guide/other-devices#your-phone-anywhere)).
+
 ## Inside Starglance
 
 **Fleet** in the cockpit view's top bar shows the fleet in the same window, through your PC's link: no separate sign-in. **Open on the hub** there, or `starglance open`, opens the hub's page in your browser, signed in.
